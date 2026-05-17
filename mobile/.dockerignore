@@ -1,0 +1,15 @@
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+android/.gradle/
+.env
+.env.*
+.git/
+.gitignore
+.vscode/
+.idea/
+coverage/
+*.log
+servidor-web.out.log
+servidor-web.err.log

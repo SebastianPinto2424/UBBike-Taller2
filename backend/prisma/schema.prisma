@@ -1,0 +1,286 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  engineType   = "client"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RolUsuario {
+  ESTUDIANTE
+  FUNCIONARIO
+  GUARDIA
+  ADMIN_CENTRAL
+  ADMINISTRADOR
+
+  @@map("usuarios_rol_enum")
+}
+
+enum TipoMovimiento {
+  INGRESO
+  SALIDA
+
+  @@map("movimientos_tipo_enum")
+}
+
+enum TipoCodigoQrTemporal {
+  INGRESO
+  SALIDA
+
+  @@map("codigos_qr_temporales_tipo_enum")
+}
+
+enum EstadoMovimiento {
+  CONFIRMADO
+  DENEGADO
+
+  @@map("movimientos_estado_enum")
+}
+
+enum TipoSolicitudGuardia {
+  GUARDIA_AUSENTE
+  REQUIERE_SERVICIO
+
+  @@map("solicitudes_guardia_tipo_enum")
+}
+
+enum EstadoSolicitudGuardia {
+  PENDIENTE
+  NOTIFICADA
+  VISTA
+  EN_CAMINO
+  RESUELTA
+  CANCELADA
+
+  @@map("solicitudes_guardia_estado_enum")
+}
+
+enum EstadoIncidencia {
+  PENDIENTE
+  EN_REVISION
+  RESUELTA
+  DESCARTADA
+
+  @@map("incidencias_estado_enum")
+}
+
+enum TipoNotificacion {
+  SISTEMA
+  CUENTA
+  SEGURIDAD
+  SOLICITUD_GUARDIA
+  MOVIMIENTO
+
+  @@map("notificaciones_tipo_enum")
+}
+
+model Usuario {
+  id                              String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nombre                          String              @db.VarChar(120)
+  correo                          String              @unique @db.VarChar(160)
+  rut                             String?             @unique @db.VarChar(20)
+  rol                             RolUsuario          @default(ESTUDIANTE)
+  contrasenaHash                  String              @map("contrasena_hash") @db.VarChar(255)
+  correoVerificado                Boolean             @default(false) @map("correo_verificado")
+  registroParcial                 Boolean             @default(false) @map("registro_parcial")
+  cuentaActiva                    Boolean             @default(true) @map("cuenta_activa")
+  versionSesion                   Int                 @default(0) @map("version_sesion")
+  tokenVerificacionCorreo         String?             @map("token_verificacion_correo") @db.VarChar(120)
+  tokenVerificacionCorreoExpiraEn DateTime?           @map("token_verificacion_correo_expira_en") @db.Timestamptz(6)
+  tokenCambioContrasena           String?             @map("token_cambio_contrasena") @db.VarChar(120)
+  tokenCambioContrasenaExpiraEn   DateTime?           @map("token_cambio_contrasena_expira_en") @db.Timestamptz(6)
+  creadoEn                        DateTime            @default(now()) @map("creado_en") @db.Timestamptz(6)
+  actualizadoEn                   DateTime            @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  bicicletas                      Bicicleta[]
+  asignacionesGuardia             AsignacionGuardia[]
+  solicitudesGuardiaCreadas       SolicitudGuardia[]  @relation("SolicitudGuardiaSolicitante")
+  solicitudesGuardiaAsignadas     SolicitudGuardia[]  @relation("SolicitudGuardiaAsignado")
+  movimientos                     Movimiento[]        @relation("MovimientoUsuario")
+  movimientosValidados            Movimiento[]        @relation("MovimientoGuardia")
+  codigosQrTemporales             CodigoQrTemporal[]
+  incidencias                     Incidencia[]
+  notificaciones                  Notificacion[]
+  auditoriaEventos                AuditoriaEvento[]
+
+  @@map("usuarios")
+}
+
+model Bicicleta {
+  id                  String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  usuarioId           String             @map("usuario_id") @db.Uuid
+  descripcion         String             @db.VarChar(255)
+  marca               String?            @db.VarChar(80)
+  modelo              String?            @db.VarChar(80)
+  color               String?            @db.VarChar(60)
+  aro                 String?            @db.VarChar(30)
+  numeroSerie         String?            @map("numero_serie") @db.VarChar(120)
+  fotoUrl             String?            @map("foto_url")
+  activa              Boolean            @default(false)
+  dentroBicicletero   Boolean            @default(false) @map("dentro_bicicletero")
+  bicicleteroActualId String?            @map("bicicletero_actual_id") @db.Uuid
+  creadoEn            DateTime           @default(now()) @map("creado_en") @db.Timestamptz(6)
+  actualizadoEn       DateTime           @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  eliminadoEn         DateTime?          @map("eliminado_en") @db.Timestamptz(6)
+  usuario             Usuario            @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  bicicleteroActual   Bicicletero?       @relation("BicicletaBicicleteroActual", fields: [bicicleteroActualId], references: [id])
+  movimientos         Movimiento[]
+  codigosQrTemporales CodigoQrTemporal[]
+  incidencias         Incidencia[]
+
+  @@index([usuarioId], map: "idx_bicicletas_usuario")
+  @@index([bicicleteroActualId], map: "idx_bicicletas_bicicletero_actual")
+  @@map("bicicletas")
+}
+
+model Bicicletero {
+  id                  String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nombre              String              @unique @db.VarChar(120)
+  ubicacion           String              @db.VarChar(255)
+  capacidad           Int                 @default(80)
+  activo              Boolean             @default(true)
+  creadoEn            DateTime            @default(now()) @map("creado_en") @db.Timestamptz(6)
+  actualizadoEn       DateTime            @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  bicicletasActuales  Bicicleta[]         @relation("BicicletaBicicleteroActual")
+  movimientos         Movimiento[]
+  codigosQrTemporales CodigoQrTemporal[]
+  asignacionesGuardia AsignacionGuardia[]
+  solicitudesGuardia  SolicitudGuardia[]
+  incidencias         Incidencia[]
+
+  @@map("bicicleteros")
+}
+
+model AsignacionGuardia {
+  id            String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  guardiaId     String      @map("guardia_id") @db.Uuid
+  bicicleteroId String      @map("bicicletero_id") @db.Uuid
+  iniciaEn      DateTime    @map("inicia_en") @db.Timestamptz(6)
+  terminaEn     DateTime?   @map("termina_en") @db.Timestamptz(6)
+  activa        Boolean     @default(true)
+  creadaEn      DateTime    @default(now()) @map("creada_en") @db.Timestamptz(6)
+  actualizadaEn DateTime    @updatedAt @map("actualizada_en") @db.Timestamptz(6)
+  guardia       Usuario     @relation(fields: [guardiaId], references: [id])
+  bicicletero   Bicicletero @relation(fields: [bicicleteroId], references: [id])
+
+  @@index([guardiaId, bicicleteroId, activa], map: "idx_asignaciones_guardia_activa")
+  @@map("asignaciones_guardias")
+}
+
+model SolicitudGuardia {
+  id                          String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  solicitadaPorUsuarioId      String                 @map("solicitada_por_usuario_id") @db.Uuid
+  bicicleteroId               String                 @map("bicicletero_id") @db.Uuid
+  guardiaAsignadoId           String?                @map("guardia_asignado_id") @db.Uuid
+  tipo                        TipoSolicitudGuardia
+  estado                      EstadoSolicitudGuardia @default(PENDIENTE)
+  mensaje                     String?
+  notificadaGuardiaEn         DateTime?              @map("notificada_guardia_en") @db.Timestamptz(6)
+  ultimaNotificacionUsuarioEn DateTime?              @map("ultima_notificacion_usuario_en") @db.Timestamptz(6)
+  notificacionesGuardia       Int                    @default(0) @map("notificaciones_guardia")
+  acuseReciboEn               DateTime?              @map("acuse_recibo_en") @db.Timestamptz(6)
+  resueltaEn                  DateTime?              @map("resuelta_en") @db.Timestamptz(6)
+  creadaEn                    DateTime               @default(now()) @map("creada_en") @db.Timestamptz(6)
+  actualizadaEn               DateTime               @updatedAt @map("actualizada_en") @db.Timestamptz(6)
+  solicitadaPorUsuario        Usuario                @relation("SolicitudGuardiaSolicitante", fields: [solicitadaPorUsuarioId], references: [id], onDelete: Cascade)
+  bicicletero                 Bicicletero            @relation(fields: [bicicleteroId], references: [id])
+  guardiaAsignado             Usuario?               @relation("SolicitudGuardiaAsignado", fields: [guardiaAsignadoId], references: [id])
+
+  @@index([estado, creadaEn], map: "idx_solicitudes_guardia_estado")
+  @@index([guardiaAsignadoId], map: "idx_solicitudes_guardia_guardia")
+  @@map("solicitudes_guardia")
+}
+
+model Movimiento {
+  id                   String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  bicicletaId          String           @map("bicicleta_id") @db.Uuid
+  usuarioId            String           @map("usuario_id") @db.Uuid
+  bicicleteroId        String           @map("bicicletero_id") @db.Uuid
+  validadoPorGuardiaId String           @map("validado_por_guardia_id") @db.Uuid
+  tipo                 TipoMovimiento
+  estado               EstadoMovimiento @default(CONFIRMADO)
+  motivoDenegacion     String?          @map("motivo_denegacion")
+  comentarioGuardia    String?          @map("comentario_guardia")
+  origen               String           @default("QR") @db.VarChar(30)
+  creadoEn             DateTime         @default(now()) @map("creado_en") @db.Timestamptz(6)
+  bicicleta            Bicicleta        @relation(fields: [bicicletaId], references: [id], onDelete: Cascade)
+  usuario              Usuario          @relation("MovimientoUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
+  bicicletero          Bicicletero      @relation(fields: [bicicleteroId], references: [id])
+  validadoPorGuardia   Usuario          @relation("MovimientoGuardia", fields: [validadoPorGuardiaId], references: [id])
+
+  @@index([usuarioId, creadoEn], map: "idx_movimientos_usuario_creado")
+  @@index([validadoPorGuardiaId, creadoEn], map: "idx_movimientos_guardia_creado")
+  @@index([bicicleteroId, creadoEn], map: "idx_movimientos_bicicletero_creado")
+  @@map("movimientos")
+}
+
+model CodigoQrTemporal {
+  id                    String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  token                 String               @unique @db.VarChar(160)
+  usuarioId             String               @map("usuario_id") @db.Uuid
+  bicicletaId           String               @map("bicicleta_id") @db.Uuid
+  bicicleteroId         String?              @map("bicicletero_id") @db.Uuid
+  tipo                  TipoCodigoQrTemporal
+  expiraEn              DateTime             @map("expira_en") @db.Timestamptz(6)
+  usado                 Boolean              @default(false)
+  escaneadoPorUsuarioId String?              @map("escaneado_por_usuario_id") @db.Uuid
+  escaneadoEn           DateTime?            @map("escaneado_en") @db.Timestamptz(6)
+  creadoEn              DateTime             @default(now()) @map("creado_en") @db.Timestamptz(6)
+  usuario               Usuario              @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  bicicleta             Bicicleta            @relation(fields: [bicicletaId], references: [id], onDelete: Cascade)
+  bicicletero           Bicicletero?         @relation(fields: [bicicleteroId], references: [id])
+
+  @@index([token], map: "idx_qr_token")
+  @@index([escaneadoPorUsuarioId, escaneadoEn], map: "idx_qr_escaneo_usuario")
+  @@map("codigos_qr_temporales")
+}
+
+model Notificacion {
+  id        String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  usuarioId String           @map("usuario_id") @db.Uuid
+  titulo    String           @db.VarChar(120)
+  mensaje   String
+  tipo      TipoNotificacion @default(SISTEMA)
+  leida     Boolean          @default(false)
+  datos     Json?
+  creadaEn  DateTime         @default(now()) @map("creada_en") @db.Timestamptz(6)
+  usuario   Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, leida, creadaEn], map: "idx_notificaciones_usuario_leida")
+  @@map("notificaciones")
+}
+
+model Incidencia {
+  id            String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  usuarioId     String           @map("usuario_id") @db.Uuid
+  bicicleteroId String           @map("bicicletero_id") @db.Uuid
+  bicicletaId   String?          @map("bicicleta_id") @db.Uuid
+  descripcion   String
+  estado        EstadoIncidencia @default(PENDIENTE)
+  creadaEn      DateTime         @default(now()) @map("creada_en") @db.Timestamptz(6)
+  actualizadaEn DateTime         @updatedAt @map("actualizada_en") @db.Timestamptz(6)
+  usuario       Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  bicicletero   Bicicletero      @relation(fields: [bicicleteroId], references: [id])
+  bicicleta     Bicicleta?       @relation(fields: [bicicletaId], references: [id])
+
+  @@map("incidencias")
+}
+
+model AuditoriaEvento {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  actorUsuarioId String?  @map("actor_usuario_id") @db.Uuid
+  accion         String   @db.VarChar(120)
+  entidad        String   @db.VarChar(120)
+  entidadId      String?  @map("entidad_id") @db.VarChar(120)
+  ip             String?  @db.VarChar(80)
+  userAgent      String?  @map("user_agent")
+  datos          Json?
+  creadoEn       DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  actorUsuario   Usuario? @relation(fields: [actorUsuarioId], references: [id], onDelete: SetNull)
+
+  @@index([actorUsuarioId, creadoEn], map: "idx_auditoria_actor_creado")
+  @@index([entidad, entidadId, creadoEn], map: "idx_auditoria_entidad_creado")
+  @@map("auditoria_eventos")
+}

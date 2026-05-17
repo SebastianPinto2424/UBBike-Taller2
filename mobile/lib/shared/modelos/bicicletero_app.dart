@@ -1,0 +1,31 @@
+class BicicleteroApp {
+  const BicicleteroApp({
+    required this.id,
+    required this.nombre,
+    required this.ubicacion,
+    required this.capacidad,
+    required this.ocupados,
+    required this.cuposDisponibles,
+    required this.porcentajeUso,
+  });
+
+  final String id;
+  final String nombre;
+  final String ubicacion;
+  final int capacidad;
+  final int ocupados;
+  final int cuposDisponibles;
+  final int porcentajeUso;
+
+  factory BicicleteroApp.desdeJson(Map<String, dynamic> json) {
+    return BicicleteroApp(
+      id: json['id'] as String,
+      nombre: json['nombre'] as String,
+      ubicacion: json['ubicacion'] as String? ?? 'Ubicacion no informada',
+      capacidad: json['capacidad'] as int? ?? 0,
+      ocupados: json['ocupados'] as int? ?? 0,
+      cuposDisponibles: json['cuposDisponibles'] as int? ?? 0,
+      porcentajeUso: json['porcentajeUso'] as int? ?? 0,
+    );
+  }
+}

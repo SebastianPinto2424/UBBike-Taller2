@@ -1,0 +1,58 @@
+# Dependencias
+node_modules/
+backend/node_modules/
+.pub-cache/
+.pub/
+
+# Variables de entorno y secretos
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.jks
+*.keystore
+key.properties
+mobile/android/key.properties
+google-services.json
+GoogleService-Info.plist
+
+# Builds y codigo generado
+dist/
+backend/dist/
+backend/src/generated/
+backend/src/generated/prisma/
+build/
+mobile/build/
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/coverage/
+coverage/
+
+# Archivos locales de Android, Flutter e IDE
+mobile/android/local.properties
+*.iml
+.metadata
+!mobile/.metadata
+.vscode/
+.idea/
+
+# Logs y temporales
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+tmp/
+temp/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
