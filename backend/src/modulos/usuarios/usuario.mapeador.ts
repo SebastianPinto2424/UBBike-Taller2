@@ -7,6 +7,7 @@ export const mapearUsuarioPublico = (usuario: Usuario) => ({
   rut: usuario.rut,
   rol: usuario.rol,
   correoVerificado: usuario.correoVerificado,
+  registroParcial: usuario.registroParcial,
   cuentaActiva: usuario.cuentaActiva,
   creadoEn: usuario.creadoEn,
   actualizadoEn: usuario.actualizadoEn
