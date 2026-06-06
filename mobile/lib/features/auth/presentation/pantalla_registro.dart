@@ -5,6 +5,7 @@ import '../../../core/tema/colores_ubb.dart';
 import '../../../features/auth/data/autenticacion_api.dart';
 import '../../../shared/widgets/contenedor_responsivo.dart';
 import '../../../shared/widgets/marca_ubbike.dart';
+import '../../../shared/widgets/snackbar_semantico.dart';
 import 'widgets/estilos_formulario_auth.dart';
 
 class PantallaRegistro extends StatefulWidget {
@@ -71,13 +72,7 @@ class _PantallaRegistroState extends State<PantallaRegistro> {
                     ),
                     textInputAction: TextInputAction.next,
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'El nombre es obligatorio.';
-                      }
-                      if (value.trim().length < 3) {
-                        return 'El nombre debe tener al menos 3 caracteres.';
-                      }
-                      return null;
+                      return _validarNombreRegistroFrontend(value);
                     },
                   ),
                   const SizedBox(height: 24),
@@ -89,15 +84,7 @@ class _PantallaRegistroState extends State<PantallaRegistro> {
                     ),
                     textInputAction: TextInputAction.next,
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'El RUT es obligatorio.';
-                      }
-                      final rutRegex =
-                          RegExp(r'^\d{1,2}\.?\d{3}\.?\d{3}-[\dkK]$');
-                      if (!rutRegex.hasMatch(value)) {
-                        return 'Formato incorrecto. Ej: 12.345.678-9 o 12345678-9';
-                      }
-                      return null;
+                      return _validarRutRegistroFrontend(value);
                     },
                   ),
                   const SizedBox(height: 24),
@@ -109,12 +96,23 @@ class _PantallaRegistroState extends State<PantallaRegistro> {
                     ),
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
+                    autocorrect: false,
+                    textCapitalization: TextCapitalization.none,
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
+                      final correo = value?.trim() ?? '';
+                      if (correo.isEmpty) {
                         return 'El correo es obligatorio.';
                       }
-                      if (!value.endsWith('@ubiobio.cl') &&
-                          !value.endsWith('@alumnos.ubiobio.cl')) {
+                      if (correo.length > 160) {
+                        return 'Maximo 160 caracteres.';
+                      }
+                      final correoValido =
+                          RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$');
+                      if (!correoValido.hasMatch(correo)) {
+                        return 'Ingresa un correo valido. Ej: estudiante@alumnos.ubiobio.cl';
+                      }
+                      if (!correo.endsWith('@ubiobio.cl') &&
+                          !correo.endsWith('@alumnos.ubiobio.cl')) {
                         return 'Debe ser @ubiobio.cl o @alumnos.ubiobio.cl';
                       }
                       return null;
@@ -199,23 +197,17 @@ class _PantallaRegistroState extends State<PantallaRegistro> {
       }
     } on ExcepcionApi catch (error) {
       if (mounted) {
-        _mostrarMensaje(error.mensaje);
+        context.mostrarError(error.mensaje);
       }
     } catch (_) {
       if (mounted) {
-        _mostrarMensaje('No se pudo conectar con el backend');
+        context.mostrarError('No se pudo conectar con el backend');
       }
     } finally {
       if (mounted) {
         setState(() => cargando = false);
       }
     }
-  }
-
-  void _mostrarMensaje(String mensaje) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje)),
-    );
   }
 
   void _mostrarConfirmacion(BuildContext context, String mensaje) {
@@ -239,4 +231,59 @@ class _PantallaRegistroState extends State<PantallaRegistro> {
       },
     );
   }
+}
+
+String? _validarNombreRegistroFrontend(String? valor) {
+  final texto = valor?.trim() ?? '';
+  if (texto.isEmpty) {
+    return 'El nombre es obligatorio.';
+  }
+  if (texto.length < 3) {
+    return 'El nombre debe tener al menos 3 caracteres.';
+  }
+  if (texto.length > 120) {
+    return 'Maximo 120 caracteres.';
+  }
+  return null;
+}
+
+String? _validarRutRegistroFrontend(String? valor) {
+  final texto = valor?.trim() ?? '';
+  if (texto.isEmpty) {
+    return 'El RUT es obligatorio.';
+  }
+  if (!_rutRegistroFrontendValido(texto)) {
+    return 'Ingresa un RUT valido.';
+  }
+  return null;
+}
+
+bool _rutRegistroFrontendValido(String valor) {
+  final limpio = valor
+      .replaceAll('.', '')
+      .replaceAll('-', '')
+      .replaceAll(' ', '')
+      .toUpperCase();
+  if (!RegExp(r'^\d{7,8}[0-9K]$').hasMatch(limpio)) {
+    return false;
+  }
+
+  final cuerpo = limpio.substring(0, limpio.length - 1);
+  final digito = limpio.substring(limpio.length - 1);
+  var suma = 0;
+  var multiplicador = 2;
+
+  for (var i = cuerpo.length - 1; i >= 0; i--) {
+    suma += int.parse(cuerpo[i]) * multiplicador;
+    multiplicador = multiplicador == 7 ? 2 : multiplicador + 1;
+  }
+
+  final resto = 11 - (suma % 11);
+  final esperado = switch (resto) {
+    11 => '0',
+    10 => 'K',
+    _ => resto.toString(),
+  };
+
+  return digito == esperado;
 }
