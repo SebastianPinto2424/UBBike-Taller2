@@ -79,6 +79,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /app/uploads:uid=1000,gid=1000,mode=700
     cap_drop:
       - ALL
     security_opt:
