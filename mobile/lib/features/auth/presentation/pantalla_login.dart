@@ -1,23 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/sesion_provider.dart';
 import '../../../core/servicios/excepcion_api.dart';
 import '../../../core/tema/colores_ubb.dart';
 import '../../../features/auth/data/autenticacion_api.dart';
 import '../../../features/auth/presentation/pantalla_registro.dart';
-import '../../../features/inicio/presentation/pantalla_principal.dart';
-import '../../../shared/servicios/sesion_actual.dart';
 import '../../../shared/widgets/contenedor_responsivo.dart';
 import '../../../shared/widgets/marca_ubbike.dart';
+import '../../../shared/widgets/snackbar_semantico.dart';
 import 'widgets/estilos_formulario_auth.dart';
 
-class PantallaLogin extends StatefulWidget {
+class PantallaLogin extends ConsumerStatefulWidget {
   const PantallaLogin({super.key});
 
   @override
-  State<PantallaLogin> createState() => _PantallaLoginState();
+  ConsumerState<PantallaLogin> createState() => _PantallaLoginState();
 }
 
-class _PantallaLoginState extends State<PantallaLogin> {
+class _PantallaLoginState extends ConsumerState<PantallaLogin> {
+  final formKeyIngreso = GlobalKey<FormState>();
   final correoController = TextEditingController();
   final contrasenaController = TextEditingController();
   final autenticacionApi = AutenticacionApi();
@@ -70,27 +72,31 @@ class _PantallaLoginState extends State<PantallaLogin> {
                                 20,
                                 24,
                               ),
-                              child: _FormularioIngreso(
-                                correoController: correoController,
-                                contrasenaController: contrasenaController,
-                                cargando: cargando,
-                                mostrarContrasena: mostrarContrasena,
-                                onAlternarContrasena: () {
-                                  setState(
-                                    () =>
-                                        mostrarContrasena = !mostrarContrasena,
-                                  );
-                                },
-                                onIngresar: _iniciarSesion,
-                                onRegistro: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const PantallaRegistro(),
-                                    ),
-                                  );
-                                },
-                                onRecuperar: () =>
-                                    _mostrarRecuperacion(context),
+                              child: Form(
+                                key: formKeyIngreso,
+                                child: _FormularioIngreso(
+                                  correoController: correoController,
+                                  contrasenaController: contrasenaController,
+                                  cargando: cargando,
+                                  mostrarContrasena: mostrarContrasena,
+                                  onAlternarContrasena: () {
+                                    setState(
+                                      () => mostrarContrasena =
+                                          !mostrarContrasena,
+                                    );
+                                  },
+                                  onIngresar: _iniciarSesion,
+                                  onRegistro: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const PantallaRegistro(),
+                                      ),
+                                    );
+                                  },
+                                  onRecuperar: () =>
+                                      _mostrarRecuperacion(context),
+                                ),
                               ),
                             ),
                           ),
@@ -111,6 +117,9 @@ class _PantallaLoginState extends State<PantallaLogin> {
     if (cargando) {
       return;
     }
+    if (formKeyIngreso.currentState?.validate() != true) {
+      return;
+    }
 
     _iniciarSesionAsync();
   }
@@ -120,11 +129,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
     final contrasena = contrasenaController.text;
 
     if (correo.isEmpty || contrasena.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ingresa correo y contraseña'),
-        ),
-      );
+      context.mostrarError('Ingresa correo y contraseña');
       return;
     }
 
@@ -136,27 +141,18 @@ class _PantallaLoginState extends State<PantallaLogin> {
         contrasena: contrasena,
       );
 
-      SesionActual.iniciar(
-        nuevoToken: resultado.token,
-        nuevoUsuario: resultado.usuario,
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => PantallaPrincipal(rol: resultado.usuario.rol),
-        ),
-      );
+      await ref.read(sesionProvider.notifier).iniciar(
+            token: resultado.token,
+            usuario: resultado.usuario,
+            refreshToken: resultado.refreshToken,
+          );
     } on ExcepcionApi catch (error) {
       if (mounted) {
-        _mostrarMensajeCorreo(context, error.mensaje);
+        context.mostrarError(error.mensaje);
       }
     } catch (_) {
       if (mounted) {
-        _mostrarMensajeCorreo(context, 'No se pudo conectar con el backend');
+        context.mostrarError('No se pudo conectar con el backend');
       }
     } finally {
       if (mounted) {
@@ -166,89 +162,146 @@ class _PantallaLoginState extends State<PantallaLogin> {
   }
 
   void _mostrarRecuperacion(BuildContext context) {
-    final contextoPantalla = this.context;
-    final correoRecuperacionController = TextEditingController(
-      text: correoController.text.trim(),
-    );
-
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            8,
-            20,
-            20 + MediaQuery.of(context).viewInsets.bottom,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Recuperar contraseña',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Enviaremos un enlace seguro al correo institucional registrado.',
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: correoRecuperacionController,
-                  decoration: decoracionCampoAuth(
-                    labelText: 'Correo institucional',
-                    icono: Icons.mail_outline,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  style: estiloBotonAuth(),
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    try {
-                      final mensaje =
-                          await autenticacionApi.solicitarCambioContrasena(
-                        correoRecuperacionController.text.trim(),
-                      );
-                      if (contextoPantalla.mounted) {
-                        _mostrarMensajeCorreo(contextoPantalla, mensaje);
-                      }
-                    } on ExcepcionApi catch (error) {
-                      if (contextoPantalla.mounted) {
-                        _mostrarMensajeCorreo(contextoPantalla, error.mensaje);
-                      }
-                    } catch (_) {
-                      if (contextoPantalla.mounted) {
-                        _mostrarMensajeCorreo(
-                          contextoPantalla,
-                          'No se pudo conectar con el backend',
-                        );
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.send_outlined),
-                  label: const Text('Enviar correo'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    ).whenComplete(correoRecuperacionController.dispose);
-  }
-
-  void _mostrarMensajeCorreo(BuildContext context, String mensaje) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje)),
+      builder: (_) => _SheetRecuperacion(
+        correoInicial: correoController.text.trim(),
+        onEnviar: _enviarRecuperacion,
+      ),
     );
   }
+
+  Future<void> _enviarRecuperacion(String correo) async {
+    try {
+      final mensaje = await autenticacionApi.solicitarCambioContrasena(correo);
+      if (mounted) {
+        context.mostrarExito(mensaje);
+      }
+    } on ExcepcionApi catch (error) {
+      if (mounted) {
+        context.mostrarError(error.mensaje);
+      }
+    } catch (_) {
+      if (mounted) {
+        context.mostrarError('No se pudo conectar con el backend');
+      }
+    }
+  }
+}
+
+class _SheetRecuperacion extends StatefulWidget {
+  const _SheetRecuperacion({
+    required this.correoInicial,
+    required this.onEnviar,
+  });
+
+  final String correoInicial;
+  final Future<void> Function(String correo) onEnviar;
+
+  @override
+  State<_SheetRecuperacion> createState() => _SheetRecuperacionState();
+}
+
+class _SheetRecuperacionState extends State<_SheetRecuperacion> {
+  final formKeyRecuperacion = GlobalKey<FormState>();
+  late final TextEditingController correoRecuperacionController;
+
+  @override
+  void initState() {
+    super.initState();
+    correoRecuperacionController =
+        TextEditingController(text: widget.correoInicial);
+  }
+
+  @override
+  void dispose() {
+    correoRecuperacionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        8,
+        20,
+        20 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SingleChildScrollView(
+        child: Form(
+          key: formKeyRecuperacion,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Recuperar contraseña',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Enviaremos un enlace seguro al correo institucional registrado.',
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: correoRecuperacionController,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                decoration: decoracionCampoAuth(
+                  labelText: 'Correo institucional',
+                  icono: Icons.mail_outline,
+                ),
+                validator: _validarCorreoAuthFrontend,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                style: estiloBotonAuth(),
+                onPressed: () {
+                  if (formKeyRecuperacion.currentState?.validate() != true) {
+                    return;
+                  }
+                  final correo = correoRecuperacionController.text.trim();
+                  Navigator.pop(context);
+                  widget.onEnviar(correo);
+                },
+                icon: const Icon(Icons.send_outlined),
+                label: const Text('Enviar correo'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String? _validarCorreoAuthFrontend(String? valor) {
+  final correo = valor?.trim() ?? '';
+  if (correo.isEmpty) {
+    return 'Ingresa el correo.';
+  }
+  if (correo.length > 160) {
+    return 'Maximo 160 caracteres.';
+  }
+
+  final correoValido = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$');
+  if (!correoValido.hasMatch(correo)) {
+    return 'Ingresa un correo valido. Ej: estudiante@alumnos.ubiobio.cl';
+  }
+  return null;
+}
+
+String? _validarContrasenaLoginFrontend(String? valor) {
+  if (valor == null || valor.isEmpty) {
+    return 'Ingresa la contrasena.';
+  }
+  return null;
 }
 
 class _CabeceraIngreso extends StatelessWidget {
@@ -275,7 +328,7 @@ class _CabeceraIngreso extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Registra tu bicicleta, genera códigos temporales y revisa cada ingreso o retiro desde una sola app institucional.',
+              'Registra tu bicicleta, genera codigos temporales y revisa cada ingreso o retiro desde una sola app institucional.',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: Colors.white.withValues(alpha: 0.86),
                     height: 1.35,
@@ -331,7 +384,7 @@ class _FormularioIngreso extends StatelessWidget {
               ),
         ),
         const SizedBox(height: 22),
-        TextField(
+        TextFormField(
           controller: correoController,
           decoration: decoracionCampoAuth(
             labelText: 'Correo electrónico',
@@ -339,9 +392,12 @@ class _FormularioIngreso extends StatelessWidget {
           ),
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.next,
+          autocorrect: false,
+          textCapitalization: TextCapitalization.none,
+          validator: _validarCorreoAuthFrontend,
         ),
         const SizedBox(height: 24),
-        TextField(
+        TextFormField(
           controller: contrasenaController,
           decoration: decoracionCampoAuth(
             labelText: 'Contraseña',
@@ -360,7 +416,8 @@ class _FormularioIngreso extends StatelessWidget {
           ),
           obscureText: !mostrarContrasena,
           textInputAction: TextInputAction.done,
-          onSubmitted: (_) => onIngresar(),
+          onFieldSubmitted: (_) => onIngresar(),
+          validator: _validarContrasenaLoginFrontend,
         ),
         const SizedBox(height: 5),
         Align(
