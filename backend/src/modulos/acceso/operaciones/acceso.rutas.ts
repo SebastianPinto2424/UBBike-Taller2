@@ -1,0 +1,24 @@
+﻿import { Router } from 'express';
+import { middlewareAutenticacion } from '../../../comun/middlewares/autenticacion.middleware';
+import { autorizarRoles } from '../../../comun/middlewares/autorizar-roles.middleware';
+import { validarCuerpo } from '../../../comun/middlewares/validar-cuerpo.middleware';
+import { RolUsuario } from '../../usuarios/rol-usuario';
+import {
+  buscarManual,
+  confirmarAccesoQr,
+  denegarAccesoQr,
+  registrarManual
+} from './acceso.controlador';
+import { esquemaConfirmarQr, esquemaDenegarQr, esquemaGestionManual } from './acceso.validacion';
+
+const rutasAcceso = Router();
+
+rutasAcceso.use(middlewareAutenticacion);
+rutasAcceso.use(autorizarRoles(RolUsuario.GUARDIA, RolUsuario.ADMINISTRADOR));
+
+rutasAcceso.post('/qr/confirmar', validarCuerpo(esquemaConfirmarQr), confirmarAccesoQr);
+rutasAcceso.post('/qr/denegar', validarCuerpo(esquemaDenegarQr), denegarAccesoQr);
+rutasAcceso.get('/manual/buscar', buscarManual);
+rutasAcceso.post('/manual', validarCuerpo(esquemaGestionManual), registrarManual);
+
+export { rutasAcceso };
