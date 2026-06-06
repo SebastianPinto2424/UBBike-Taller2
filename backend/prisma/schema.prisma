@@ -5,6 +5,15 @@ generator client {
   moduleFormat = "cjs"
 }
 
+generator dbml {
+  provider              = "prisma-dbml-generator"
+  output                = "../../docs"
+  outputName            = "modelo-relacional.dbml"
+  projectName           = "UBBike"
+  projectDatabaseType   = "PostgreSQL"
+  includeRelationFields = false
+}
+
 datasource db {
   provider = "postgresql"
 }
@@ -21,16 +30,23 @@ enum RolUsuario {
 
 enum TipoMovimiento {
   INGRESO
-  SALIDA
+  RETIRO
 
   @@map("movimientos_tipo_enum")
 }
 
 enum TipoCodigoQrTemporal {
   INGRESO
-  SALIDA
+  RETIRO
 
   @@map("codigos_qr_temporales_tipo_enum")
+}
+
+enum TipoOrigenMovimiento {
+  QR
+  MANUAL
+
+  @@map("movimientos_origen_enum")
 }
 
 enum EstadoMovimiento {
@@ -50,7 +66,6 @@ enum TipoSolicitudGuardia {
 enum EstadoSolicitudGuardia {
   PENDIENTE
   NOTIFICADA
-  VISTA
   EN_CAMINO
   RESUELTA
   CANCELADA
@@ -67,12 +82,24 @@ enum EstadoIncidencia {
   @@map("incidencias_estado_enum")
 }
 
+enum TipoIncidencia {
+  PROBLEMA_QR
+  DANO_BICICLETA
+  DANO_INFRAESTRUCTURA
+  PROBLEMA_MOVIMIENTO
+  USUARIO_DATOS
+  OTRO
+
+  @@map("incidencias_tipo_enum")
+}
+
 enum TipoNotificacion {
   SISTEMA
   CUENTA
   SEGURIDAD
   SOLICITUD_GUARDIA
   MOVIMIENTO
+  INCIDENCIA
 
   @@map("notificaciones_tipo_enum")
 }
@@ -100,8 +127,10 @@ model Usuario {
   solicitudesGuardiaAsignadas     SolicitudGuardia[]  @relation("SolicitudGuardiaAsignado")
   movimientos                     Movimiento[]        @relation("MovimientoUsuario")
   movimientosValidados            Movimiento[]        @relation("MovimientoGuardia")
-  codigosQrTemporales             CodigoQrTemporal[]
-  incidencias                     Incidencia[]
+  codigosQrTemporales             CodigoQrTemporal[]  @relation("CodigoQrUsuario")
+  codigosQrEscaneados             CodigoQrTemporal[]  @relation("CodigoQrGuardiaEscaneo")
+  incidenciasReportadas           Incidencia[]        @relation("IncidenciaReportante")
+  incidenciasGestionadas          Incidencia[]        @relation("IncidenciaGestor")
   notificaciones                  Notificacion[]
   auditoriaEventos                AuditoriaEvento[]
 
@@ -118,6 +147,10 @@ model Bicicleta {
   aro                 String?            @db.VarChar(30)
   numeroSerie         String?            @map("numero_serie") @db.VarChar(120)
   fotoUrl             String?            @map("foto_url")
+  fotoNombreArchivo   String?            @map("foto_nombre_archivo") @db.VarChar(160)
+  fotoMimeType        String?            @map("foto_mime_type") @db.VarChar(80)
+  fotoTamanoBytes     Int?               @map("foto_tamano_bytes")
+  fotoActualizadaEn   DateTime?          @map("foto_actualizada_en") @db.Timestamptz(6)
   activa              Boolean            @default(false)
   dentroBicicletero   Boolean            @default(false) @map("dentro_bicicletero")
   bicicleteroActualId String?            @map("bicicletero_actual_id") @db.Uuid
@@ -180,7 +213,8 @@ model SolicitudGuardia {
   notificadaGuardiaEn         DateTime?              @map("notificada_guardia_en") @db.Timestamptz(6)
   ultimaNotificacionUsuarioEn DateTime?              @map("ultima_notificacion_usuario_en") @db.Timestamptz(6)
   notificacionesGuardia       Int                    @default(0) @map("notificaciones_guardia")
-  acuseReciboEn               DateTime?              @map("acuse_recibo_en") @db.Timestamptz(6)
+  respondidaPorGuardiaEn      DateTime?              @map("respondida_por_guardia_en") @db.Timestamptz(6)
+  enCaminoEn                  DateTime?              @map("en_camino_en") @db.Timestamptz(6)
   resueltaEn                  DateTime?              @map("resuelta_en") @db.Timestamptz(6)
   creadaEn                    DateTime               @default(now()) @map("creada_en") @db.Timestamptz(6)
   actualizadaEn               DateTime               @updatedAt @map("actualizada_en") @db.Timestamptz(6)
@@ -194,21 +228,21 @@ model SolicitudGuardia {
 }
 
 model Movimiento {
-  id                   String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  bicicletaId          String           @map("bicicleta_id") @db.Uuid
-  usuarioId            String           @map("usuario_id") @db.Uuid
-  bicicleteroId        String           @map("bicicletero_id") @db.Uuid
-  validadoPorGuardiaId String           @map("validado_por_guardia_id") @db.Uuid
+  id                   String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  bicicletaId          String               @map("bicicleta_id") @db.Uuid
+  usuarioId            String               @map("usuario_id") @db.Uuid
+  bicicleteroId        String               @map("bicicletero_id") @db.Uuid
+  validadoPorGuardiaId String               @map("validado_por_guardia_id") @db.Uuid
   tipo                 TipoMovimiento
-  estado               EstadoMovimiento @default(CONFIRMADO)
-  motivoDenegacion     String?          @map("motivo_denegacion")
-  comentarioGuardia    String?          @map("comentario_guardia")
-  origen               String           @default("QR") @db.VarChar(30)
-  creadoEn             DateTime         @default(now()) @map("creado_en") @db.Timestamptz(6)
-  bicicleta            Bicicleta        @relation(fields: [bicicletaId], references: [id], onDelete: Cascade)
-  usuario              Usuario          @relation("MovimientoUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
-  bicicletero          Bicicletero      @relation(fields: [bicicleteroId], references: [id])
-  validadoPorGuardia   Usuario          @relation("MovimientoGuardia", fields: [validadoPorGuardiaId], references: [id])
+  estado               EstadoMovimiento     @default(CONFIRMADO)
+  motivoDenegacion     String?              @map("motivo_denegacion")
+  comentarioGuardia    String?              @map("comentario_guardia")
+  origen               TipoOrigenMovimiento @default(QR)
+  creadoEn             DateTime             @default(now()) @map("creado_en") @db.Timestamptz(6)
+  bicicleta            Bicicleta            @relation(fields: [bicicletaId], references: [id], onDelete: Cascade)
+  usuario              Usuario              @relation("MovimientoUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
+  bicicletero          Bicicletero          @relation(fields: [bicicleteroId], references: [id])
+  validadoPorGuardia   Usuario              @relation("MovimientoGuardia", fields: [validadoPorGuardiaId], references: [id])
 
   @@index([usuarioId, creadoEn], map: "idx_movimientos_usuario_creado")
   @@index([validadoPorGuardiaId, creadoEn], map: "idx_movimientos_guardia_creado")
@@ -225,15 +259,16 @@ model CodigoQrTemporal {
   tipo                  TipoCodigoQrTemporal
   expiraEn              DateTime             @map("expira_en") @db.Timestamptz(6)
   usado                 Boolean              @default(false)
-  escaneadoPorUsuarioId String?              @map("escaneado_por_usuario_id") @db.Uuid
+  escaneadoPorGuardiaId String?              @map("escaneado_por_guardia_id") @db.Uuid
   escaneadoEn           DateTime?            @map("escaneado_en") @db.Timestamptz(6)
   creadoEn              DateTime             @default(now()) @map("creado_en") @db.Timestamptz(6)
-  usuario               Usuario              @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuario               Usuario              @relation("CodigoQrUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
   bicicleta             Bicicleta            @relation(fields: [bicicletaId], references: [id], onDelete: Cascade)
   bicicletero           Bicicletero?         @relation(fields: [bicicleteroId], references: [id])
+  escaneadoPorGuardia   Usuario?             @relation("CodigoQrGuardiaEscaneo", fields: [escaneadoPorGuardiaId], references: [id], onDelete: SetNull)
 
   @@index([token], map: "idx_qr_token")
-  @@index([escaneadoPorUsuarioId, escaneadoEn], map: "idx_qr_escaneo_usuario")
+  @@index([escaneadoPorGuardiaId, escaneadoEn], map: "idx_qr_escaneo_guardia")
   @@map("codigos_qr_temporales")
 }
 
@@ -253,18 +288,26 @@ model Notificacion {
 }
 
 model Incidencia {
-  id            String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  usuarioId     String           @map("usuario_id") @db.Uuid
-  bicicleteroId String           @map("bicicletero_id") @db.Uuid
-  bicicletaId   String?          @map("bicicleta_id") @db.Uuid
-  descripcion   String
-  estado        EstadoIncidencia @default(PENDIENTE)
-  creadaEn      DateTime         @default(now()) @map("creada_en") @db.Timestamptz(6)
-  actualizadaEn DateTime         @updatedAt @map("actualizada_en") @db.Timestamptz(6)
-  usuario       Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  bicicletero   Bicicletero      @relation(fields: [bicicleteroId], references: [id])
-  bicicleta     Bicicleta?       @relation(fields: [bicicletaId], references: [id])
+  id                     String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reportadaPorUsuarioId  String           @map("reportada_por_usuario_id") @db.Uuid
+  bicicleteroId          String           @map("bicicletero_id") @db.Uuid
+  bicicletaId            String?          @map("bicicleta_id") @db.Uuid
+  gestionadaPorUsuarioId String?          @map("gestionada_por_usuario_id") @db.Uuid
+  tipo                   TipoIncidencia   @default(OTRO)
+  descripcion            String
+  estado                 EstadoIncidencia @default(PENDIENTE)
+  respuesta              String?
+  resueltaEn             DateTime?        @map("resuelta_en") @db.Timestamptz(6)
+  creadaEn               DateTime         @default(now()) @map("creada_en") @db.Timestamptz(6)
+  actualizadaEn          DateTime         @updatedAt @map("actualizada_en") @db.Timestamptz(6)
+  reportadaPorUsuario    Usuario          @relation("IncidenciaReportante", fields: [reportadaPorUsuarioId], references: [id], onDelete: Cascade)
+  gestionadaPorUsuario   Usuario?         @relation("IncidenciaGestor", fields: [gestionadaPorUsuarioId], references: [id], onDelete: SetNull)
+  bicicletero            Bicicletero      @relation(fields: [bicicleteroId], references: [id])
+  bicicleta              Bicicleta?       @relation(fields: [bicicletaId], references: [id])
 
+  @@index([estado, creadaEn], map: "idx_incidencias_estado_creada")
+  @@index([bicicleteroId, estado], map: "idx_incidencias_bicicletero_estado")
+  @@index([reportadaPorUsuarioId, creadaEn], map: "idx_incidencias_reportante_creada")
   @@map("incidencias")
 }
 
