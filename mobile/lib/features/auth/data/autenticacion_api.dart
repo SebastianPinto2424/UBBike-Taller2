@@ -2,15 +2,18 @@ import '../../../core/servicios/cliente_api.dart';
 import '../../../shared/modelos/usuario_app.dart';
 
 class ResultadoLogin {
-  const ResultadoLogin({required this.token, required this.usuario});
+  const ResultadoLogin(
+      {required this.token, required this.usuario, this.refreshToken});
 
   final String token;
+  final String? refreshToken;
   final UsuarioApp usuario;
 }
 
 class AutenticacionApi {
-  AutenticacionApi({ClienteApi? cliente})
-      : cliente = cliente ?? const ClienteApi();
+  AutenticacionApi({ClienteApi? cliente, String? token})
+      : cliente = cliente ??
+            ClienteApi(obtenerToken: token != null ? () => token : null);
 
   final ClienteApi cliente;
 
@@ -20,17 +23,45 @@ class AutenticacionApi {
   }) async {
     final respuesta = await cliente.post(
       '/autenticacion/login',
-      body: {
-        'correo': correo,
-        'contrasena': contrasena,
-      },
+      body: {'correo': correo, 'contrasena': contrasena},
     );
 
     return ResultadoLogin(
       token: respuesta['token'] as String,
+      refreshToken: respuesta['refreshToken'] as String?,
       usuario:
-          UsuarioApp.desdeJson(respuesta['usuario'] as Map<String, dynamic>),
+          UsuarioApp.fromJson(respuesta['usuario'] as Map<String, dynamic>),
     );
+  }
+
+  Future<Map<String, dynamic>> obtenerPerfil() async {
+    final respuesta = await cliente.get('/autenticacion/yo');
+    return respuesta['usuario'] as Map<String, dynamic>;
+  }
+
+  Future<ResultadoLogin> refrescarToken({
+    required String usuarioId,
+    required String refreshToken,
+  }) async {
+    final respuesta = await cliente.post(
+      '/autenticacion/refresh',
+      body: {'usuarioId': usuarioId, 'refreshToken': refreshToken},
+    );
+
+    return ResultadoLogin(
+      token: respuesta['token'] as String,
+      refreshToken: respuesta['refreshToken'] as String?,
+      usuario: UsuarioApp.fromJson({}),
+    );
+  }
+
+  Future<void> cerrarSesion({String? refreshToken}) async {
+    try {
+      await cliente.post(
+        '/autenticacion/logout',
+        body: refreshToken != null ? {'refreshToken': refreshToken} : {},
+      );
+    } catch (_) {}
   }
 
   Future<String> registrar({
@@ -45,10 +76,9 @@ class AutenticacionApi {
         'nombre': nombre,
         'rut': rut,
         'correo': correo,
-        'contrasena': contrasena,
+        'contrasena': contrasena
       },
     );
-
     return respuesta['message'] as String;
   }
 
@@ -57,7 +87,6 @@ class AutenticacionApi {
       '/autenticacion/solicitar-cambio-contrasena',
       body: {'correo': correo},
     );
-
     return respuesta['message'] as String;
   }
 
@@ -66,7 +95,18 @@ class AutenticacionApi {
       '/autenticacion/verificar-correo',
       body: {'token': token},
     );
+    return respuesta['message'] as String;
+  }
 
+  Future<String> completarRegistro({
+    required String token,
+    required String nombre,
+    required String contrasena,
+  }) async {
+    final respuesta = await cliente.post(
+      '/autenticacion/completar-registro',
+      body: {'token': token, 'nombre': nombre, 'contrasena': contrasena},
+    );
     return respuesta['message'] as String;
   }
 
@@ -76,12 +116,8 @@ class AutenticacionApi {
   }) async {
     final respuesta = await cliente.post(
       '/autenticacion/cambiar-contrasena',
-      body: {
-        'token': token,
-        'contrasena': contrasena,
-      },
+      body: {'token': token, 'contrasena': contrasena},
     );
-
     return respuesta['message'] as String;
   }
 }
