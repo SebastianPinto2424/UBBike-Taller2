@@ -1,3 +1,4 @@
+import path from 'path';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -84,7 +85,14 @@ export const entorno = {
     secreto: secretoJwt,
     expiracion: process.env.JWT_EXPIRES_IN ?? '2h',
     emisor: process.env.JWT_ISSUER ?? 'ubbike-api',
-    audiencia: process.env.JWT_AUDIENCE ?? 'ubbike-app'
+    audiencia: process.env.JWT_AUDIENCE ?? 'ubbike-app',
+    refreshExpiracionDias: convertirNumero(process.env.REFRESH_TOKEN_EXPIRES_DAYS, 30)
+  },
+  qr: {
+    duracionSegundos: convertirNumero(process.env.QR_DURATION_SECONDS, 15)
+  },
+  swagger: {
+    habilitado: convertirBooleano(process.env.SWAGGER_ENABLED, ambiente !== 'production')
   },
   cors: {
     origenes: separarLista(process.env.CORS_ORIGINS, [
@@ -109,6 +117,10 @@ export const entorno = {
   },
   app: {
     urlFrontend: process.env.FRONTEND_URL ?? 'http://localhost:8081'
+  },
+  archivos: {
+    directorioUploads: process.env.UPLOADS_DIR ?? path.resolve(process.cwd(), 'uploads'),
+    rutaPublicaUploads: process.env.UPLOADS_PUBLIC_PATH ?? '/uploads'
   },
   datosDemo: {
     habilitados: convertirBooleano(process.env.SEED_DEMO_DATA, ambiente !== 'production')
