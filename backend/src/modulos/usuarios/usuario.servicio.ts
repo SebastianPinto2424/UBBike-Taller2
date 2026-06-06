@@ -1,5 +1,8 @@
 import { ErrorHttp } from '../../comun/errors/error-http';
 import { prisma } from '../../configuracion/prisma';
+import { registrarAuditoria } from '../auditoria/auditoria.servicio';
+import { crearNotificacion } from '../notificaciones/notificacion.servicio';
+import { TipoNotificacion } from '../notificaciones/tipo-notificacion';
 import { mapearUsuarioPublico } from './usuario.mapeador';
 import { RolUsuario } from './rol-usuario';
 
@@ -12,42 +15,42 @@ type DatosActualizarPermisos = {
   correoVerificado?: boolean;
 };
 
-export const listarUsuarios = async () => {
+type FiltrosListarUsuarios = {
+  q?: string;
+  rol?: RolUsuario;
+  cuentaActiva?: boolean;
+  correoVerificado?: boolean;
+};
+
+export const listarUsuarios = async (filtros: FiltrosListarUsuarios = {}) => {
+  const q = filtros.q?.trim();
+  if (filtros.rol === RolUsuario.ADMIN_CENTRAL) {
+    return [];
+  }
+
   const usuarios = await prisma.usuario.findMany({
+    where: {
+      ...(filtros.rol ? { rol: filtros.rol } : { rol: { not: RolUsuario.ADMIN_CENTRAL } }),
+      ...(filtros.cuentaActiva !== undefined ? { cuentaActiva: filtros.cuentaActiva } : {}),
+      ...(filtros.correoVerificado !== undefined
+        ? { correoVerificado: filtros.correoVerificado }
+        : {}),
+      ...(q
+        ? {
+            OR: [
+              { nombre: { contains: q, mode: 'insensitive' } },
+              { correo: { contains: q, mode: 'insensitive' } },
+              { rut: { contains: q, mode: 'insensitive' } }
+            ]
+          }
+        : {})
+    },
     orderBy: {
       creadoEn: 'desc'
     }
   });
 
   return usuarios.map(mapearUsuarioPublico);
-};
-
-const asegurarCorreoDisponible = async (correo: string, usuarioId: string) => {
-  const existente = await prisma.usuario.findUnique({
-    where: {
-      correo
-    }
-  });
-
-  if (existente && existente.id !== usuarioId) {
-    throw new ErrorHttp(409, 'El correo ya está registrado');
-  }
-};
-
-const asegurarRutDisponible = async (rut: string | null, usuarioId: string) => {
-  if (!rut) {
-    return;
-  }
-
-  const existente = await prisma.usuario.findUnique({
-    where: {
-      rut
-    }
-  });
-
-  if (existente && existente.id !== usuarioId) {
-    throw new ErrorHttp(409, 'El RUT ya está registrado');
-  }
 };
 
 export const actualizarPermisosUsuario = async (
@@ -65,11 +68,16 @@ export const actualizarPermisosUsuario = async (
     throw new ErrorHttp(404, 'Usuario no encontrado');
   }
 
-  if (actorUsuarioId === usuarioId && datos.cuentaActiva === false) {
-    throw new ErrorHttp(400, 'No puedes desactivar tu propia cuenta');
+  if (usuario.rol === RolUsuario.ADMIN_CENTRAL) {
+    throw new ErrorHttp(403, 'El admin general no gestiona cuentas de admin central');
+  }
+
+  if (datos.rol === RolUsuario.ADMIN_CENTRAL) {
+    throw new ErrorHttp(400, 'El rol admin central no esta disponible');
   }
 
   let invalidarSesiones = false;
+
   const datosActualizacion: {
     nombre?: string;
     correo?: string;
@@ -95,15 +103,12 @@ export const actualizarPermisosUsuario = async (
 
   if (datos.correo !== undefined) {
     const correoNormalizado = datos.correo.toLowerCase();
-    await asegurarCorreoDisponible(correoNormalizado, usuario.id);
     invalidarSesiones = invalidarSesiones || usuario.correo !== correoNormalizado;
     datosActualizacion.correo = correoNormalizado;
   }
 
   if (datos.rut !== undefined) {
-    const rut = datos.rut || null;
-    await asegurarRutDisponible(rut, usuario.id);
-    datosActualizacion.rut = rut;
+    datosActualizacion.rut = datos.rut || null;
   }
 
   if (datos.cuentaActiva !== undefined) {
@@ -131,6 +136,32 @@ export const actualizarPermisosUsuario = async (
       id: usuario.id
     },
     data: datosActualizacion
+  });
+
+  await crearNotificacion({
+    usuarioId: usuarioGuardado.id,
+    titulo: 'Cuenta actualizada',
+    mensaje: `Administración actualizó tu cuenta. Rol actual: ${usuarioGuardado.rol}.`,
+    tipo: TipoNotificacion.CUENTA,
+    datos: {
+      rol: usuarioGuardado.rol,
+      cuentaActiva: usuarioGuardado.cuentaActiva,
+      correoVerificado: usuarioGuardado.correoVerificado
+    }
+  });
+
+  await registrarAuditoria({
+    actorUsuarioId: actorUsuarioId ?? null,
+    accion: 'USUARIO_ACTUALIZADO_ADMIN',
+    entidad: 'usuarios',
+    entidadId: usuarioGuardado.id,
+    datos: {
+      campos: Object.keys(datos),
+      rol: usuarioGuardado.rol,
+      cuentaActiva: usuarioGuardado.cuentaActiva,
+      correoVerificado: usuarioGuardado.correoVerificado,
+      sesionesInvalidadas: invalidarSesiones
+    }
   });
 
   return mapearUsuarioPublico(usuarioGuardado);
