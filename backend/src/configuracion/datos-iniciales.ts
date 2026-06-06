@@ -1,5 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma';
+import { crearNotificacion } from '../modulos/notificaciones/notificacion.servicio';
+import { TipoNotificacion } from '../modulos/notificaciones/tipo-notificacion';
 import { RolUsuario } from '../modulos/usuarios/rol-usuario';
 
 const contrasenaDemo = 'UBBike2026*';
@@ -22,12 +24,6 @@ const usuariosDemo = [
     correo: 'guardia@ubiobio.cl',
     rut: '13.333.333-3',
     rol: RolUsuario.GUARDIA
-  },
-  {
-    nombre: 'Admin Central Seguridad',
-    correo: 'admin.central@ubiobio.cl',
-    rut: '12.444.444-4',
-    rol: RolUsuario.ADMIN_CENTRAL
   },
   {
     nombre: 'Administrador UBBike',
@@ -55,33 +51,6 @@ const bicicleterosBase = [
 export const cargarDatosIniciales = async (): Promise<void> => {
   const contrasenaHash = await bcrypt.hash(contrasenaDemo, 12);
 
-  const centralAnterior = await prisma.usuario.findUnique({
-    where: {
-      correo: 'central.seguridad@ubiobio.cl'
-    }
-  });
-  const centralActual = await prisma.usuario.findUnique({
-    where: {
-      correo: 'admin.central@ubiobio.cl'
-    }
-  });
-
-  if (centralAnterior && !centralActual) {
-    await prisma.usuario.update({
-      where: {
-        id: centralAnterior.id
-      },
-      data: {
-        nombre: 'Admin Central Seguridad',
-        correo: 'admin.central@ubiobio.cl',
-        rol: RolUsuario.ADMIN_CENTRAL,
-        cuentaActiva: true,
-        correoVerificado: true,
-        tokenVerificacionCorreoExpiraEn: null
-      }
-    });
-  }
-
   for (const usuarioDemo of usuariosDemo) {
     const existente = await prisma.usuario.findUnique({
       where: {
@@ -107,13 +76,20 @@ export const cargarDatosIniciales = async (): Promise<void> => {
       continue;
     }
 
-    await prisma.usuario.create({
+    const guardado = await prisma.usuario.create({
       data: {
         ...usuarioDemo,
         contrasenaHash,
         cuentaActiva: true,
         correoVerificado: true
       }
+    });
+
+    await crearNotificacion({
+      usuarioId: guardado.id,
+      titulo: 'Bienvenido a UBBike',
+      mensaje: 'Tu cuenta está lista para usar UBBike.',
+      tipo: TipoNotificacion.SISTEMA
     });
   }
 
@@ -166,6 +142,35 @@ export const cargarDatosIniciales = async (): Promise<void> => {
           }
         });
       }
+    }
+  }
+
+  const guardia = await prisma.usuario.findUnique({ where: { correo: 'guardia@ubiobio.cl' } });
+  const bicicleteroCentroIdiomas = await prisma.bicicletero.findUnique({
+    where: {
+      nombre: 'Bicicletero cercano al Centro de Idiomas'
+    }
+  });
+
+  if (guardia && bicicleteroCentroIdiomas) {
+    const asignacionExistente = await prisma.asignacionGuardia.findFirst({
+      where: {
+        guardiaId: guardia.id,
+        bicicleteroId: bicicleteroCentroIdiomas.id,
+        activa: true
+      }
+    });
+
+    if (!asignacionExistente) {
+      await prisma.asignacionGuardia.create({
+        data: {
+          guardiaId: guardia.id,
+          bicicleteroId: bicicleteroCentroIdiomas.id,
+          iniciaEn: new Date(),
+          terminaEn: null,
+          activa: true
+        }
+      });
     }
   }
 };
