@@ -2,7 +2,7 @@ import Joi from 'joi';
 
 const esquemaFoto = Joi.string()
   .trim()
-  .max(1500000)
+  .max(7000000)
   .pattern(/^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=]+$/)
   .allow('', null)
   .messages({
