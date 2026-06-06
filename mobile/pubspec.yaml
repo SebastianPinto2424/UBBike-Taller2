@@ -1,7 +1,7 @@
 name: ubbike
-description: Aplicacion movil para registro de usuarios y bicicletas en UBBike.
+description: Aplicacion movil para gestionar el ingreso y retiro de bicicletas en bicicleteros UBB.
 publish_to: "none"
-version: 0.1.0+1
+version: 1.0.0+1
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -9,14 +9,26 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   cupertino_icons: ^1.0.8
   http: ^1.6.0
+  qr_flutter: ^4.1.0
   image_picker: ^1.2.2
+  fl_chart: ^1.2.0
+  pdf: ^3.12.0
+  printing: ^5.14.3
+  flutter_riverpod: ^2.6.1
+  flutter_secure_storage: ^9.2.2
+  mobile_scanner: ^6.0.3
+  app_links: ^6.4.0
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  riverpod_lint: ^2.6.3
 
 flutter:
   uses-material-design: true
