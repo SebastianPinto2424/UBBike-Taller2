@@ -25,141 +25,53 @@ class _VistaBicicletasState extends State<VistaBicicletas> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      children: [
-        const _EncabezadoSeccion(
-          titulo: 'Bicicletas',
-          detalle: 'Administra las bicicletas asociadas a tu cuenta.',
-          icono: Icons.pedal_bike,
-        ),
-        const SizedBox(height: 16),
-        const _TituloApartado(titulo: 'Mis bicicletas'),
-        const SizedBox(height: 10),
-        FutureBuilder<List<BicicletaApp>>(
-          future: futuroBicicletas,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
+    return _VistaConTabs(
+      tabs: [
+        _tabCompacto(Icons.pedal_bike_outlined, 'Bicicletas'),
+        _tabCompacto(Icons.manage_search_outlined, 'Movimientos'),
+      ],
+      vistas: [
+        _vistaMisBicicletas(),
+        const VistaMovimientosUsuario(),
+      ],
+    );
+  }
 
-            if (snapshot.hasError) {
-              return const _EstadoLista(
-                icono: Icons.cloud_off_outlined,
-                titulo: 'No se pudieron cargar bicicletas',
-                detalle: 'Revisa que el backend esté activo.',
-              );
-            }
+  Widget _vistaMisBicicletas() {
+    return FutureBuilder<List<BicicletaApp>>(
+      future: futuroBicicletas,
+      builder: (context, snapshot) {
+        final bicicletas = snapshot.data ?? [];
+        final mostrarBotonEncabezado =
+            snapshot.hasData && bicicletas.isNotEmpty;
 
-            final bicicletas = snapshot.data ?? [];
-
-            if (bicicletas.isEmpty) {
-              return SizedBox(
-                height: 250,
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.pedal_bike,
-                        size: 64,
-                        color: ColoresUbb.textoSecundario,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Sin bicicletas',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(color: ColoresUbb.textoSecundario),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Toca abajo para registrar tu primera bicicleta',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(color: ColoresUbb.textoSecundario),
-                      ),
-                    ],
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 8),
+            _EncabezadoBicicletas(
+              mostrarBoton: mostrarBotonEncabezado,
+              onRegistrar: _mostrarFormularioBicicleta,
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async => _recargar(),
+                child: _ContenidoBicicletas(
+                  snapshot: snapshot,
+                  onRegistrar: _mostrarFormularioBicicleta,
+                  onEditar: (bicicleta) => _mostrarFormularioBicicleta(
+                    bicicleta: bicicleta,
                   ),
+                  onEliminar: _eliminarBicicleta,
+                  onCambiarActiva: _cambiarEstadoActivoBicicleta,
+                  onReintentar: _recargar,
                 ),
-              );
-            }
-
-            return Column(
-              children: bicicletas
-                  .map(
-                    (bicicleta) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _TarjetaBicicletaUsuario(
-                        bicicleta: bicicleta,
-                        onEditar: () => _mostrarFormularioBicicleta(
-                          bicicleta: bicicleta,
-                        ),
-                        onEliminar: () => _eliminarBicicleta(bicicleta),
-                        onCambiarActiva: (activa) =>
-                            _cambiarEstadoActivoBicicleta(bicicleta, activa),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            );
-          },
-        ),
-        const SizedBox(height: 8),
-        InkWell(
-          onTap: _mostrarFormularioBicicleta,
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-            decoration: BoxDecoration(
-              color: ColoresUbb.azulApp.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: ColoresUbb.azulApp.withValues(alpha: 0.5),
-                style: BorderStyle.none, // We will just use background
               ),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 10,
-                          spreadRadius: 1),
-                    ],
-                  ),
-                  child: const Icon(Icons.add,
-                      size: 32, color: ColoresUbb.azulApp),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Registrar nueva bicicleta',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: ColoresUbb.azulApp,
-                      ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Agrega descripción, foto y datos visibles para validación.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: ColoresUbb.textoSecundario,
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -179,21 +91,15 @@ class _VistaBicicletasState extends State<VistaBicicletas> {
       }
       _recargar();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              activa
-                  ? '${bicicleta.descripcion} activada'
-                  : '${bicicleta.descripcion} inactiva',
-            ),
-          ),
+        context.mostrarExito(
+          activa
+              ? '${bicicleta.descripcion} activada'
+              : '${bicicleta.descripcion} inactiva',
         );
       }
     } on ExcepcionApi catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.mensaje)),
-        );
+        context.mostrarError(error.mensaje);
       }
     }
   }
@@ -202,14 +108,25 @@ class _VistaBicicletasState extends State<VistaBicicletas> {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        icon: const Icon(
+          Icons.delete_forever_outlined,
+          color: ColoresUbb.rojoInstitucional,
+          size: 44,
+        ),
         title: const Text('Eliminar bicicleta'),
-        content: Text('Se eliminará "${bicicleta.descripcion}".'),
+        content: Text(
+          '¿Seguro que deseas eliminar "${bicicleta.descripcion}"?\nEsta acción no se puede deshacer.',
+        ),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancelar'),
           ),
-          ElevatedButton(
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: ColoresUbb.rojoInstitucional,
+            ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Eliminar'),
           ),
@@ -225,15 +142,11 @@ class _VistaBicicletasState extends State<VistaBicicletas> {
       await bicicletaApi.eliminar(bicicleta.id);
       _recargar();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Bicicleta eliminada')),
-        );
+        context.mostrarExito('Bicicleta eliminada');
       }
     } on ExcepcionApi catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.mensaje)),
-        );
+        context.mostrarError(error.mensaje);
       }
     }
   }
@@ -253,6 +166,208 @@ class _VistaBicicletasState extends State<VistaBicicletas> {
 
     if (guardo == true && mounted) {
       _recargar();
+      context.mostrarExito(
+        bicicleta == null
+            ? 'Bicicleta registrada correctamente'
+            : 'Datos editados correctamente',
+      );
     }
+  }
+}
+
+class _EncabezadoBicicletas extends StatelessWidget {
+  const _EncabezadoBicicletas({
+    required this.mostrarBoton,
+    required this.onRegistrar,
+  });
+
+  final bool mostrarBoton;
+  final VoidCallback onRegistrar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Expanded(child: TituloApartado(titulo: 'Mis bicicletas')),
+        if (mostrarBoton) ...[
+          const SizedBox(width: 12),
+          _BotonRegistrarCompacto(
+            texto: 'Registrar',
+            onPressed: onRegistrar,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ContenidoBicicletas extends StatelessWidget {
+  const _ContenidoBicicletas({
+    required this.snapshot,
+    required this.onRegistrar,
+    required this.onEditar,
+    required this.onEliminar,
+    required this.onCambiarActiva,
+    required this.onReintentar,
+  });
+
+  final AsyncSnapshot<List<BicicletaApp>> snapshot;
+  final VoidCallback onRegistrar;
+  final ValueChanged<BicicletaApp> onEditar;
+  final ValueChanged<BicicletaApp> onEliminar;
+  final void Function(BicicletaApp bicicleta, bool activa) onCambiarActiva;
+  final VoidCallback onReintentar;
+
+  @override
+  Widget build(BuildContext context) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(
+            height: 280,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ],
+      );
+    }
+
+    if (snapshot.hasError) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          TarjetaAccion(
+            icono: Icons.cloud_off_outlined,
+            titulo: 'No se pudieron cargar bicicletas',
+            detalle: 'Revisa que el backend esté activo.',
+            color: ColoresUbb.rojoInstitucional,
+            onTap: onReintentar,
+          ),
+        ],
+      );
+    }
+
+    final bicicletas = snapshot.data ?? [];
+
+    if (bicicletas.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: 360,
+            child: _EstadoVacioBicicletas(onRegistrar: onRegistrar),
+          ),
+        ],
+      );
+    }
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(bottom: 24),
+      children: [
+        ...bicicletas.map(
+          (bicicleta) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: TarjetaBicicletaUsuario(
+              bicicleta: bicicleta,
+              onEditar: () => onEditar(bicicleta),
+              onEliminar: () => onEliminar(bicicleta),
+              onCambiarActiva: (activa) => onCambiarActiva(bicicleta, activa),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EstadoVacioBicicletas extends StatelessWidget {
+  const _EstadoVacioBicicletas({required this.onRegistrar});
+
+  final VoidCallback onRegistrar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.pedal_bike,
+            size: 64,
+            color: ColoresUbb.textoSecundario,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Sin bicicletas',
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(color: ColoresUbb.textoSecundario),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Registra tu primera bicicleta para usar el sistema.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: ColoresUbb.textoSecundario),
+          ),
+          const SizedBox(height: 18),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 240),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(0, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                backgroundColor: ColoresUbb.azulApp,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: onRegistrar,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text(
+                'Registrar bicicleta',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BotonRegistrarCompacto extends StatelessWidget {
+  const _BotonRegistrarCompacto({
+    required this.texto,
+    required this.onPressed,
+  });
+
+  final String texto;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      style: ElevatedButton.styleFrom(
+        minimumSize: const Size(0, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        backgroundColor: ColoresUbb.azulApp,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      onPressed: onPressed,
+      icon: const Icon(Icons.add, size: 18),
+      label: Text(
+        texto,
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+    );
   }
 }
