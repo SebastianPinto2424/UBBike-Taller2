@@ -60,6 +60,7 @@ class BicicletaApi {
     String? aro,
     String? numeroSerie,
     String? fotoUrl,
+    bool actualizarFoto = false,
   }) async {
     await cliente.patch(
       '/bicicletas/$bicicletaId',
@@ -70,7 +71,7 @@ class BicicletaApi {
         'color': color,
         'aro': aro,
         'numeroSerie': numeroSerie,
-        'fotoUrl': fotoUrl,
+        if (actualizarFoto) 'fotoUrl': fotoUrl,
       },
     );
   }
