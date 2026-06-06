@@ -14,9 +14,12 @@ FROM nginxinc/nginx-unprivileged:1.27-alpine@sha256:65e3e85dbaed8ba248841d9d58a8
 
 ARG API_BASE_URL=http://localhost:3000
 ARG CSP_CONNECT_SRC
+ARG CSP_IMG_SRC
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 RUN CSP_VALUE="${CSP_CONNECT_SRC:-'self' ${API_BASE_URL}}" && \
-    sed -i "s#__CSP_CONNECT_SRC__#${CSP_VALUE}#g" /etc/nginx/conf.d/default.conf
+    IMG_VALUE="${CSP_IMG_SRC:-'self' data: blob: ${API_BASE_URL}}" && \
+    sed -i "s#__CSP_CONNECT_SRC__#${CSP_VALUE}#g" /etc/nginx/conf.d/default.conf && \
+    sed -i "s#__CSP_IMG_SRC__#${IMG_VALUE}#g" /etc/nginx/conf.d/default.conf
 COPY --from=build /app/build/web /usr/share/nginx/html
 
 EXPOSE 8080
