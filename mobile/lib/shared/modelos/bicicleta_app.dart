@@ -10,6 +10,9 @@ class BicicletaApp {
     this.aro,
     this.numeroSerie,
     this.fotoUrl,
+    this.fotoMimeType,
+    this.fotoTamanoBytes,
+    this.fotoActualizadaEn,
     this.bicicleteroActualNombre,
   });
 
@@ -21,6 +24,9 @@ class BicicletaApp {
   final String? aro;
   final String? numeroSerie;
   final String? fotoUrl;
+  final String? fotoMimeType;
+  final int? fotoTamanoBytes;
+  final DateTime? fotoActualizadaEn;
   final bool activa;
   final bool dentroBicicletero;
   final String? bicicleteroActualNombre;
@@ -38,6 +44,11 @@ class BicicletaApp {
       aro: json['aro'] as String?,
       numeroSerie: json['numeroSerie'] as String?,
       fotoUrl: json['fotoUrl'] as String?,
+      fotoMimeType: json['fotoMimeType'] as String?,
+      fotoTamanoBytes: json['fotoTamanoBytes'] as int?,
+      fotoActualizadaEn: json['fotoActualizadaEn'] == null
+          ? null
+          : DateTime.parse(json['fotoActualizadaEn'] as String),
       activa: json['activa'] as bool? ?? false,
       dentroBicicletero: json['dentroBicicletero'] as bool? ?? false,
       bicicleteroActualNombre: bicicleteroActual?['nombre'] as String?,
