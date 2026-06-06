@@ -1,0 +1,262 @@
+//// ------------------------------------------------------
+//// THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+//// ------------------------------------------------------
+
+Project "UBBike" {
+  database_type: 'PostgreSQL'
+  Note: ''
+}
+
+Table usuarios {
+  id String [pk]
+  nombre String [not null]
+  correo String [unique, not null]
+  rut String [unique]
+  rol RolUsuario [not null, default: 'ESTUDIANTE']
+  contrasenaHash String [not null]
+  correoVerificado Boolean [not null, default: false]
+  registroParcial Boolean [not null, default: false]
+  cuentaActiva Boolean [not null, default: true]
+  versionSesion Int [not null, default: 0]
+  tokenVerificacionCorreo String
+  tokenVerificacionCorreoExpiraEn DateTime
+  tokenCambioContrasena String
+  tokenCambioContrasenaExpiraEn DateTime
+  creadoEn DateTime [default: `now()`, not null]
+  actualizadoEn DateTime [not null]
+}
+
+Table bicicletas {
+  id String [pk]
+  usuarioId String [not null]
+  descripcion String [not null]
+  marca String
+  modelo String
+  color String
+  aro String
+  numeroSerie String
+  fotoUrl String
+  fotoNombreArchivo String
+  fotoMimeType String
+  fotoTamanoBytes Int
+  fotoActualizadaEn DateTime
+  activa Boolean [not null, default: false]
+  dentroBicicletero Boolean [not null, default: false]
+  bicicleteroActualId String
+  creadoEn DateTime [default: `now()`, not null]
+  actualizadoEn DateTime [not null]
+  eliminadoEn DateTime
+}
+
+Table bicicleteros {
+  id String [pk]
+  nombre String [unique, not null]
+  ubicacion String [not null]
+  capacidad Int [not null, default: 80]
+  activo Boolean [not null, default: true]
+  creadoEn DateTime [default: `now()`, not null]
+  actualizadoEn DateTime [not null]
+}
+
+Table asignaciones_guardias {
+  id String [pk]
+  guardiaId String [not null]
+  bicicleteroId String [not null]
+  iniciaEn DateTime [not null]
+  terminaEn DateTime
+  activa Boolean [not null, default: true]
+  creadaEn DateTime [default: `now()`, not null]
+  actualizadaEn DateTime [not null]
+}
+
+Table solicitudes_guardia {
+  id String [pk]
+  solicitadaPorUsuarioId String [not null]
+  bicicleteroId String [not null]
+  guardiaAsignadoId String
+  tipo TipoSolicitudGuardia [not null]
+  estado EstadoSolicitudGuardia [not null, default: 'PENDIENTE']
+  mensaje String
+  notificadaGuardiaEn DateTime
+  ultimaNotificacionUsuarioEn DateTime
+  notificacionesGuardia Int [not null, default: 0]
+  respondidaPorGuardiaEn DateTime
+  enCaminoEn DateTime
+  resueltaEn DateTime
+  creadaEn DateTime [default: `now()`, not null]
+  actualizadaEn DateTime [not null]
+}
+
+Table movimientos {
+  id String [pk]
+  bicicletaId String [not null]
+  usuarioId String [not null]
+  bicicleteroId String [not null]
+  validadoPorGuardiaId String [not null]
+  tipo TipoMovimiento [not null]
+  estado EstadoMovimiento [not null, default: 'CONFIRMADO']
+  motivoDenegacion String
+  comentarioGuardia String
+  origen TipoOrigenMovimiento [not null, default: 'QR']
+  creadoEn DateTime [default: `now()`, not null]
+}
+
+Table codigos_qr_temporales {
+  id String [pk]
+  token String [unique, not null]
+  usuarioId String [not null]
+  bicicletaId String [not null]
+  bicicleteroId String
+  tipo TipoCodigoQrTemporal [not null]
+  expiraEn DateTime [not null]
+  usado Boolean [not null, default: false]
+  escaneadoPorGuardiaId String
+  escaneadoEn DateTime
+  creadoEn DateTime [default: `now()`, not null]
+}
+
+Table notificaciones {
+  id String [pk]
+  usuarioId String [not null]
+  titulo String [not null]
+  mensaje String [not null]
+  tipo TipoNotificacion [not null, default: 'SISTEMA']
+  leida Boolean [not null, default: false]
+  datos Json
+  creadaEn DateTime [default: `now()`, not null]
+}
+
+Table incidencias {
+  id String [pk]
+  reportadaPorUsuarioId String [not null]
+  bicicleteroId String [not null]
+  bicicletaId String
+  gestionadaPorUsuarioId String
+  tipo TipoIncidencia [not null, default: 'OTRO']
+  descripcion String [not null]
+  estado EstadoIncidencia [not null, default: 'PENDIENTE']
+  respuesta String
+  resueltaEn DateTime
+  creadaEn DateTime [default: `now()`, not null]
+  actualizadaEn DateTime [not null]
+}
+
+Table auditoria_eventos {
+  id String [pk]
+  actorUsuarioId String
+  accion String [not null]
+  entidad String [not null]
+  entidadId String
+  ip String
+  userAgent String
+  datos Json
+  creadoEn DateTime [default: `now()`, not null]
+}
+
+Enum RolUsuario {
+  ESTUDIANTE
+  FUNCIONARIO
+  GUARDIA
+  ADMIN_CENTRAL
+  ADMINISTRADOR
+}
+
+Enum TipoMovimiento {
+  INGRESO
+  RETIRO
+}
+
+Enum TipoCodigoQrTemporal {
+  INGRESO
+  RETIRO
+}
+
+Enum TipoOrigenMovimiento {
+  QR
+  MANUAL
+}
+
+Enum EstadoMovimiento {
+  CONFIRMADO
+  DENEGADO
+}
+
+Enum TipoSolicitudGuardia {
+  GUARDIA_AUSENTE
+  REQUIERE_SERVICIO
+}
+
+Enum EstadoSolicitudGuardia {
+  PENDIENTE
+  NOTIFICADA
+  EN_CAMINO
+  RESUELTA
+  CANCELADA
+}
+
+Enum EstadoIncidencia {
+  PENDIENTE
+  EN_REVISION
+  RESUELTA
+  DESCARTADA
+}
+
+Enum TipoIncidencia {
+  PROBLEMA_QR
+  DANO_BICICLETA
+  DANO_INFRAESTRUCTURA
+  PROBLEMA_MOVIMIENTO
+  USUARIO_DATOS
+  OTRO
+}
+
+Enum TipoNotificacion {
+  SISTEMA
+  CUENTA
+  SEGURIDAD
+  SOLICITUD_GUARDIA
+  MOVIMIENTO
+  INCIDENCIA
+}
+
+Ref: bicicletas.usuarioId > usuarios.id [delete: Cascade]
+
+Ref: bicicletas.bicicleteroActualId > bicicleteros.id
+
+Ref: asignaciones_guardias.guardiaId > usuarios.id
+
+Ref: asignaciones_guardias.bicicleteroId > bicicleteros.id
+
+Ref: solicitudes_guardia.solicitadaPorUsuarioId > usuarios.id [delete: Cascade]
+
+Ref: solicitudes_guardia.bicicleteroId > bicicleteros.id
+
+Ref: solicitudes_guardia.guardiaAsignadoId > usuarios.id [delete: Cascade]
+
+Ref: movimientos.bicicletaId > bicicletas.id [delete: Cascade]
+
+Ref: movimientos.usuarioId > usuarios.id [delete: Cascade]
+
+Ref: movimientos.bicicleteroId > bicicleteros.id
+
+Ref: movimientos.validadoPorGuardiaId > usuarios.id [delete: Cascade]
+
+Ref: codigos_qr_temporales.usuarioId > usuarios.id [delete: Cascade]
+
+Ref: codigos_qr_temporales.bicicletaId > bicicletas.id [delete: Cascade]
+
+Ref: codigos_qr_temporales.bicicleteroId > bicicleteros.id
+
+Ref: codigos_qr_temporales.escaneadoPorGuardiaId > usuarios.id [delete: Cascade]
+
+Ref: notificaciones.usuarioId > usuarios.id [delete: Cascade]
+
+Ref: incidencias.reportadaPorUsuarioId > usuarios.id [delete: Cascade]
+
+Ref: incidencias.gestionadaPorUsuarioId > usuarios.id [delete: Cascade]
+
+Ref: incidencias.bicicleteroId > bicicleteros.id
+
+Ref: incidencias.bicicletaId > bicicletas.id
+
+Ref: auditoria_eventos.actorUsuarioId > usuarios.id [delete: Set Null]
