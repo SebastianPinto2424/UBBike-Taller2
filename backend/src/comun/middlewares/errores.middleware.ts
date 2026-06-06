@@ -1,4 +1,5 @@
 import { ErrorRequestHandler } from 'express';
+import { Prisma } from '../../generated/prisma/client';
 import { ErrorHttp } from '../errors/error-http';
 
 export const middlewareErrores: ErrorRequestHandler = (error, _req, res, _next) => {
@@ -6,6 +7,21 @@ export const middlewareErrores: ErrorRequestHandler = (error, _req, res, _next) 
     return res.status(error.statusCode).json({
       message: error.message
     });
+  }
+
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({
+        message:
+          'Ya existe un registro con esos datos. Revisa los campos únicos (correo, RUT, etc.).'
+      });
+    }
+
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        message: 'El recurso solicitado no existe.'
+      });
+    }
   }
 
   console.error(error);
