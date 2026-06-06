@@ -1,10 +1,4 @@
-enum RolUsuario {
-  estudiante,
-  funcionario,
-  guardia,
-  adminCentral,
-  administrador
-}
+enum RolUsuario { estudiante, funcionario, guardia, administrador }
 
 extension EtiquetaRolUsuario on RolUsuario {
   static RolUsuario desdeApi(String valor) {
@@ -14,7 +8,7 @@ extension EtiquetaRolUsuario on RolUsuario {
       case 'GUARDIA':
         return RolUsuario.guardia;
       case 'ADMIN_CENTRAL':
-        return RolUsuario.adminCentral;
+        return RolUsuario.administrador;
       case 'ADMINISTRADOR':
         return RolUsuario.administrador;
       case 'ESTUDIANTE':
@@ -31,8 +25,6 @@ extension EtiquetaRolUsuario on RolUsuario {
         return 'FUNCIONARIO';
       case RolUsuario.guardia:
         return 'GUARDIA';
-      case RolUsuario.adminCentral:
-        return 'ADMIN_CENTRAL';
       case RolUsuario.administrador:
         return 'ADMINISTRADOR';
     }
@@ -46,8 +38,6 @@ extension EtiquetaRolUsuario on RolUsuario {
         return 'Funcionario';
       case RolUsuario.guardia:
         return 'Guardia';
-      case RolUsuario.adminCentral:
-        return 'Admin central';
       case RolUsuario.administrador:
         return 'Administrador';
     }
