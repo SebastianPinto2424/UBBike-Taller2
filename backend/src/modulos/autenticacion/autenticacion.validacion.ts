@@ -36,7 +36,7 @@ const esquemaContrasena = Joi.string()
 export const esquemaRegistro = Joi.object({
   nombre: Joi.string().trim().min(2).max(120).required(),
   rut: Joi.string().trim().min(7).max(20).custom(validarRut).optional().messages({
-    'any.invalid': 'El RUT no es valido'
+    'any.invalid': 'El RUT no es válido'
   }),
   correo: Joi.string().trim().email().max(160).required(),
   contrasena: esquemaContrasena
@@ -55,7 +55,18 @@ export const esquemaVerificarCorreo = Joi.object({
   token: Joi.string().trim().required()
 });
 
+export const esquemaCompletarRegistro = Joi.object({
+  token: Joi.string().trim().required(),
+  nombre: Joi.string().trim().min(2).max(120).required(),
+  contrasena: esquemaContrasena
+});
+
 export const esquemaCambioContrasena = Joi.object({
   token: Joi.string().trim().required(),
   contrasena: esquemaContrasena
+});
+
+export const esquemaRefreshToken = Joi.object({
+  usuarioId: Joi.string().uuid().required(),
+  refreshToken: Joi.string().trim().required()
 });
