@@ -17,12 +17,13 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-COPY package*.json ./
-RUN npm ci --omit=dev
-
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
+COPY --from=deps --chown=node:node /app/dist ./dist
+COPY --chown=node:node package*.json ./
 COPY --chown=node:node prisma ./prisma
 COPY --chown=node:node prisma.config.ts ./
-COPY --from=deps --chown=node:node /app/dist ./dist
+
+RUN mkdir -p /app/uploads && chown -R node:node /app/uploads
 
 USER node
 
