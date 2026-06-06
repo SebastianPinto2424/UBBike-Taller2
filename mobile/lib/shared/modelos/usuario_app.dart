@@ -7,6 +7,7 @@ class UsuarioApp {
     required this.correo,
     required this.rol,
     required this.correoVerificado,
+    required this.registroParcial,
     required this.cuentaActiva,
     this.rut,
   });
@@ -17,17 +18,22 @@ class UsuarioApp {
   final String? rut;
   final RolUsuario rol;
   final bool correoVerificado;
+  final bool registroParcial;
   final bool cuentaActiva;
 
-  factory UsuarioApp.desdeJson(Map<String, dynamic> json) {
+  factory UsuarioApp.fromJson(Map<String, dynamic> json) {
     return UsuarioApp(
-      id: json['id'] as String,
-      nombre: json['nombre'] as String,
-      correo: json['correo'] as String,
+      id: json['id'] as String? ?? '',
+      nombre: json['nombre'] as String? ?? '',
+      correo: json['correo'] as String? ?? '',
       rut: json['rut'] as String?,
-      rol: EtiquetaRolUsuario.desdeApi(json['rol'] as String),
+      rol: EtiquetaRolUsuario.desdeApi(json['rol'] as String? ?? 'ESTUDIANTE'),
       correoVerificado: json['correoVerificado'] as bool? ?? false,
+      registroParcial: json['registroParcial'] as bool? ?? false,
       cuentaActiva: json['cuentaActiva'] as bool? ?? true,
     );
   }
+
+  factory UsuarioApp.desdeJson(Map<String, dynamic> json) =>
+      UsuarioApp.fromJson(json);
 }
