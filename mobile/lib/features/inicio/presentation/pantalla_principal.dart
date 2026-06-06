@@ -1,35 +1,60 @@
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
-import '../../../core/servicios/excepcion_api.dart';
+import '../../../core/providers/sesion_provider.dart';
 import '../../../core/tema/colores_ubb.dart';
-import '../../../features/auth/presentation/pantalla_login.dart';
+import '../../../core/servicios/excepcion_api.dart';
+import '../../../features/acceso/data/solicitud_guardia_api.dart';
+import '../../../features/admin/presentation/vista_gestion_usuarios.dart';
+import '../../../features/auth/data/autenticacion_api.dart';
 import '../../../features/bicicletas/data/bicicleta_api.dart';
-import '../../../features/bicicleteros/data/bicicletero_api.dart';
-import '../../../features/usuarios/data/usuarios_api.dart';
+import '../../../features/acceso/data/acceso_api.dart';
+import '../../../features/historial/data/historial_api.dart';
+import '../../../features/incidencias/data/incidencia_api.dart';
+import '../../../features/inicio/application/controlador_notificaciones_inicio.dart';
+import '../../../features/notificaciones/presentation/pantalla_notificaciones.dart';
+import '../../../features/qr/data/qr_api.dart';
 import '../../../shared/modelos/bicicleta_app.dart';
 import '../../../shared/modelos/bicicletero_app.dart';
-import '../../../shared/modelos/usuario_app.dart';
+import '../../../shared/modelos/movimiento_app.dart';
 import '../../../shared/modelos/rol_usuario.dart';
 import '../../../shared/servicios/sesion_actual.dart';
+import '../../../shared/servicios/descarga_reporte.dart';
 import '../../../shared/widgets/chip_estado.dart';
 import '../../../shared/widgets/contenedor_responsivo.dart';
-import '../../../shared/widgets/marca_ubbike.dart';
 import '../../../shared/widgets/tarjeta_accion.dart';
+import '../../../shared/widgets/snackbar_semantico.dart';
+import 'comun/widgets_comun.dart';
 
 part 'usuario/vista_inicio_usuario.dart';
 part 'usuario/vista_bicicletas_usuario.dart';
 part 'usuario/formulario_bicicleta_usuario.dart';
-part 'admin/vista_usuarios_admin.dart';
-part 'widgets/bicicletas_widgets.dart';
-part 'widgets/estado_widgets.dart';
-part 'widgets/bicicletero_widgets.dart';
-part 'widgets/encabezado_widgets.dart';
+part 'usuario/vista_movimientos_usuario.dart';
+part 'usuario/vista_qr_usuario.dart';
+part 'usuario/vista_solicitar_guardia.dart';
+part 'guardia/vista_inicio_guardia.dart';
+part 'guardia/vista_escaner_qr_guardia.dart';
+part 'guardia/vista_gestion_manual_guardia.dart';
+part 'guardia/vista_ingreso_guardia.dart';
+part 'guardia/vista_alertas_guardia.dart';
+part 'central/vista_dashboard_central.dart';
+part 'central/vista_movimientos_central.dart';
+part 'central/vista_operaciones_guardias_central.dart';
+part 'central/vista_solicitudes_central.dart';
+part 'soporte/vista_incidencias.dart';
+part 'soporte/vista_soporte.dart';
+part 'perfil/pantalla_principal_perfil.dart';
 
-const int _maxFotoDataUrlLength = 1400000;
+const int _maxFotoDataUrlLength = 7000000;
 const Set<String> _mimesFotoPermitidos = {
   'image/jpeg',
   'image/jpg',
@@ -37,87 +62,180 @@ const Set<String> _mimesFotoPermitidos = {
   'image/webp',
 };
 
-String _normalizarMimeFoto(String? mime, String nombreArchivo) {
-  final normalizado = mime?.toLowerCase().trim();
-  if (_mimesFotoPermitidos.contains(normalizado)) {
-    return normalizado!;
-  }
-
-  final nombre = nombreArchivo.toLowerCase();
-  if (nombre.endsWith('.jpg') || nombre.endsWith('.jpeg')) {
-    return 'image/jpeg';
-  }
-  if (nombre.endsWith('.png')) {
-    return 'image/png';
-  }
-  if (nombre.endsWith('.webp')) {
-    return 'image/webp';
-  }
-
-  return normalizado ?? 'image/jpeg';
-}
-
-Uint8List? _decodificarFotoDataUrl(String? fotoDataUrl) {
-  if (fotoDataUrl == null || !fotoDataUrl.startsWith('data:image')) {
-    return null;
-  }
-
-  final partes = fotoDataUrl.split(',');
-  if (partes.length < 2) {
-    return null;
-  }
-
-  try {
-    return base64Decode(partes.last);
-  } on FormatException {
-    return null;
-  }
-}
-
-class PantallaPrincipal extends StatefulWidget {
-  const PantallaPrincipal({super.key, required this.rol});
-
-  final RolUsuario rol;
+class PantallaPrincipal extends ConsumerStatefulWidget {
+  const PantallaPrincipal({super.key});
 
   @override
-  State<PantallaPrincipal> createState() => _PantallaPrincipalState();
+  ConsumerState<PantallaPrincipal> createState() => _PantallaPrincipalState();
 }
 
-class _PantallaPrincipalState extends State<PantallaPrincipal> {
+class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   int indice = 0;
+  ModoIngresoGuardia modoIngresoGuardia = ModoIngresoGuardia.qr;
+  final controladorNotificaciones = ControladorNotificacionesInicio();
+
+  void _abrirIngresoGuardia(ModoIngresoGuardia modo) {
+    setState(() {
+      modoIngresoGuardia = modo;
+      indice = 2;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    controladorNotificaciones.addListener(_sincronizarNotificaciones);
+    controladorNotificaciones.iniciar();
+  }
+
+  @override
+  void dispose() {
+    controladorNotificaciones.removeListener(_sincronizarNotificaciones);
+    controladorNotificaciones.dispose();
+    super.dispose();
+  }
+
+  Future<void> _abrirNotificaciones() async {
+    controladorNotificaciones.marcarTodasLeidas();
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const PantallaNotificaciones(),
+      ),
+    );
+
+    if (mounted) {
+      await controladorNotificaciones.actualizar();
+    }
+  }
+
+  void _sincronizarNotificaciones() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
+    final nueva = controladorNotificaciones.nuevaNotificacion;
+    if (nueva == null) {
+      return;
+    }
+
+    controladorNotificaciones.marcarNuevaNotificacionMostrada();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 4),
+        content: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.14),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.notifications_outlined,
+                color: Colors.white,
+                size: 19,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    nueva.titulo,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    nueva.mensaje,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.88),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: ColoresUbb.azulNoche,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        action: nueva.muestraAccionVer
+            ? SnackBarAction(
+                label: 'Ver',
+                textColor: ColoresUbb.turquesa,
+                onPressed: _abrirNotificaciones,
+              )
+            : null,
+      ),
+    );
+  }
+
+  Widget _iconoNotificaciones() {
+    final cantidad = controladorNotificaciones.noLeidas;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        const Icon(Icons.notifications_outlined),
+        if (cantidad > 0)
+          Positioned(
+            right: -4,
+            top: -6,
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                color: ColoresUbb.rojoInstitucional,
+                shape: BoxShape.circle,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Text(
+                  cantidad > 9 ? '9+' : '$cantidad',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final esAdministrador = widget.rol == RolUsuario.administrador;
-    final paginas = [
-      const VistaInicioUsuario(),
-      const VistaBicicletas(),
-      if (esAdministrador) const VistaUsuariosAdmin(),
-      VistaPerfil(rol: widget.rol),
-    ];
-    final destinos = [
-      const NavigationDestination(
-        icon: Icon(Icons.home_outlined),
-        label: 'Inicio',
-      ),
-      const NavigationDestination(
-        icon: Icon(Icons.pedal_bike),
-        label: 'Bicicletas',
-      ),
-      if (esAdministrador)
-        const NavigationDestination(
-          icon: Icon(Icons.manage_accounts_outlined),
-          label: 'Usuarios',
-        ),
-      const NavigationDestination(
-        icon: Icon(Icons.person_outline),
-        label: 'Perfil',
-      ),
-    ];
+    final sesion = ref.watch(sesionProvider).value;
+    final rol =
+        sesion is SesionActiva ? sesion.usuario.rol : RolUsuario.estudiante;
+    final destinos = _destinosPorRol(rol);
+    final paginas = _paginasPorRol(rol);
+
+    final datos = _datosPaginas(rol);
+    final datoActual = indice < datos.length ? datos[indice] : null;
 
     return Scaffold(
       appBar: AppBar(
-        title: const MarcaUbbike(compacta: true, sobreAzul: true),
+        automaticallyImplyLeading: false,
+        title: Text(datoActual?.$2 ?? 'UBBike'),
+        actions: [
+          IconButton(
+            tooltip: 'Notificaciones',
+            onPressed: _abrirNotificaciones,
+            icon: _iconoNotificaciones(),
+          ),
+        ],
       ),
       body: ContenedorResponsivo(
         anchoMaximo: 940,
@@ -132,141 +250,191 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
       ),
     );
   }
-}
 
-class VistaPerfil extends StatelessWidget {
-  const VistaPerfil({super.key, required this.rol});
-
-  final RolUsuario rol;
-
-  @override
-  Widget build(BuildContext context) {
-    final usuario = SesionActual.usuario;
-    final nombre = _textoNoVacio(usuario?.nombre, 'Usuario UBB');
-    final correo = _textoNoVacio(usuario?.correo, 'Correo no informado');
-    final rut = _textoNoVacio(usuario?.rut, 'RUT no informado');
-
-    return ListView(
-      children: [
-        const _EncabezadoSeccion(
-          titulo: 'Perfil',
-          detalle: 'Datos de la sesión actual y rol asignado en el sistema.',
-          icono: Icons.person_outline,
-        ),
-        const SizedBox(height: 16),
-        Card(
-          elevation: 3,
-          shadowColor: Colors.black.withValues(alpha: 0.05),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: ColoresUbb.azulApp,
-                      foregroundColor: Colors.white,
-                      child: Text(_inicialSegura(nombre)),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            nombre,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w900),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            correo,
-                            overflow: TextOverflow.ellipsis,
-                            style:
-                                Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: ColoresUbb.textoSecundario,
-                                    ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    ChipEstado(
-                        texto: _etiquetaRol(rol), color: ColoresUbb.azulApp),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                _FilaPerfil(
-                  icono: Icons.badge_outlined,
-                  etiqueta: 'RUT',
-                  valor: rut,
-                ),
-                const SizedBox(height: 10),
-                _FilaPerfil(
-                  icono: Icons.verified_user_outlined,
-                  etiqueta: 'Rol',
-                  valor: _etiquetaRol(rol),
-                ),
-              ],
-            ),
+  List<NavigationDestination> _destinosPorRol(RolUsuario rol) {
+    final iconoQrGuardia = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+      decoration: BoxDecoration(
+        color: ColoresUbb.azulApp,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: ColoresUbb.azulApp.withValues(alpha: 0.3),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
-        ),
-        const SizedBox(height: 16),
-        OutlinedButton.icon(
-          onPressed: () {
-            SesionActual.cerrar();
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const PantallaLogin()),
-              (_) => false,
-            );
-          },
-          icon: const Icon(Icons.logout),
-          label: const Text('Cerrar sesión'),
-        ),
-      ],
+        ],
+      ),
+      child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
     );
+
+    final iconoQrUsuario = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+      decoration: BoxDecoration(
+        color: ColoresUbb.azulApp,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: ColoresUbb.azulApp.withValues(alpha: 0.3),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: const Icon(Icons.qr_code_2, color: Colors.white, size: 30),
+    );
+
+    if (rol == RolUsuario.guardia) {
+      return [
+        const NavigationDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
+          label: 'Inicio',
+        ),
+        const NavigationDestination(
+          icon: Icon(Icons.history_outlined),
+          selectedIcon: Icon(Icons.history),
+          label: 'Historial',
+        ),
+        NavigationDestination(
+          icon: iconoQrGuardia,
+          selectedIcon: iconoQrGuardia,
+          label: 'Validar',
+        ),
+        const NavigationDestination(
+          icon: Icon(Icons.support_agent_outlined),
+          selectedIcon: Icon(Icons.support_agent),
+          label: 'Avisos',
+        ),
+        const NavigationDestination(
+          icon: Icon(Icons.person_outline),
+          selectedIcon: Icon(Icons.person),
+          label: 'Perfil',
+        ),
+      ];
+    }
+
+    if (rol == RolUsuario.administrador) {
+      return const [
+        NavigationDestination(
+          icon: Icon(Icons.dashboard_outlined),
+          selectedIcon: Icon(Icons.dashboard),
+          label: 'Inicio',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.manage_search_outlined),
+          selectedIcon: Icon(Icons.manage_search),
+          label: 'Movimientos',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.manage_accounts_outlined),
+          selectedIcon: Icon(Icons.manage_accounts),
+          label: 'Usuarios',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.support_agent_outlined),
+          selectedIcon: Icon(Icons.support_agent),
+          label: 'Soporte',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.person_outline),
+          selectedIcon: Icon(Icons.person),
+          label: 'Perfil',
+        ),
+      ];
+    }
+
+    return [
+      const NavigationDestination(
+        icon: Icon(Icons.home_outlined),
+        selectedIcon: Icon(Icons.home),
+        label: 'Inicio',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.pedal_bike_outlined),
+        selectedIcon: Icon(Icons.pedal_bike),
+        label: 'Bicicletas',
+      ),
+      NavigationDestination(
+        icon: iconoQrUsuario,
+        selectedIcon: iconoQrUsuario,
+        label: 'QR',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.support_agent_outlined),
+        selectedIcon: Icon(Icons.support_agent),
+        label: 'Soporte',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.person_outline),
+        selectedIcon: Icon(Icons.person),
+        label: 'Perfil',
+      ),
+    ];
   }
-}
 
-class _FilaPerfil extends StatelessWidget {
-  const _FilaPerfil({
-    required this.icono,
-    required this.etiqueta,
-    required this.valor,
-  });
-
-  final IconData icono;
-  final String etiqueta;
-  final String valor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icono, color: ColoresUbb.azulApp),
-        const SizedBox(width: 10),
-        Text(
-          '$etiqueta:',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: ColoresUbb.textoSecundario,
-                fontWeight: FontWeight.w700,
-              ),
+  List<Widget> _paginasPorRol(RolUsuario rol) {
+    if (rol == RolUsuario.guardia) {
+      return [
+        VistaInicioGuardia(
+          onOpenIngreso: _abrirIngresoGuardia,
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            valor,
-            textAlign: TextAlign.end,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-          ),
+        const VistaMovimientosCentral(),
+        VistaIngresoGuardia(modoInicial: modoIngresoGuardia),
+        const VistaSoporteGuardia(),
+        const VistaPerfil(rol: RolUsuario.guardia),
+      ];
+    }
+
+    if (rol == RolUsuario.administrador) {
+      return [
+        VistaDashboardCentral(
+          onAbrirMovimientos: () => setState(() => indice = 1),
+          onAbrirGuardias: () => setState(() => indice = 3),
+          onAbrirSoporte: () => setState(() => indice = 3),
         ),
-      ],
-    );
+        const VistaMovimientosCentral(),
+        const VistaGestionUsuarios(),
+        const VistaSoporteAdministrador(),
+        const VistaPerfil(rol: RolUsuario.administrador),
+      ];
+    }
+
+    return [
+      const VistaInicioUsuario(),
+      const VistaBicicletas(),
+      const VistaQrUsuario(),
+      const VistaSoporteUsuario(),
+      VistaPerfil(rol: rol),
+    ];
+  }
+
+  List<(IconData, String)> _datosPaginas(RolUsuario rol) {
+    if (rol == RolUsuario.guardia) {
+      return const [
+        (Icons.home_outlined, 'Inicio'),
+        (Icons.history_outlined, 'Historial'),
+        (Icons.qr_code_scanner, 'Validar'),
+        (Icons.support_agent_outlined, 'Avisos'),
+        (Icons.person_outline, 'Perfil'),
+      ];
+    }
+    if (rol == RolUsuario.administrador) {
+      return const [
+        (Icons.dashboard_outlined, 'Inicio'),
+        (Icons.manage_search_outlined, 'Movimientos'),
+        (Icons.manage_accounts_outlined, 'Usuarios'),
+        (Icons.support_agent_outlined, 'Soporte'),
+        (Icons.person_outline, 'Perfil'),
+      ];
+    }
+    return const [
+      (Icons.home_outlined, 'Inicio'),
+      (Icons.pedal_bike_outlined, 'Bicicletas'),
+      (Icons.qr_code_2, 'QR'),
+      (Icons.support_agent_outlined, 'Soporte'),
+      (Icons.person_outline, 'Perfil'),
+    ];
   }
 }
 
@@ -293,25 +461,30 @@ String _textoNoVacio(String? valor, String respaldo) {
   return texto;
 }
 
-String _inicialSegura(String valor) {
-  final texto = valor.trim();
-  if (texto.isEmpty) {
-    return '?';
+String _detectarMimeDesdeBytes(Uint8List bytes) {
+  if (bytes.length >= 3 &&
+      bytes[0] == 0xFF &&
+      bytes[1] == 0xD8 &&
+      bytes[2] == 0xFF) {
+    return 'image/jpeg';
   }
-  return String.fromCharCode(texto.runes.first).toUpperCase();
-}
-
-String _etiquetaRol(RolUsuario rol) {
-  switch (rol) {
-    case RolUsuario.estudiante:
-      return 'Estudiante';
-    case RolUsuario.funcionario:
-      return 'Funcionario';
-    case RolUsuario.guardia:
-      return 'Guardia';
-    case RolUsuario.adminCentral:
-      return 'Admin central';
-    case RolUsuario.administrador:
-      return 'Administrador';
+  if (bytes.length >= 4 &&
+      bytes[0] == 0x89 &&
+      bytes[1] == 0x50 &&
+      bytes[2] == 0x4E &&
+      bytes[3] == 0x47) {
+    return 'image/png';
   }
+  if (bytes.length >= 12 &&
+      bytes[0] == 0x52 &&
+      bytes[1] == 0x49 &&
+      bytes[2] == 0x46 &&
+      bytes[3] == 0x46 &&
+      bytes[8] == 0x57 &&
+      bytes[9] == 0x45 &&
+      bytes[10] == 0x42 &&
+      bytes[11] == 0x50) {
+    return 'image/webp';
+  }
+  return 'image/jpeg';
 }
