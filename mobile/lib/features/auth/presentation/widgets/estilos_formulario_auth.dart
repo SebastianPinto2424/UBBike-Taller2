@@ -23,6 +23,7 @@ InputDecoration decoracionCampoAuth({
     labelStyle: const TextStyle(color: Colors.grey),
     prefixIcon: Icon(icono, color: ColoresUbb.azulApp),
     suffixIcon: suffixIcon,
+    errorMaxLines: 3,
   );
 }
 
