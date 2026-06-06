@@ -4,15 +4,20 @@ import { limitarIntentos } from '../../comun/middlewares/limitador-intentos.midd
 import { validarCuerpo } from '../../comun/middlewares/validar-cuerpo.middleware';
 import {
   cambiarContrasena,
+  cerrarSesion,
+  completarRegistro,
   iniciarSesion,
   obtenerPerfil,
+  refrescarToken,
   registrar,
   solicitarCambioContrasena,
   verificarCorreo
 } from './autenticacion.controlador';
 import {
   esquemaCambioContrasena,
+  esquemaCompletarRegistro,
   esquemaLogin,
+  esquemaRefreshToken,
   esquemaRegistro,
   esquemaSolicitudCambioContrasena,
   esquemaVerificarCorreo
@@ -30,6 +35,7 @@ rutasAutenticacion.post(
   validarCuerpo(esquemaRegistro),
   registrar
 );
+
 rutasAutenticacion.post(
   '/login',
   limitarIntentos({
@@ -40,13 +46,22 @@ rutasAutenticacion.post(
   validarCuerpo(esquemaLogin),
   iniciarSesion
 );
-rutasAutenticacion.get(['/perfil', '/me'], middlewareAutenticacion, obtenerPerfil);
+
+rutasAutenticacion.get(['/perfil', '/me', '/yo'], middlewareAutenticacion, obtenerPerfil);
+
 rutasAutenticacion.get('/verificar-correo', verificarCorreo);
 rutasAutenticacion.post(
   '/verificar-correo',
   validarCuerpo(esquemaVerificarCorreo),
   verificarCorreo
 );
+
+rutasAutenticacion.post(
+  '/completar-registro',
+  validarCuerpo(esquemaCompletarRegistro),
+  completarRegistro
+);
+
 rutasAutenticacion.post(
   '/solicitar-cambio-contrasena',
   limitarIntentos({
@@ -57,6 +72,7 @@ rutasAutenticacion.post(
   validarCuerpo(esquemaSolicitudCambioContrasena),
   solicitarCambioContrasena
 );
+
 rutasAutenticacion.post(
   '/cambiar-contrasena',
   limitarIntentos({
@@ -67,5 +83,18 @@ rutasAutenticacion.post(
   validarCuerpo(esquemaCambioContrasena),
   cambiarContrasena
 );
+
+rutasAutenticacion.post(
+  '/refresh',
+  limitarIntentos({
+    ventanaMs: 15 * 60 * 1000,
+    maximo: 30,
+    mensaje: 'Demasiadas solicitudes de refresh. Intenta más tarde.'
+  }),
+  validarCuerpo(esquemaRefreshToken),
+  refrescarToken
+);
+
+rutasAutenticacion.post('/logout', middlewareAutenticacion, cerrarSesion);
 
 export { rutasAutenticacion };
