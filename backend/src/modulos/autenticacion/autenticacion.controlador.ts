@@ -2,8 +2,11 @@ import { SolicitudAutenticada } from '../../comun/middlewares/autenticacion.midd
 import { controladorAsync } from '../../comun/utils/controlador-async';
 import {
   cambiarContrasena as cambiarContrasenaServicio,
+  cerrarSesion as cerrarSesionServicio,
+  completarRegistro as completarRegistroServicio,
   iniciarSesion as iniciarSesionServicio,
   obtenerUsuarioActual,
+  refrescarToken as refrescarTokenServicio,
   registrarUsuario,
   solicitarCambioContrasena as solicitarCambioContrasenaServicio,
   verificarCorreo as verificarCorreoServicio
@@ -30,6 +33,15 @@ export const verificarCorreo = controladorAsync(async (req, res) => {
   return res.status(200).json(resultado);
 });
 
+export const completarRegistro = controladorAsync(async (req, res) => {
+  const resultado = await completarRegistroServicio({
+    token: req.body.token,
+    nombre: req.body.nombre,
+    contrasena: req.body.contrasena
+  });
+  return res.status(200).json(resultado);
+});
+
 export const solicitarCambioContrasena = controladorAsync(async (req, res) => {
   const resultado = await solicitarCambioContrasenaServicio(req.body.correo);
   return res.status(200).json(resultado);
@@ -37,5 +49,16 @@ export const solicitarCambioContrasena = controladorAsync(async (req, res) => {
 
 export const cambiarContrasena = controladorAsync(async (req, res) => {
   const resultado = await cambiarContrasenaServicio(req.body.token, req.body.contrasena);
+  return res.status(200).json(resultado);
+});
+
+export const refrescarToken = controladorAsync(async (req, res) => {
+  const { usuarioId, refreshToken } = req.body;
+  const resultado = await refrescarTokenServicio(usuarioId, refreshToken);
+  return res.status(200).json(resultado);
+});
+
+export const cerrarSesion = controladorAsync<SolicitudAutenticada>(async (req, res) => {
+  const resultado = await cerrarSesionServicio(req.usuario!.usuarioId, req.body?.refreshToken);
   return res.status(200).json(resultado);
 });
