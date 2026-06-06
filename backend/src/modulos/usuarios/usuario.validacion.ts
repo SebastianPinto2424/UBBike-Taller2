@@ -1,6 +1,10 @@
 import Joi from 'joi';
 import { RolUsuario } from './rol-usuario';
 
+const rolesGestionables = Object.values(RolUsuario).filter(
+  (rol) => rol !== RolUsuario.ADMIN_CENTRAL
+);
+
 const validarRut = (valor: string, helpers: Joi.CustomHelpers) => {
   if (valor === '') {
     return valor;
@@ -32,10 +36,10 @@ export const esquemaActualizarPermisosUsuario = Joi.object({
   nombre: Joi.string().trim().min(3).max(120).optional(),
   correo: Joi.string().trim().email().max(160).optional(),
   rut: Joi.string().trim().max(20).allow('', null).custom(validarRut).optional().messages({
-    'any.invalid': 'El RUT no es valido'
+    'any.invalid': 'El RUT no es válido'
   }),
   rol: Joi.string()
-    .valid(...Object.values(RolUsuario))
+    .valid(...rolesGestionables)
     .optional(),
   cuentaActiva: Joi.boolean().optional(),
   correoVerificado: Joi.boolean().optional()
