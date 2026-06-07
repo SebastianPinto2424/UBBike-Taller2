@@ -24,6 +24,7 @@ class AplicacionUBBike extends StatefulWidget {
 
 class _AplicacionUBBikeState extends State<AplicacionUBBike> {
   final _appLinks = AppLinks();
+  String? _ultimaRutaDeepLink;
 
   @override
   void initState() {
@@ -41,6 +42,10 @@ class _AplicacionUBBikeState extends State<AplicacionUBBike> {
 
   void _navegarDesdeUri(Uri uri) {
     final ruta = uri.query.isEmpty ? uri.path : '${uri.path}?${uri.query}';
+    if (ruta == _ultimaRutaDeepLink) {
+      return;
+    }
+    _ultimaRutaDeepLink = ruta;
     _navigatorKey.currentState?.pushNamed(ruta);
   }
 
