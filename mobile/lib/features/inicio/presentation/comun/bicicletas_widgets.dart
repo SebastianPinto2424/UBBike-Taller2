@@ -205,7 +205,7 @@ class _InfoBicicletaGrid extends StatelessWidget {
       _DatoBicicletaInfo(
           etiqueta: 'Aro', valor: _valorInformado(bicicleta.aro)),
       _DatoBicicletaInfo(
-          etiqueta: 'Serie', valor: _valorInformado(bicicleta.numeroSerie)),
+          etiqueta: 'N° Serie', valor: _valorInformado(bicicleta.numeroSerie)),
       _DatoBicicletaInfo(etiqueta: 'Estado actual', valor: estadoActual),
     ];
 
