@@ -6,6 +6,7 @@ InputDecoration decoracionCampoAuth({
   required String labelText,
   required IconData icono,
   Widget? suffixIcon,
+  String? helperText,
 }) {
   OutlineInputBorder borde(Color color) {
     return OutlineInputBorder(
@@ -23,6 +24,9 @@ InputDecoration decoracionCampoAuth({
     labelStyle: const TextStyle(color: Colors.grey),
     prefixIcon: Icon(icono, color: ColoresUbb.azulApp),
     suffixIcon: suffixIcon,
+    helperText: helperText,
+    helperStyle: const TextStyle(color: ColoresUbb.textoSecundario),
+    helperMaxLines: 2,
     errorMaxLines: 3,
   );
 }
