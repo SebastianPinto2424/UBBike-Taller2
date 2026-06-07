@@ -71,7 +71,6 @@ UBBike2026*
 | Estudiante | `estudiante@alumnos.ubiobio.cl` |
 | Funcionario | `funcionario@ubiobio.cl` |
 | Guardia | `guardia@ubiobio.cl` |
-| Admin central | `admin.central@ubiobio.cl` |
 | Administrador | `administrador@ubiobio.cl` |
 
 ## Para probar
