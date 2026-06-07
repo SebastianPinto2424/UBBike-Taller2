@@ -29,6 +29,8 @@ import '../../../shared/modelos/movimiento_app.dart';
 import '../../../shared/modelos/rol_usuario.dart';
 import '../../../shared/servicios/sesion_actual.dart';
 import '../../../shared/servicios/descarga_reporte.dart';
+import '../../../shared/utils/identidad.dart';
+import '../../../shared/utils/opciones_bicicleta.dart';
 import '../../../shared/widgets/chip_estado.dart';
 import '../../../shared/widgets/contenedor_responsivo.dart';
 import '../../../shared/widgets/tarjeta_accion.dart';
@@ -450,7 +452,7 @@ String _saludoActual() {
 }
 
 String _nombreSesion(String respaldo) {
-  return _textoNoVacio(SesionActual.usuario?.nombre, respaldo);
+  return nombreCorto(_textoNoVacio(SesionActual.usuario?.nombre, respaldo));
 }
 
 String _textoNoVacio(String? valor, String respaldo) {
