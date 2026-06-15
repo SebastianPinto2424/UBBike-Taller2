@@ -1,27 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/repositorios_provider.dart';
+import '../../../core/providers/sesion_provider.dart';
 import '../../../core/servicios/excepcion_api.dart';
 import '../../../core/tema/colores_ubb.dart';
-import '../../../features/auth/data/autenticacion_api.dart';
 import '../../../shared/widgets/contenedor_responsivo.dart';
 import '../../../shared/widgets/marca_ubbike.dart';
 import '../../../shared/widgets/snackbar_semantico.dart';
 import 'pantalla_login.dart';
 import 'widgets/estilos_formulario_auth.dart';
 
-class PantallaVerificarCorreo extends StatefulWidget {
+class PantallaVerificarCorreo extends ConsumerStatefulWidget {
   const PantallaVerificarCorreo({super.key, required this.token});
 
   final String token;
 
   @override
-  State<PantallaVerificarCorreo> createState() =>
+  ConsumerState<PantallaVerificarCorreo> createState() =>
       _PantallaVerificarCorreoState();
 }
 
-class _PantallaVerificarCorreoState extends State<PantallaVerificarCorreo> {
-  final autenticacionApi = AutenticacionApi();
+class _PantallaVerificarCorreoState
+    extends ConsumerState<PantallaVerificarCorreo> {
   String mensaje = 'Verificando correo...';
+  String? correoVerificado;
   bool cargando = true;
   bool correcto = false;
 
@@ -33,10 +37,14 @@ class _PantallaVerificarCorreoState extends State<PantallaVerificarCorreo> {
 
   Future<void> _verificar() async {
     try {
-      final respuesta = await autenticacionApi.verificarCorreo(widget.token);
+      final respuesta = await ref
+          .read(autenticacionRepositoryProvider)
+          .verificarCorreo(widget.token);
       if (mounted) {
         setState(() {
-          mensaje = respuesta;
+          mensaje =
+              'Tu cuenta fue activada correctamente. Vuelve a la app e inicia sesión.';
+          correoVerificado = respuesta.correo;
           correcto = true;
           cargando = false;
         });
@@ -60,32 +68,70 @@ class _PantallaVerificarCorreoState extends State<PantallaVerificarCorreo> {
 
   @override
   Widget build(BuildContext context) {
+    final hayError = !cargando && !correcto;
+
     return _PantallaEstadoCorreo(
-      titulo: correcto ? 'Cuenta activada' : 'Verificación de correo',
+      titulo: correcto
+          ? 'Cuenta activada'
+          : hayError
+              ? 'No se pudo verificar'
+              : 'Verificación de correo',
       mensaje: mensaje,
       cargando: cargando,
       icono: correcto
           ? Icons.check_circle_outline
-          : Icons.mark_email_read_outlined,
-      color: correcto ? ColoresUbb.exito : ColoresUbb.azulApp,
+          : hayError
+              ? Icons.error_outline
+              : Icons.mark_email_read_outlined,
+      color: correcto
+          ? ColoresUbb.exito
+          : hayError
+              ? ColoresUbb.rojoInstitucional
+              : ColoresUbb.azulApp,
+      textoAccion: correcto ? 'Iniciar sesión' : 'Volver al inicio de sesión',
+      onAccion: correcto
+          ? () {
+              _mostrarLoginVerificado();
+            }
+          : null,
+    );
+  }
+
+  Future<void> _mostrarLoginVerificado() async {
+    final correo = correoVerificado?.trim();
+
+    await ref.read(sesionProvider.notifier).cerrar();
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => PantallaLogin(
+          correoInicial: correo != null && correo.isNotEmpty ? correo : null,
+          mensajeInicial:
+              'Cuenta activada. Ingresa tu contraseña para iniciar sesión.',
+        ),
+      ),
+      (_) => false,
     );
   }
 }
 
-class PantallaCompletarRegistro extends StatefulWidget {
+class PantallaCompletarRegistro extends ConsumerStatefulWidget {
   const PantallaCompletarRegistro({super.key, required this.token});
 
   final String token;
 
   @override
-  State<PantallaCompletarRegistro> createState() =>
+  ConsumerState<PantallaCompletarRegistro> createState() =>
       _PantallaCompletarRegistroState();
 }
 
-class _PantallaCompletarRegistroState extends State<PantallaCompletarRegistro> {
+class _PantallaCompletarRegistroState
+    extends ConsumerState<PantallaCompletarRegistro> {
   final nombreController = TextEditingController();
   final contrasenaController = TextEditingController();
-  final autenticacionApi = AutenticacionApi();
   bool cargando = false;
   bool mostrarContrasena = false;
 
@@ -117,11 +163,12 @@ class _PantallaCompletarRegistroState extends State<PantallaCompletarRegistro> {
     setState(() => cargando = true);
 
     try {
-      final mensaje = await autenticacionApi.completarRegistro(
-        token: widget.token,
-        nombre: nombre,
-        contrasena: contrasenaController.text,
-      );
+      final mensaje =
+          await ref.read(autenticacionRepositoryProvider).completarRegistro(
+                token: widget.token,
+                nombre: nombre,
+                contrasena: contrasenaController.text,
+              );
 
       if (mounted) {
         context.mostrarExito(mensaje);
@@ -172,12 +219,17 @@ class _PantallaCompletarRegistroState extends State<PantallaCompletarRegistro> {
                 labelText: 'Nombre completo',
                 icono: Icons.person_outline,
               ),
+              textCapitalization: TextCapitalization.words,
+              autofillHints: const [AutofillHints.name],
               textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 18),
             TextField(
               controller: contrasenaController,
               obscureText: !mostrarContrasena,
+              autocorrect: false,
+              enableSuggestions: false,
+              autofillHints: const [AutofillHints.newPassword],
               decoration: decoracionCampoAuth(
                 labelText: 'Contraseña',
                 icono: Icons.lock_outline,
@@ -213,25 +265,25 @@ class _PantallaCompletarRegistroState extends State<PantallaCompletarRegistro> {
   }
 }
 
-class PantallaCambiarContrasena extends StatefulWidget {
+class PantallaCambiarContrasena extends ConsumerStatefulWidget {
   const PantallaCambiarContrasena({super.key, required this.token});
 
   final String token;
 
   @override
-  State<PantallaCambiarContrasena> createState() =>
+  ConsumerState<PantallaCambiarContrasena> createState() =>
       _PantallaCambiarContrasenaState();
 }
 
-class _PantallaCambiarContrasenaState extends State<PantallaCambiarContrasena> {
+class _PantallaCambiarContrasenaState
+    extends ConsumerState<PantallaCambiarContrasena> {
   final formKey = GlobalKey<FormState>();
   final contrasenaController = TextEditingController();
   final confirmarContrasenaController = TextEditingController();
-  final autenticacionApi = AutenticacionApi();
   bool cargando = false;
   bool mostrarContrasena = false;
   bool mostrarConfirmacion = false;
-
+  bool cambioCompletado = false;
   @override
   void dispose() {
     contrasenaController.dispose();
@@ -247,17 +299,25 @@ class _PantallaCambiarContrasenaState extends State<PantallaCambiarContrasena> {
     setState(() => cargando = true);
 
     try {
-      final mensaje = await autenticacionApi.cambiarContrasena(
-        token: widget.token,
-        contrasena: contrasenaController.text,
-      );
+      final mensaje =
+          await ref.read(autenticacionRepositoryProvider).cambiarContrasena(
+                token: widget.token,
+                contrasena: contrasenaController.text,
+              );
 
       if (mounted) {
-        context.mostrarExito(mensaje);
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const PantallaLogin()),
-          (_) => false,
-        );
+        await ref.read(sesionProvider.notifier).cerrar();
+      }
+
+      if (mounted) {
+        if (kIsWeb) {
+          setState(() {
+            cambioCompletado = true;
+          });
+        } else {
+          context.mostrarExito(mensaje);
+          _mostrarLoginContrasenaActualizada();
+        }
       }
     } on ExcepcionApi catch (error) {
       if (mounted) {
@@ -272,6 +332,23 @@ class _PantallaCambiarContrasenaState extends State<PantallaCambiarContrasena> {
 
   @override
   Widget build(BuildContext context) {
+    if (cambioCompletado) {
+      return _PantallaEstadoCorreo(
+        titulo: 'Contraseña actualizada',
+        mensaje:
+            'Tu contraseña fue actualizada correctamente. Vuelve a la app e inicia sesión con tu nueva contraseña.',
+        cargando: false,
+        icono: Icons.check_circle_outline,
+        color: ColoresUbb.exito,
+        textoAccion: 'Iniciar sesión',
+        onAccion: _mostrarLoginContrasenaActualizada,
+      );
+    }
+
+    if (kIsWeb) {
+      return _construirVistaWeb(context);
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Cambiar contraseña')),
       body: ContenedorResponsivo(
@@ -319,6 +396,9 @@ class _PantallaCambiarContrasenaState extends State<PantallaCambiarContrasena> {
                           ),
                         ),
                         textInputAction: TextInputAction.next,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        autofillHints: const [AutofillHints.newPassword],
                         validator: _validarContrasenaAuth,
                       ),
                       const SizedBox(height: 24),
@@ -346,6 +426,9 @@ class _PantallaCambiarContrasenaState extends State<PantallaCambiarContrasena> {
                           ),
                         ),
                         textInputAction: TextInputAction.done,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        autofillHints: const [AutofillHints.newPassword],
                         validator: (value) {
                           final texto = value ?? '';
                           if (texto.isEmpty) {
@@ -376,6 +459,175 @@ class _PantallaCambiarContrasenaState extends State<PantallaCambiarContrasena> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _construirVistaWeb(BuildContext context) {
+    return Scaffold(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final esPantallaEstrecha = constraints.maxWidth < 600;
+
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: esPantallaEstrecha ? 16 : 24,
+                      vertical: 24,
+                    ),
+                    child: Card(
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: EdgeInsets.all(esPantallaEstrecha ? 22 : 28),
+                        child: Form(
+                          key: formKey,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const MarcaUbbike(compacta: true),
+                              const SizedBox(height: 22),
+                              const Icon(
+                                Icons.lock_reset_outlined,
+                                color: ColoresUbb.azulApp,
+                                size: 44,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Nueva contraseña',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall
+                                    ?.copyWith(fontWeight: FontWeight.w900),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Crea una contraseña segura para volver a ingresar.',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: ColoresUbb.textoSecundario,
+                                      height: 1.35,
+                                    ),
+                              ),
+                              const SizedBox(height: 22),
+                              _campoContrasena(
+                                controller: contrasenaController,
+                                labelText: 'Contraseña',
+                                mostrarTexto: mostrarContrasena,
+                                onAlternarVisibilidad: () {
+                                  setState(
+                                    () =>
+                                        mostrarContrasena = !mostrarContrasena,
+                                  );
+                                },
+                                textInputAction: TextInputAction.next,
+                                validator: _validarContrasenaAuth,
+                              ),
+                              const SizedBox(height: 16),
+                              _campoContrasena(
+                                controller: confirmarContrasenaController,
+                                labelText: 'Confirmar contraseña',
+                                mostrarTexto: mostrarConfirmacion,
+                                onAlternarVisibilidad: () {
+                                  setState(
+                                    () => mostrarConfirmacion =
+                                        !mostrarConfirmacion,
+                                  );
+                                },
+                                textInputAction: TextInputAction.done,
+                                onFieldSubmitted: (_) => _cambiar(),
+                                validator: _validarConfirmacionContrasena,
+                              ),
+                              const SizedBox(height: 22),
+                              ElevatedButton.icon(
+                                style: estiloBotonAuth(),
+                                onPressed: cargando ? null : _cambiar,
+                                icon: cargando
+                                    ? indicadorBotonAuth()
+                                    : const Icon(Icons.save_outlined),
+                                label: Text(
+                                  cargando
+                                      ? 'Guardando...'
+                                      : 'Guardar contraseña',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  TextFormField _campoContrasena({
+    required TextEditingController controller,
+    required String labelText,
+    required bool mostrarTexto,
+    required VoidCallback onAlternarVisibilidad,
+    required TextInputAction textInputAction,
+    required String? Function(String?) validator,
+    ValueChanged<String>? onFieldSubmitted,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: !mostrarTexto,
+      autocorrect: false,
+      enableSuggestions: false,
+      autofillHints: const [AutofillHints.newPassword],
+      decoration: decoracionCampoAuth(
+        labelText: labelText,
+        icono: Icons.lock_outline,
+        suffixIcon: IconButton(
+          tooltip: mostrarTexto ? 'Ocultar contraseña' : 'Mostrar contraseña',
+          onPressed: onAlternarVisibilidad,
+          icon: Icon(
+            mostrarTexto
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
+          ),
+        ),
+      ),
+      textInputAction: textInputAction,
+      onFieldSubmitted: onFieldSubmitted,
+      validator: validator,
+    );
+  }
+
+  String? _validarConfirmacionContrasena(String? value) {
+    final texto = value ?? '';
+    if (texto.isEmpty) {
+      return 'Confirma tu nueva contraseña.';
+    }
+    if (texto != contrasenaController.text) {
+      return 'Las contraseñas no coinciden.';
+    }
+    return null;
+  }
+
+  void _mostrarLoginContrasenaActualizada() {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => const PantallaLogin(
+          mensajeInicial:
+              'Contraseña actualizada. Ingresa con tu nueva contraseña.',
+        ),
+      ),
+      (_) => false,
     );
   }
 }
@@ -421,6 +673,8 @@ class _PantallaEstadoCorreo extends StatelessWidget {
     required this.cargando,
     required this.icono,
     required this.color,
+    this.textoAccion,
+    this.onAccion,
   });
 
   final String titulo;
@@ -428,6 +682,8 @@ class _PantallaEstadoCorreo extends StatelessWidget {
   final bool cargando;
   final IconData icono;
   final Color color;
+  final String? textoAccion;
+  final VoidCallback? onAccion;
 
   @override
   Widget build(BuildContext context) {
@@ -460,17 +716,24 @@ class _PantallaEstadoCorreo extends StatelessWidget {
                   if (cargando)
                     const Center(child: CircularProgressIndicator())
                   else
-                    ElevatedButton.icon(
-                      style: estiloBotonAuth(),
-                      onPressed: () {
-                        Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(
-                              builder: (_) => const PantallaLogin()),
-                          (_) => false,
-                        );
-                      },
-                      icon: const Icon(Icons.login),
-                      label: const Text('Ir al ingreso'),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ElevatedButton.icon(
+                          style: estiloBotonAuth(),
+                          onPressed: onAccion ??
+                              () {
+                                Navigator.of(context).pushAndRemoveUntil(
+                                  MaterialPageRoute(
+                                    builder: (_) => const PantallaLogin(),
+                                  ),
+                                  (_) => false,
+                                );
+                              },
+                          icon: const Icon(Icons.login),
+                          label: Text(textoAccion ?? 'Iniciar sesión'),
+                        ),
+                      ],
                     ),
                 ],
               ),
