@@ -1,5 +1,4 @@
 import { ErrorHttp } from '../../../comun/errors/error-http';
-import { prisma } from '../../../configuracion/prisma';
 import type { AsignacionGuardia, Bicicletero } from '../../../generated/prisma/client';
 import { registrarAuditoria } from '../../auditoria/auditoria.servicio';
 import {
@@ -8,6 +7,7 @@ import {
 } from '../../bicicleteros/bicicletero.ocupacion';
 import { crearNotificacion } from '../../notificaciones/notificacion.servicio';
 import { TipoNotificacion } from '../../notificaciones/tipo-notificacion';
+import * as asignacionGuardiaRepositorio from './asignacion-guardia.repositorio';
 
 const mapearBicicletero = async (bicicletero: Bicicletero) => {
   const ocupados = await contarOcupadosBicicletero(bicicletero.id);
@@ -21,30 +21,17 @@ const mapearAsignacion = async (asignacion: AsignacionGuardia & { bicicletero: B
 });
 
 export const obtenerAsignacionActivaGuardia = async (guardiaId: string) => {
-  const asignacion = await prisma.asignacionGuardia.findFirst({
-    where: {
-      guardiaId,
-      activa: true
-    },
-    include: {
-      bicicletero: true
-    },
-    orderBy: {
-      iniciaEn: 'desc'
-    }
-  });
+  const asignacion = await asignacionGuardiaRepositorio.buscarActivaConBicicletero(guardiaId);
 
   return asignacion ? mapearAsignacion(asignacion) : null;
 };
 
 export const seleccionarBicicleteroGuardia = async (guardiaId: string, bicicleteroId: string) => {
-  const resultado = await prisma.$transaction(async (db) => {
-    const bicicletero = await db.bicicletero.findFirst({
-      where: {
-        id: bicicleteroId,
-        activo: true
-      }
-    });
+  const resultado = await asignacionGuardiaRepositorio.ejecutarEnTransaccion(async (db) => {
+    const bicicletero = await asignacionGuardiaRepositorio.buscarBicicleteroActivo(
+      bicicleteroId,
+      db
+    );
 
     if (!bicicletero) {
       throw new ErrorHttp(404, 'Bicicletero no encontrado o inactivo');
@@ -52,25 +39,14 @@ export const seleccionarBicicleteroGuardia = async (guardiaId: string, biciclete
 
     const ahora = new Date();
 
-    await db.asignacionGuardia.updateMany({
-      where: {
-        guardiaId,
-        activa: true
-      },
-      data: {
-        activa: false,
-        terminaEn: ahora
-      }
-    });
+    await asignacionGuardiaRepositorio.cerrarActivasDeGuardia(guardiaId, ahora, db);
 
-    const asignacion = await db.asignacionGuardia.create({
-      data: {
-        guardiaId,
-        bicicleteroId: bicicletero.id,
-        iniciaEn: ahora,
-        terminaEn: null,
-        activa: true
-      }
+    const asignacion = await asignacionGuardiaRepositorio.crear({
+      guardiaId,
+      bicicleteroId: bicicletero.id,
+      iniciaEn: ahora,
+      terminaEn: null,
+      activa: true
     });
 
     await registrarAuditoria(
