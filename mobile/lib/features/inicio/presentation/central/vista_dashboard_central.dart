@@ -16,30 +16,47 @@ class VistaDashboardCentral extends StatefulWidget {
   State<VistaDashboardCentral> createState() => _VistaDashboardCentralState();
 }
 
-class _VistaDashboardCentralState extends State<VistaDashboardCentral> {
-  final historialApi = HistorialApi();
-  final solicitudGuardiaApi = SolicitudGuardiaApi();
-  final incidenciaApi = IncidenciaApi();
+class _VistaDashboardCentralState extends State<VistaDashboardCentral>
+    with AutoRefrescoMixin {
+  late final HistorialRepository historialRepository;
+  late final SolicitudGuardiaRepository solicitudGuardiaRepository;
+  late final IncidenciaRepository incidenciaRepository;
   late Future<_DatosDashboardCentral> futuroDashboard;
+  _DatosDashboardCentral? _ultimoDato;
   String periodoResumen = 'SEMANA';
 
   @override
   void initState() {
     super.initState();
+    historialRepository = _leerProvider(context, historialRepositoryProvider);
+    solicitudGuardiaRepository = _leerProvider(
+      context,
+      solicitudGuardiaRepositoryProvider,
+    );
+    incidenciaRepository = _leerProvider(context, incidenciaRepositoryProvider);
     futuroDashboard = _cargarDashboard();
+    iniciarAutoRefresco();
+  }
+
+  @override
+  Future<void> refrescar() async {
+    if (mounted) {
+      setState(() => futuroDashboard = _cargarDashboard());
+    }
   }
 
   Future<ResumenHistorialApp> _obtenerResumen() {
-    return historialApi.resumen(periodo: periodoResumen);
+    return historialRepository.resumen(periodo: periodoResumen);
   }
 
   Future<_DatosDashboardCentral> _cargarDashboard() async {
     final resumenFuture = _obtenerResumen();
-    final bicicleterosFuture = solicitudGuardiaApi.listarBicicleteros();
+    final bicicleterosFuture = solicitudGuardiaRepository.listarBicicleteros();
     final solicitudesFuture =
-        solicitudGuardiaApi.listarSolicitudes(limite: 300);
-    final incidenciasFuture = incidenciaApi.listar(limite: 300);
-    final movimientosFuture = historialApi.listar(periodo: 'DIA', limite: 3);
+        solicitudGuardiaRepository.listarSolicitudes(limite: 300);
+    final incidenciasFuture = incidenciaRepository.listar(limite: 300);
+    final movimientosFuture =
+        historialRepository.listar(periodo: 'DIA', limite: 3);
 
     return _DatosDashboardCentral(
       resumen: await resumenFuture,
@@ -76,7 +93,7 @@ class _VistaDashboardCentralState extends State<VistaDashboardCentral> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           EncabezadoSeccion(
-            titulo: '${_saludoActual()}, ${_nombreSesion('Administrador')}',
+            titulo: '${_saludoActual()}, ${_nombreSesion(context, 'Central')}',
             detalle: 'Alertas, ocupación y actividad reciente.',
             icono: Icons.dashboard_outlined,
           ),
@@ -84,14 +101,20 @@ class _VistaDashboardCentralState extends State<VistaDashboardCentral> {
           FutureBuilder<_DatosDashboardCentral>(
             future: futuroDashboard,
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
+              if (snapshot.hasData) {
+                _ultimoDato = snapshot.data;
+              }
+              final cargandoInicial =
+                  snapshot.connectionState == ConnectionState.waiting &&
+                      _ultimoDato == null;
+              if (cargandoInicial) {
                 return _DashboardCentralCargando(
                   periodo: periodoResumen,
                   onPeriodo: _cambiarPeriodoResumen,
                 );
               }
 
-              if (snapshot.hasError) {
+              if (snapshot.hasError && _ultimoDato == null) {
                 return TarjetaAccion(
                   icono: Icons.error_outline,
                   titulo: 'No se pudo cargar el tablero',
@@ -101,7 +124,7 @@ class _VistaDashboardCentralState extends State<VistaDashboardCentral> {
                 );
               }
 
-              final datos = snapshot.data!;
+              final datos = _ultimoDato!;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
