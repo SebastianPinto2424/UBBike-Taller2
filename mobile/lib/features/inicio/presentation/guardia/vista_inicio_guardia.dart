@@ -13,18 +13,25 @@ class VistaInicioGuardia extends StatefulWidget {
 }
 
 class _VistaInicioGuardiaState extends State<VistaInicioGuardia> {
-  final solicitudGuardiaApi = SolicitudGuardiaApi();
+  late final SolicitudGuardiaRepository solicitudGuardiaRepository;
   late Future<BicicleteroApp?> futuroBicicletero;
 
   @override
   void initState() {
     super.initState();
-    futuroBicicletero = solicitudGuardiaApi.obtenerBicicleteroGestionado();
+    solicitudGuardiaRepository = _leerProvider(
+      context,
+      solicitudGuardiaRepositoryProvider,
+    );
+    futuroBicicletero =
+        solicitudGuardiaRepository.obtenerBicicleteroGestionado();
   }
 
   void _recargar() {
-    setState(() =>
-        futuroBicicletero = solicitudGuardiaApi.obtenerBicicleteroGestionado());
+    setState(
+      () => futuroBicicletero =
+          solicitudGuardiaRepository.obtenerBicicleteroGestionado(),
+    );
   }
 
   @override
@@ -35,7 +42,7 @@ class _VistaInicioGuardiaState extends State<VistaInicioGuardia> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           EncabezadoSeccion(
-            titulo: '${_saludoActual()}, ${_nombreSesion('Guardia')}',
+            titulo: '${_saludoActual()}, ${_nombreSesion(context, 'Guardia')}',
             detalle: 'Turno activo, bicicletero asignado y accesos recientes.',
             icono: Icons.verified_user_outlined,
           ),
