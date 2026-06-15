@@ -1,33 +1,29 @@
 # Modelo Relacional UBBike
 
-Este documento presenta el modelo relacional completo desarrollado para UBBike.
-El repositorio `ubbike-taller` incluye este MR en código mediante el esquema de
-Prisma y sus migraciones.
+Este documento resume el MR del sistema. La fuente técnica del esquema está en
+`backend/prisma/schema.prisma`, con migraciones versionadas en
+`backend/prisma/migrations`.
 
-La fuente técnica del modelo se encuentra en `backend/prisma/schema.prisma`, con
-sus migraciones en `backend/prisma/migrations`.
-
-
-## Diagrama ER Completo
+## Diagrama ER
 
 ```mermaid
 erDiagram
   USUARIOS ||--o{ BICICLETAS : registra
   USUARIOS ||--o{ MOVIMIENTOS : realiza
   USUARIOS ||--o{ MOVIMIENTOS : valida_como_guardia
-  USUARIOS ||--o{ CODIGOS_QR_TEMPORALES : genera
-  USUARIOS ||--o{ ASIGNACIONES_GUARDIAS : tiene_asignacion
+  USUARIOS ||--o{ ASIGNACIONES_GUARDIAS : tiene
   USUARIOS ||--o{ SOLICITUDES_GUARDIA : solicita
   USUARIOS ||--o{ SOLICITUDES_GUARDIA : atiende
+  USUARIOS ||--o{ CODIGOS_QR_TEMPORALES : escanea_como_guardia
   USUARIOS ||--o{ NOTIFICACIONES : recibe
   USUARIOS ||--o{ INCIDENCIAS : reporta
+  USUARIOS ||--o{ INCIDENCIAS : gestiona
   USUARIOS ||--o{ AUDITORIA_EVENTOS : ejecuta
 
   BICICLETAS ||--o{ MOVIMIENTOS : genera
   BICICLETAS ||--o{ CODIGOS_QR_TEMPORALES : usa
   BICICLETAS ||--o{ INCIDENCIAS : asociada
 
-  BICICLETEROS ||--o{ BICICLETAS : contiene_actualmente
   BICICLETEROS ||--o{ MOVIMIENTOS : registra
   BICICLETEROS ||--o{ CODIGOS_QR_TEMPORALES : destino
   BICICLETEROS ||--o{ ASIGNACIONES_GUARDIAS : asigna
@@ -64,6 +60,10 @@ erDiagram
     varchar aro
     varchar numero_serie
     text foto_url
+    varchar foto_nombre_archivo
+    varchar foto_mime_type
+    integer foto_tamano_bytes
+    timestamptz foto_actualizada_en
     boolean activa
     boolean dentro_bicicletero
     timestamptz creado_en
@@ -79,34 +79,6 @@ erDiagram
     boolean activo
     timestamptz creado_en
     timestamptz actualizado_en
-  }
-
-  MOVIMIENTOS {
-    uuid id PK
-    uuid bicicleta_id FK
-    uuid usuario_id FK
-    uuid bicicletero_id FK
-    uuid validado_por_guardia_id FK
-    enum tipo
-    enum estado
-    varchar origen
-    text motivo_denegacion
-    text comentario_guardia
-    timestamptz creado_en
-  }
-
-  CODIGOS_QR_TEMPORALES {
-    uuid id PK
-    varchar token UK
-    uuid usuario_id FK
-    uuid bicicleta_id FK
-    uuid bicicletero_id FK
-    enum tipo
-    timestamptz expira_en
-    boolean usado
-    uuid escaneado_por_usuario_id
-    timestamptz escaneado_en
-    timestamptz creado_en
   }
 
   ASIGNACIONES_GUARDIAS {
@@ -131,10 +103,39 @@ erDiagram
     timestamptz notificada_guardia_en
     timestamptz ultima_notificacion_usuario_en
     integer notificaciones_guardia
-    timestamptz acuse_recibo_en
+    timestamptz respondida_por_guardia_en
+    timestamptz en_camino_en
     timestamptz resuelta_en
     timestamptz creada_en
     timestamptz actualizada_en
+  }
+
+  MOVIMIENTOS {
+    uuid id PK
+    uuid bicicleta_id FK
+    uuid usuario_id FK
+    uuid bicicletero_id FK
+    uuid validado_por_guardia_id FK
+    enum tipo
+    enum estado
+    text motivo_denegacion
+    text comentario_guardia
+    enum origen
+    timestamptz creado_en
+  }
+
+  CODIGOS_QR_TEMPORALES {
+    uuid id PK
+    varchar token UK
+    uuid usuario_id FK
+    uuid bicicleta_id FK
+    uuid bicicletero_id FK
+    uuid escaneado_por_guardia_id FK
+    enum tipo
+    timestamptz expira_en
+    boolean usado
+    timestamptz escaneado_en
+    timestamptz creado_en
   }
 
   NOTIFICACIONES {
@@ -150,11 +151,15 @@ erDiagram
 
   INCIDENCIAS {
     uuid id PK
-    uuid usuario_id FK
+    uuid reportada_por_usuario_id FK
     uuid bicicletero_id FK
     uuid bicicleta_id FK
+    uuid gestionada_por_usuario_id FK
+    enum tipo
     text descripcion
     enum estado
+    text respuesta
+    timestamptz resuelta_en
     timestamptz creada_en
     timestamptz actualizada_en
   }
@@ -172,25 +177,64 @@ erDiagram
   }
 ```
 
-## Reglas De Negocio Principales
+## Reglas Principales
 
-- Un usuario puede registrar muchas bicicletas.
-- Una bicicleta pertenece a un único usuario.
-- Solo una bicicleta por usuario deberia quedar marcada como activa.
-- Las bicicletas se eliminan lógicamente con `eliminado_en`.
-- Un bicicletero tiene capacidad, ubicacion y estado activo.
-- Un guardia puede tener asignaciones a bicicleteros.
-- Cada movimiento registra usuario, bicicleta, bicicletero, tipo, estado, origen
-  y guardia que valida.
-- Un movimiento puede ser confirmado o denegado.
-- Si se deniega un ingreso o retiro, debe registrarse el motivo.
-- Los códigos QR temporales pertenecen a un usuario y una bicicleta.
-- El QR puede expirar visualmente para el usuario, pero debe marcarse como usado
-  solo cuando se confirma o deniega el movimiento.
-- Las solicitudes de guardia permiten pedir atención y dejar trazabilidad de
-  aviso, respuesta, estado y resolución.
-- Las notificaciones registran avisos relevantes para usuarios, guardias,
-  administradores y central.
-- Las incidencias permiten registrar problemas asociados a usuarios,
-  bicicletas o bicicleteros.
-- La auditoría conserva acciones importantes para revisiónes posteriores.
+- Un usuario puede tener muchas bicicletas, pero solo una debe estar activa. La
+  base de datos refuerza esta regla con un índice único parcial sobre
+  `usuario_id` cuando `activa = true` y `eliminado_en IS NULL`.
+- Cada QR temporal pertenece a un usuario, una bicicleta y opcionalmente a un
+  bicicletero. Cuando el guardia lo escanea, se registra
+  `escaneado_por_guardia_id` y `escaneado_en`.
+- Cada movimiento guarda usuario, bicicleta, bicicletero y guardia que valida.
+  El tipo usa `INGRESO` o `RETIRO`, y el origen usa `QR` o `MANUAL`.
+- El estado real de una bicicleta se guarda en `dentro_bicicletero` y
+  `bicicletero_actual_id`.
+- La foto de una bicicleta se modela como atributo de `bicicletas`, porque el
+  sistema requiere una sola foto principal por bicicleta. El archivo se guarda
+  fuera de la base de datos y en la tabla se persisten URL y metadatos.
+- Las solicitudes de guardia registran quién pidió ayuda, en qué bicicletero,
+  qué guardia fue asignado, cuántas veces se notificó, cuándo respondió el
+  guardia y cuándo quedó en camino o resuelta.
+- Las incidencias registran problemas operativos del bicicletero, bicicleta, QR,
+  movimientos o datos de usuario. Cualquier actor autenticado puede reportar.
+  Los guardias pueden ver las incidencias asociadas a su bicicletero asignado,
+  pero el cambio formal de estado queda reservado a administración/central.
+  Para cerrar una incidencia como `RESUELTA` o `DESCARTADA`, se debe registrar
+  una respuesta de gestión.
+- Los eventos críticos quedan registrados en `auditoria_eventos` para
+  trazabilidad operativa y revisión posterior.
+
+## Enumeraciones
+
+- `RolUsuario`: `ESTUDIANTE`, `FUNCIONARIO`, `GUARDIA`, `ADMIN_CENTRAL`,
+  `ADMINISTRADOR`.
+- `TipoMovimiento`: `INGRESO`, `RETIRO`.
+- `TipoCodigoQrTemporal`: `INGRESO`, `RETIRO`.
+- `TipoOrigenMovimiento`: `QR`, `MANUAL`.
+- `EstadoMovimiento`: `CONFIRMADO`, `DENEGADO`.
+- `TipoSolicitudGuardia`: `GUARDIA_AUSENTE`, `REQUIERE_SERVICIO`.
+- `EstadoSolicitudGuardia`: `PENDIENTE`, `NOTIFICADA`, `EN_CAMINO`,
+  `RESUELTA`, `CANCELADA`.
+- `TipoIncidencia`: `PROBLEMA_QR`, `DANO_BICICLETA`, `DANO_INFRAESTRUCTURA`,
+  `PROBLEMA_MOVIMIENTO`, `USUARIO_DATOS`, `OTRO`.
+- `EstadoIncidencia`: `PENDIENTE`, `EN_REVISION`, `RESUELTA`, `DESCARTADA`.
+- `TipoNotificacion`: `SISTEMA`, `CUENTA`, `SEGURIDAD`, `SOLICITUD_GUARDIA`,
+  `MOVIMIENTO`, `INCIDENCIA`.
+
+## Generación Automática Del Diagrama
+
+El archivo `docs/modelo-relacional.dbml` se genera automáticamente desde
+`backend/prisma/schema.prisma` mediante `prisma-dbml-generator`. Este archivo no
+debe editarse manualmente, porque representa el modelo actual definido en
+Prisma.
+
+Para regenerar el diagrama:
+
+```bash
+cd backend
+npm run generate
+```
+
+Luego se puede abrir `docs/modelo-relacional.dbml` con una extensión DBML en VS
+Code o pegar su contenido en `https://dbdiagram.io/` para exportarlo como imagen
+o PDF e incluirlo en el informe.
