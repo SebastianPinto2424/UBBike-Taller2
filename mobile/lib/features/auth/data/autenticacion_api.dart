@@ -10,10 +10,15 @@ class ResultadoLogin {
   final UsuarioApp usuario;
 }
 
+class ResultadoVerificacionCorreo {
+  const ResultadoVerificacionCorreo({required this.mensaje, this.correo});
+
+  final String mensaje;
+  final String? correo;
+}
+
 class AutenticacionApi {
-  AutenticacionApi({ClienteApi? cliente, String? token})
-      : cliente = cliente ??
-            ClienteApi(obtenerToken: token != null ? () => token : null);
+  const AutenticacionApi({required this.cliente});
 
   final ClienteApi cliente;
 
@@ -90,12 +95,17 @@ class AutenticacionApi {
     return respuesta['message'] as String;
   }
 
-  Future<String> verificarCorreo(String token) async {
+  Future<ResultadoVerificacionCorreo> verificarCorreo(String token) async {
     final respuesta = await cliente.post(
       '/autenticacion/verificar-correo',
       body: {'token': token},
     );
-    return respuesta['message'] as String;
+    final usuario = respuesta['usuario'] as Map<String, dynamic>?;
+
+    return ResultadoVerificacionCorreo(
+      mensaje: respuesta['message'] as String,
+      correo: usuario?['correo'] as String?,
+    );
   }
 
   Future<String> completarRegistro({
