@@ -29,6 +29,17 @@ const crearTransporte = () => {
   });
 };
 
+export const verificarConfiguracionCorreo = async (): Promise<boolean> => {
+  const transporte = crearTransporte();
+
+  if (!transporte) {
+    return false;
+  }
+
+  await transporte.verify();
+  return true;
+};
+
 export const enviarCorreo = async (datos: DatosCorreo): Promise<void> => {
   const transporte = crearTransporte();
 
