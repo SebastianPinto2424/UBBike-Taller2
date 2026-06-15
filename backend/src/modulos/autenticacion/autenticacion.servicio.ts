@@ -1,7 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { ErrorHttp } from '../../comun/errors/error-http';
 import { entorno } from '../../configuracion/entorno';
-import { prisma } from '../../configuracion/prisma';
 import { registrarAuditoria } from '../auditoria/auditoria.servicio';
 import {
   crearCorreoCambioContrasena,
@@ -29,6 +28,7 @@ import {
   revocarTodosLosRefreshTokens,
   validarRefreshToken
 } from './autenticacion.tokens';
+import * as autenticacionRepositorio from './autenticacion.repositorio';
 
 type DatosRegistro = {
   nombre: string;
@@ -51,22 +51,14 @@ type DatosCompletarRegistro = {
 export const registrarUsuario = async (datos: DatosRegistro) => {
   const correoNormalizado = datos.correo.toLowerCase();
   const rolAsignado = resolverRolRegistrable(correoNormalizado);
-  const usuarioExistente = await prisma.usuario.findUnique({
-    where: {
-      correo: correoNormalizado
-    }
-  });
+  const usuarioExistente = await autenticacionRepositorio.buscarPorCorreo(correoNormalizado);
 
   if (usuarioExistente) {
     throw new ErrorHttp(409, 'El correo ya está registrado');
   }
 
   if (datos.rut) {
-    const rutExistente = await prisma.usuario.findUnique({
-      where: {
-        rut: datos.rut
-      }
-    });
+    const rutExistente = await autenticacionRepositorio.buscarPorRut(datos.rut);
 
     if (rutExistente) {
       throw new ErrorHttp(409, 'El RUT ya está registrado');
@@ -75,20 +67,18 @@ export const registrarUsuario = async (datos: DatosRegistro) => {
 
   const contrasenaHash = await bcrypt.hash(datos.contrasena, 12);
   const tokenVerificacion = crearTokenSeguro();
-  const usuarioGuardado = await prisma.usuario.create({
-    data: {
-      nombre: datos.nombre,
-      correo: correoNormalizado,
-      rut: datos.rut ?? null,
-      rol: rolAsignado,
-      contrasenaHash,
-      cuentaActiva: true,
-      correoVerificado: false,
-      tokenVerificacionCorreo: hashearToken(tokenVerificacion),
-      tokenVerificacionCorreoExpiraEn: new Date(
-        Date.now() + 1000 * 60 * 60 * horasExpiracionVerificacionCorreo
-      )
-    }
+  const usuarioGuardado = await autenticacionRepositorio.crear({
+    nombre: datos.nombre,
+    correo: correoNormalizado,
+    rut: datos.rut ?? null,
+    rol: rolAsignado,
+    contrasenaHash,
+    cuentaActiva: true,
+    correoVerificado: false,
+    tokenVerificacionCorreo: hashearToken(tokenVerificacion),
+    tokenVerificacionCorreoExpiraEn: new Date(
+      Date.now() + 1000 * 60 * 60 * horasExpiracionVerificacionCorreo
+    )
   });
   const enlace = `${entorno.app.urlFrontend}/verificar-correo?token=${tokenVerificacion}`;
   const correo = crearCorreoVerificacion(usuarioGuardado.nombre, enlace);
@@ -101,7 +91,7 @@ export const registrarUsuario = async (datos: DatosRegistro) => {
   });
 
   await notificarUsuariosPorRol({
-    roles: [RolUsuario.ADMINISTRADOR],
+    roles: [RolUsuario.ADMIN_CENTRAL, RolUsuario.ADMINISTRADOR],
     titulo: 'Nuevo registro pendiente',
     mensaje: `${usuarioGuardado.nombre} solicitó una cuenta ${usuarioGuardado.rol}. Revisa la solicitud para gestionar el acceso.`,
     tipo: TipoNotificacion.CUENTA,
@@ -126,11 +116,7 @@ export const registrarUsuario = async (datos: DatosRegistro) => {
 };
 
 export const iniciarSesion = async (datos: DatosLogin) => {
-  const usuario = await prisma.usuario.findUnique({
-    where: {
-      correo: datos.correo.toLowerCase()
-    }
-  });
+  const usuario = await autenticacionRepositorio.buscarPorCorreo(datos.correo.toLowerCase());
 
   if (!usuario) {
     await registrarAuditoria({
@@ -209,11 +195,7 @@ export const iniciarSesion = async (datos: DatosLogin) => {
 };
 
 export const obtenerUsuarioActual = async (usuarioId: string) => {
-  const usuario = await prisma.usuario.findUnique({
-    where: {
-      id: usuarioId
-    }
-  });
+  const usuario = await autenticacionRepositorio.buscarPorId(usuarioId);
 
   if (!usuario) {
     throw new ErrorHttp(404, 'Usuario no encontrado');
@@ -223,11 +205,7 @@ export const obtenerUsuarioActual = async (usuarioId: string) => {
 };
 
 export const verificarCorreo = async (token: string) => {
-  const usuario = await prisma.usuario.findFirst({
-    where: {
-      tokenVerificacionCorreo: hashearToken(token)
-    }
-  });
+  const usuario = await autenticacionRepositorio.buscarPorTokenVerificacion(hashearToken(token));
 
   if (!usuario) {
     throw new ErrorHttp(400, 'El enlace de verificación no es válido');
@@ -241,28 +219,11 @@ export const verificarCorreo = async (token: string) => {
     !usuario.tokenVerificacionCorreoExpiraEn ||
     usuario.tokenVerificacionCorreoExpiraEn.getTime() < Date.now()
   ) {
-    await prisma.usuario.update({
-      where: {
-        id: usuario.id
-      },
-      data: {
-        tokenVerificacionCorreo: null,
-        tokenVerificacionCorreoExpiraEn: null
-      }
-    });
+    await autenticacionRepositorio.limpiarTokenVerificacion(usuario.id);
     throw new ErrorHttp(400, 'El enlace de verificación expiró. Solicita un nuevo registro.');
   }
 
-  const usuarioGuardado = await prisma.usuario.update({
-    where: {
-      id: usuario.id
-    },
-    data: {
-      correoVerificado: true,
-      tokenVerificacionCorreo: null,
-      tokenVerificacionCorreoExpiraEn: null
-    }
-  });
+  const usuarioGuardado = await autenticacionRepositorio.marcarCorreoVerificado(usuario.id);
 
   await crearNotificacion({
     usuarioId: usuarioGuardado.id,
@@ -293,12 +254,9 @@ export const verificarCorreo = async (token: string) => {
 };
 
 export const completarRegistro = async (datos: DatosCompletarRegistro) => {
-  const usuario = await prisma.usuario.findFirst({
-    where: {
-      tokenVerificacionCorreo: hashearToken(datos.token),
-      registroParcial: true
-    }
-  });
+  const usuario = await autenticacionRepositorio.buscarRegistroParcialPorToken(
+    hashearToken(datos.token)
+  );
 
   if (!usuario) {
     throw new ErrorHttp(400, 'El enlace de registro no es válido');
@@ -308,33 +266,13 @@ export const completarRegistro = async (datos: DatosCompletarRegistro) => {
     !usuario.tokenVerificacionCorreoExpiraEn ||
     usuario.tokenVerificacionCorreoExpiraEn.getTime() < Date.now()
   ) {
-    await prisma.usuario.update({
-      where: {
-        id: usuario.id
-      },
-      data: {
-        tokenVerificacionCorreo: null,
-        tokenVerificacionCorreoExpiraEn: null
-      }
-    });
+    await autenticacionRepositorio.limpiarTokenVerificacion(usuario.id);
     throw new ErrorHttp(400, 'El enlace de registro expiró. Solicita apoyo a un guardia.');
   }
 
-  const usuarioGuardado = await prisma.usuario.update({
-    where: {
-      id: usuario.id
-    },
-    data: {
-      nombre: datos.nombre,
-      contrasenaHash: await bcrypt.hash(datos.contrasena, 12),
-      correoVerificado: true,
-      registroParcial: false,
-      tokenVerificacionCorreo: null,
-      tokenVerificacionCorreoExpiraEn: null,
-      versionSesion: {
-        increment: 1
-      }
-    }
+  const usuarioGuardado = await autenticacionRepositorio.completarRegistroParcial(usuario.id, {
+    nombre: datos.nombre,
+    contrasenaHash: await bcrypt.hash(datos.contrasena, 12)
   });
 
   await crearNotificacion({
@@ -366,11 +304,7 @@ export const completarRegistro = async (datos: DatosCompletarRegistro) => {
 };
 
 export const solicitarCambioContrasena = async (correo: string) => {
-  const usuario = await prisma.usuario.findUnique({
-    where: {
-      correo: correo.toLowerCase()
-    }
-  });
+  const usuario = await autenticacionRepositorio.buscarPorCorreo(correo.toLowerCase());
 
   if (!usuario) {
     return {
@@ -379,15 +313,11 @@ export const solicitarCambioContrasena = async (correo: string) => {
   }
 
   const tokenCambioContrasena = crearTokenSeguro();
-  const usuarioActualizado = await prisma.usuario.update({
-    where: {
-      id: usuario.id
-    },
-    data: {
-      tokenCambioContrasena: hashearToken(tokenCambioContrasena),
-      tokenCambioContrasenaExpiraEn: new Date(Date.now() + 1000 * 60 * 30)
-    }
-  });
+  const usuarioActualizado = await autenticacionRepositorio.guardarTokenCambioContrasena(
+    usuario.id,
+    hashearToken(tokenCambioContrasena),
+    new Date(Date.now() + 1000 * 60 * 30)
+  );
 
   const enlace = `${entorno.app.urlFrontend}/cambiar-contrasena?token=${tokenCambioContrasena}`;
   const correoCambio = crearCorreoCambioContrasena(usuarioActualizado.nombre, enlace);
@@ -419,11 +349,9 @@ export const solicitarCambioContrasena = async (correo: string) => {
 };
 
 export const cambiarContrasena = async (token: string, contrasena: string) => {
-  const usuario = await prisma.usuario.findFirst({
-    where: {
-      tokenCambioContrasena: hashearToken(token)
-    }
-  });
+  const usuario = await autenticacionRepositorio.buscarPorTokenCambioContrasena(
+    hashearToken(token)
+  );
 
   if (!usuario || !usuario.tokenCambioContrasenaExpiraEn) {
     throw new ErrorHttp(400, 'El enlace para cambiar tu contraseña no es válido');
@@ -433,19 +361,11 @@ export const cambiarContrasena = async (token: string, contrasena: string) => {
     throw new ErrorHttp(400, 'El enlace para cambiar tu contraseña expiró. Solicita uno nuevo.');
   }
 
-  await prisma.usuario.update({
-    where: {
-      id: usuario.id
-    },
-    data: {
-      contrasenaHash: await bcrypt.hash(contrasena, 12),
-      tokenCambioContrasena: null,
-      tokenCambioContrasenaExpiraEn: null,
-      versionSesion: {
-        increment: 1
-      }
-    }
-  });
+  await autenticacionRepositorio.actualizarContrasena(
+    usuario.id,
+    await bcrypt.hash(contrasena, 12)
+  );
+  await revocarTodosLosRefreshTokens(usuario.id);
 
   await crearNotificacion({
     usuarioId: usuario.id,
@@ -475,7 +395,7 @@ export const cambiarContrasena = async (token: string, contrasena: string) => {
 };
 
 export const refrescarToken = async (usuarioId: string, refreshTokenRecibido: string) => {
-  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
+  const usuario = await autenticacionRepositorio.buscarPorId(usuarioId);
 
   if (!usuario || !usuario.cuentaActiva || !usuario.correoVerificado) {
     throw new ErrorHttp(401, 'Sesión inválida');
