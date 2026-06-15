@@ -1,29 +1,34 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/repositorios_provider.dart';
 import '../../../core/servicios/excepcion_api.dart';
 import '../../../core/tema/colores_ubb.dart';
 import '../../../shared/modelos/notificacion_app.dart';
 import '../../../shared/widgets/contenedor_responsivo.dart';
-import '../data/notificacion_api.dart';
+import '../data/notificacion_repository.dart';
 
-class PantallaNotificaciones extends StatefulWidget {
+class PantallaNotificaciones extends ConsumerStatefulWidget {
   const PantallaNotificaciones({super.key});
 
   @override
-  State<PantallaNotificaciones> createState() => _PantallaNotificacionesState();
+  ConsumerState<PantallaNotificaciones> createState() =>
+      _PantallaNotificacionesState();
 }
 
-class _PantallaNotificacionesState extends State<PantallaNotificaciones> {
-  final notificacionApi = NotificacionApi();
+class _PantallaNotificacionesState
+    extends ConsumerState<PantallaNotificaciones> {
+  late final NotificacionRepository notificacionRepository;
   late Future<List<NotificacionApp>> futuroNotificaciones;
   Timer? temporizadorNotificaciones;
 
   @override
   void initState() {
     super.initState();
-    futuroNotificaciones = notificacionApi.listar();
+    notificacionRepository = ref.read(notificacionRepositoryProvider);
+    futuroNotificaciones = notificacionRepository.listar();
     temporizadorNotificaciones = Timer.periodic(
       const Duration(seconds: 20),
       (_) => _recargar(),
@@ -42,7 +47,7 @@ class _PantallaNotificacionesState extends State<PantallaNotificaciones> {
     }
 
     setState(() {
-      futuroNotificaciones = notificacionApi.listar();
+      futuroNotificaciones = notificacionRepository.listar();
     });
   }
 
