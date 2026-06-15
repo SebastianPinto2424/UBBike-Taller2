@@ -1,10 +1,8 @@
 import '../../../core/servicios/cliente_api.dart';
 import '../../../shared/modelos/notificacion_app.dart';
-import '../../../shared/servicios/sesion_actual.dart';
 
 class NotificacionApi {
-  NotificacionApi()
-      : cliente = ClienteApi(obtenerToken: () => SesionActual.token);
+  const NotificacionApi({required this.cliente});
 
   final ClienteApi cliente;
 
