@@ -218,7 +218,7 @@ class TarjetaSolicitudGuardia extends StatelessWidget {
                 icon: const Icon(Icons.notifications_active_outlined),
                 label: Text(
                   solicitud.guardiaAsignado == null
-                      ? 'Administracion avisada'
+                      ? 'Central avisada'
                       : 'Recordar al guardia',
                 ),
               ),
