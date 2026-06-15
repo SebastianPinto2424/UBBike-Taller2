@@ -9,6 +9,7 @@ export const mapearUsuarioPublico = (usuario: Usuario) => ({
   correoVerificado: usuario.correoVerificado,
   registroParcial: usuario.registroParcial,
   cuentaActiva: usuario.cuentaActiva,
+  eliminadoEn: usuario.eliminadoEn,
   creadoEn: usuario.creadoEn,
   actualizadoEn: usuario.actualizadoEn
 });
