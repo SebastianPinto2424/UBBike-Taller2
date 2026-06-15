@@ -3,9 +3,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../servicios/cliente_api.dart';
 import '../../features/auth/data/autenticacion_api.dart';
+import '../../features/auth/data/autenticacion_repository.dart';
 import '../../shared/modelos/rol_usuario.dart';
 import '../../shared/modelos/usuario_app.dart';
-import '../../shared/servicios/sesion_actual.dart';
 
 sealed class SesionState {
   const SesionState();
@@ -20,8 +20,11 @@ class SesionVacia extends SesionState {
 }
 
 class SesionActiva extends SesionState {
-  const SesionActiva(
-      {required this.usuario, required this.token, this.refreshToken});
+  const SesionActiva({
+    required this.usuario,
+    required this.token,
+    this.refreshToken,
+  });
 
   final UsuarioApp usuario;
   final String token;
@@ -42,16 +45,7 @@ const _storage = FlutterSecureStorage(
 class SesionNotifier extends AsyncNotifier<SesionState> {
   @override
   Future<SesionState> build() async {
-    _registrarInterceptoresRefresh();
     return _restaurarSesion();
-  }
-
-  void _registrarInterceptoresRefresh() {
-    ClienteApi.obtenerRefreshTokenGlobal = () => SesionActual.refreshToken;
-    ClienteApi.obtenerUsuarioIdGlobal = () => SesionActual.usuario?.id;
-    ClienteApi.alActualizarTokensGlobal =
-        (token, refresh) => actualizarToken(token, refresh);
-    ClienteApi.alExpirarSesionGlobal = () => cerrar();
   }
 
   Future<SesionState> _restaurarSesion() async {
@@ -61,16 +55,16 @@ class SesionNotifier extends AsyncNotifier<SesionState> {
 
       if (token == null) return const SesionVacia();
 
-      final api = AutenticacionApi(token: token);
-      final usuarioData = await api.obtenerPerfil();
-      final usuario = UsuarioApp.fromJson(usuarioData);
+      final repository = AutenticacionRepository(
+        AutenticacionApi(cliente: ClienteApi(obtenerToken: () => token)),
+      );
+      final usuario = await repository.obtenerPerfil();
 
-      SesionActual.iniciar(
-          nuevoToken: token,
-          nuevoUsuario: usuario,
-          nuevoRefreshToken: refreshToken);
       return SesionActiva(
-          usuario: usuario, token: token, refreshToken: refreshToken);
+        usuario: usuario,
+        token: token,
+        refreshToken: refreshToken,
+      );
     } catch (_) {
       await _limpiarStorage();
       return const SesionVacia();
@@ -87,22 +81,27 @@ class SesionNotifier extends AsyncNotifier<SesionState> {
     await _storage.write(key: _storageKeyUsuarioNombre, value: usuario.nombre);
     await _storage.write(key: _storageKeyUsuarioCorreo, value: usuario.correo);
     await _storage.write(
-        key: _storageKeyUsuarioRol, value: usuario.rol.valorApi);
+      key: _storageKeyUsuarioRol,
+      value: usuario.rol.valorApi,
+    );
 
     if (refreshToken != null) {
       await _storage.write(key: _storageKeyRefreshToken, value: refreshToken);
     }
 
-    SesionActual.iniciar(
-        nuevoToken: token,
-        nuevoUsuario: usuario,
-        nuevoRefreshToken: refreshToken);
-    state = AsyncData(SesionActiva(
-        usuario: usuario, token: token, refreshToken: refreshToken));
+    state = AsyncData(
+      SesionActiva(
+        usuario: usuario,
+        token: token,
+        refreshToken: refreshToken,
+      ),
+    );
   }
 
   Future<void> actualizarToken(
-      String nuevoToken, String? nuevoRefreshToken) async {
+    String nuevoToken,
+    String? nuevoRefreshToken,
+  ) async {
     final sesionActual = state.value;
     if (sesionActual is! SesionActiva) return;
 
@@ -113,10 +112,6 @@ class SesionNotifier extends AsyncNotifier<SesionState> {
     }
 
     final refreshFinal = nuevoRefreshToken ?? sesionActual.refreshToken;
-    SesionActual.iniciar(
-        nuevoToken: nuevoToken,
-        nuevoUsuario: sesionActual.usuario,
-        nuevoRefreshToken: refreshFinal);
     state = AsyncData(
       SesionActiva(
         usuario: sesionActual.usuario,
@@ -130,13 +125,16 @@ class SesionNotifier extends AsyncNotifier<SesionState> {
     try {
       final sesionActual = state.value;
       if (sesionActual is SesionActiva) {
-        final api = AutenticacionApi(token: sesionActual.token);
-        await api.cerrarSesion(refreshToken: sesionActual.refreshToken);
+        final repository = AutenticacionRepository(
+          AutenticacionApi(
+            cliente: ClienteApi(obtenerToken: () => sesionActual.token),
+          ),
+        );
+        await repository.cerrarSesion(refreshToken: sesionActual.refreshToken);
       }
     } catch (_) {}
 
     await _limpiarStorage();
-    SesionActual.cerrar();
     state = const AsyncData(SesionVacia());
   }
 
