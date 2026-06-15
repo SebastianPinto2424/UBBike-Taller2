@@ -8,9 +8,9 @@ class VistaQrUsuario extends StatefulWidget {
 }
 
 class _VistaQrUsuarioState extends State<VistaQrUsuario> {
-  final qrApi = QrApi();
-  final bicicletaApi = BicicletaApi();
-  final solicitudGuardiaApi = SolicitudGuardiaApi();
+  late final QrRepository qrRepository;
+  late final BicicletaRepository bicicletaRepository;
+  late final SolicitudGuardiaRepository solicitudGuardiaRepository;
   QrTemporalApp? qrActual;
   BicicletaApp? bicicletaActiva;
   BicicleteroApp? bicicleteroSeleccionado;
@@ -22,14 +22,20 @@ class _VistaQrUsuarioState extends State<VistaQrUsuario> {
   @override
   void initState() {
     super.initState();
+    qrRepository = _leerProvider(context, qrRepositoryProvider);
+    bicicletaRepository = _leerProvider(context, bicicletaRepositoryProvider);
+    solicitudGuardiaRepository = _leerProvider(
+      context,
+      solicitudGuardiaRepositoryProvider,
+    );
     _cargarDatos();
   }
 
   Future<void> _cargarDatos() async {
     try {
       final resultados = await Future.wait([
-        bicicletaApi.obtenerActiva(),
-        solicitudGuardiaApi.listarBicicleteros(),
+        bicicletaRepository.obtenerActiva(),
+        solicitudGuardiaRepository.listarBicicleteros(),
       ]);
 
       if (mounted) {
@@ -59,7 +65,10 @@ class _VistaQrUsuarioState extends State<VistaQrUsuario> {
     final qr = qrActual;
     final segundosRestantes = qr == null
         ? 0
-        : qr.expiraEn.difference(DateTime.now()).inSeconds.clamp(0, 15);
+        : qr.expiraEn
+            .difference(DateTime.now())
+            .inSeconds
+            .clamp(0, qr.duracionSegundos);
     final bicicleta = bicicletaActiva;
     final tipoOperacion =
         bicicleta?.dentroBicicletero == true ? 'RETIRO' : 'INGRESO';
@@ -137,7 +146,7 @@ class _VistaQrUsuarioState extends State<VistaQrUsuario> {
     try {
       final tipo =
           bicicletaActiva?.dentroBicicletero == true ? 'RETIRO' : 'INGRESO';
-      final qr = await qrApi.generar(
+      final qr = await qrRepository.generar(
         bicicleteroId: tipo == 'INGRESO' ? bicicleteroSeleccionado?.id : null,
       );
 
@@ -274,29 +283,32 @@ class _PanelQrUsuario extends StatelessWidget {
     final qrActual = qr;
 
     return SizedBox(
-      height: 396,
       width: double.infinity,
-      child: Card(
-        elevation: 4,
-        shadowColor: Colors.black.withValues(alpha: 0.05),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(
-            color: Colors.grey.withValues(alpha: 0.1),
-            width: 1,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 396),
+        child: Card(
+          elevation: 4,
+          shadowColor: Colors.black.withValues(alpha: 0.05),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(
+              color: Colors.grey.withValues(alpha: 0.1),
+              width: 1,
+            ),
           ),
-        ),
-        color: Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            child: qrActual == null
-                ? const _QrPlaceholder()
-                : _QrActivo(
-                    token: qrActual.token,
-                    segundosRestantes: segundosRestantes,
-                  ),
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: qrActual == null
+                  ? const _QrPlaceholder()
+                  : _QrActivo(
+                      token: qrActual.token,
+                      segundosRestantes: segundosRestantes,
+                      duracionTotal: qrActual.duracionSegundos,
+                    ),
+            ),
           ),
         ),
       ),
@@ -336,7 +348,7 @@ class _QrPlaceholder extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Selecciona el bicicletero y genera el codigo.',
+            'Selecciona el bicicletero y genera el QR.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: ColoresUbb.textoSecundario,
@@ -352,10 +364,12 @@ class _QrActivo extends StatelessWidget {
   const _QrActivo({
     required this.token,
     required this.segundosRestantes,
+    required this.duracionTotal,
   });
 
   final String token;
   final int segundosRestantes;
+  final int duracionTotal;
 
   @override
   Widget build(BuildContext context) {
@@ -371,7 +385,9 @@ class _QrActivo extends StatelessWidget {
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
-            value: segundosRestantes / 15,
+            value: duracionTotal > 0
+                ? (segundosRestantes / duracionTotal).clamp(0.0, 1.0)
+                : 0,
             minHeight: 6,
             backgroundColor: ColoresUbb.bordeFuerte,
             valueColor: AlwaysStoppedAnimation(
