@@ -1,8 +1,10 @@
 import { ErrorHttp } from '../../comun/errors/error-http';
-import { prisma, type ClientePrisma } from '../../configuracion/prisma';
+import type { ClientePrisma } from '../../configuracion/prisma';
 import { Prisma } from '../../generated/prisma/client';
 import { RolUsuario } from '../usuarios/rol-usuario';
+import { EventosTiempoReal, emitirTiempoReal, salaUsuario } from '../../tiempo-real/tiempo-real';
 import { TipoNotificacion } from './tipo-notificacion';
+import * as notificacionRepositorio from './notificacion.repositorio';
 
 type DatosCrearNotificacion = {
   usuarioId: string;
@@ -29,35 +31,28 @@ type FiltrosNotificaciones = {
 const LIMITE_MAX = 50;
 const LIMITE_DEFAULT = 20;
 
-export const crearNotificacion = async (
-  datos: DatosCrearNotificacion,
-  db: ClientePrisma = prisma
-) => {
-  return db.notificacion.create({
-    data: {
+export const crearNotificacion = async (datos: DatosCrearNotificacion, db?: ClientePrisma) => {
+  const notificacion = await notificacionRepositorio.crear(
+    {
       usuarioId: datos.usuarioId,
       titulo: datos.titulo,
       mensaje: datos.mensaje,
       tipo: datos.tipo ?? TipoNotificacion.SISTEMA,
       datos: datos.datos as Prisma.InputJsonValue | undefined
-    }
+    },
+    db
+  );
+
+  emitirTiempoReal([salaUsuario(datos.usuarioId)], EventosTiempoReal.NOTIFICACION, {
+    accion: 'creada',
+    notificacionId: notificacion.id
   });
+
+  return notificacion;
 };
 
-export const notificarUsuariosPorRol = async (
-  datos: DatosNotificarRoles,
-  db: ClientePrisma = prisma
-) => {
-  const usuarios = await db.usuario.findMany({
-    where: {
-      rol: {
-        in: datos.roles
-      }
-    },
-    select: {
-      id: true
-    }
-  });
+export const notificarUsuariosPorRol = async (datos: DatosNotificarRoles, db?: ClientePrisma) => {
+  const usuarios = await notificacionRepositorio.buscarIdsPorRoles(datos.roles, db);
 
   await Promise.allSettled(
     usuarios.map((usuario) =>
@@ -81,30 +76,18 @@ export const listarNotificacionesUsuario = async (
 ) => {
   const limite = Math.min(filtros.limite ?? LIMITE_DEFAULT, LIMITE_MAX);
 
-  const where: Prisma.NotificacionWhereInput = {
+  const notificaciones = await notificacionRepositorio.listarDeUsuario({
     usuarioId,
-    ...(filtros.soloNoLeidas ? { leida: false } : {})
-  };
-
-  const notificaciones = await prisma.notificacion.findMany({
-    where,
-    orderBy: { creadaEn: 'desc' },
+    soloNoLeidas: filtros.soloNoLeidas ?? false,
     take: limite + 1,
-    ...(filtros.cursor
-      ? {
-          cursor: { id: filtros.cursor },
-          skip: 1
-        }
-      : {})
+    cursor: filtros.cursor
   });
 
   const hayMas = notificaciones.length > limite;
   const items = hayMas ? notificaciones.slice(0, limite) : notificaciones;
   const nextCursor = hayMas ? items[items.length - 1].id : null;
 
-  const noLeidas = await prisma.notificacion.count({
-    where: { usuarioId, leida: false }
-  });
+  const noLeidas = await notificacionRepositorio.contarNoLeidas(usuarioId);
 
   return {
     notificaciones: items,
@@ -114,36 +97,27 @@ export const listarNotificacionesUsuario = async (
 };
 
 export const marcarNotificacionLeida = async (usuarioId: string, notificacionId: string) => {
-  const notificacion = await prisma.notificacion.findFirst({
-    where: {
-      id: notificacionId,
-      usuarioId
-    }
-  });
+  const notificacion = await notificacionRepositorio.buscarDeUsuario(usuarioId, notificacionId);
 
   if (!notificacion) {
     throw new ErrorHttp(404, 'Notificación no encontrada');
   }
 
-  return prisma.notificacion.update({
-    where: {
-      id: notificacion.id
-    },
-    data: {
-      leida: true
-    }
+  const notificacionActualizada = await notificacionRepositorio.marcarLeida(notificacion.id);
+
+  emitirTiempoReal([salaUsuario(usuarioId)], EventosTiempoReal.NOTIFICACION, {
+    accion: 'leida',
+    notificacionId: notificacion.id
   });
+
+  return notificacionActualizada;
 };
 
 export const marcarTodasLeidas = async (usuarioId: string) => {
-  await prisma.notificacion.updateMany({
-    where: {
-      usuarioId,
-      leida: false
-    },
-    data: {
-      leida: true
-    }
+  await notificacionRepositorio.marcarTodasLeidas(usuarioId);
+
+  emitirTiempoReal([salaUsuario(usuarioId)], EventosTiempoReal.NOTIFICACION, {
+    accion: 'todas_leidas'
   });
 
   return {
