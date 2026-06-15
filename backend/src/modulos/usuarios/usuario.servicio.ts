@@ -1,10 +1,27 @@
+import bcrypt from 'bcryptjs';
 import { ErrorHttp } from '../../comun/errors/error-http';
-import { prisma } from '../../configuracion/prisma';
+import * as usuarioRepositorio from './usuario.repositorio';
 import { registrarAuditoria } from '../auditoria/auditoria.servicio';
 import { crearNotificacion } from '../notificaciones/notificacion.servicio';
 import { TipoNotificacion } from '../notificaciones/tipo-notificacion';
 import { mapearUsuarioPublico } from './usuario.mapeador';
 import { RolUsuario } from './rol-usuario';
+import {
+  EventosTiempoReal,
+  emitirTiempoReal,
+  salaRol
+} from '../../tiempo-real/tiempo-real';
+
+const emitirCambioUsuarios = () =>
+  emitirTiempoReal([salaRol(RolUsuario.ADMINISTRADOR)], EventosTiempoReal.USUARIO);
+
+type DatosCrearUsuario = {
+  nombre: string;
+  correo: string;
+  rut?: string | null;
+  rol: RolUsuario;
+  contrasena: string;
+};
 
 type DatosActualizarPermisos = {
   nombre?: string;
@@ -22,35 +39,149 @@ type FiltrosListarUsuarios = {
   correoVerificado?: boolean;
 };
 
-export const listarUsuarios = async (filtros: FiltrosListarUsuarios = {}) => {
-  const q = filtros.q?.trim();
-  if (filtros.rol === RolUsuario.ADMIN_CENTRAL) {
-    return [];
-  }
+const asegurarNoEsUltimoAdministrador = async (usuarioId: string) => {
+  const administradoresRestantes = await usuarioRepositorio.contarAdministradoresActivos(usuarioId);
 
-  const usuarios = await prisma.usuario.findMany({
-    where: {
-      ...(filtros.rol ? { rol: filtros.rol } : { rol: { not: RolUsuario.ADMIN_CENTRAL } }),
-      ...(filtros.cuentaActiva !== undefined ? { cuentaActiva: filtros.cuentaActiva } : {}),
-      ...(filtros.correoVerificado !== undefined
-        ? { correoVerificado: filtros.correoVerificado }
-        : {}),
-      ...(q
-        ? {
-            OR: [
-              { nombre: { contains: q, mode: 'insensitive' } },
-              { correo: { contains: q, mode: 'insensitive' } },
-              { rut: { contains: q, mode: 'insensitive' } }
-            ]
-          }
-        : {})
-    },
-    orderBy: {
-      creadoEn: 'desc'
-    }
-  });
+  if (administradoresRestantes === 0) {
+    throw new ErrorHttp(400, 'Debe existir al menos un administrador activo y verificado');
+  }
+};
+
+export const listarUsuarios = async (filtros: FiltrosListarUsuarios = {}) => {
+  const usuarios = await usuarioRepositorio.buscarUsuarios(filtros);
 
   return usuarios.map(mapearUsuarioPublico);
+};
+
+export const crearUsuarioAdmin = async (datos: DatosCrearUsuario, actorUsuarioId?: string) => {
+  const correoNormalizado = datos.correo.trim().toLowerCase();
+  const rut = datos.rut?.trim() ? datos.rut.trim() : null;
+
+  const correoExistente = await usuarioRepositorio.buscarPorCorreo(correoNormalizado);
+  if (correoExistente) {
+    if (correoExistente.eliminadoEn) {
+      if (rut) {
+        const rutExistente = await usuarioRepositorio.buscarPorRut(rut);
+        if (rutExistente && rutExistente.id !== correoExistente.id) {
+          throw new ErrorHttp(409, 'El RUT ya está registrado');
+        }
+      }
+
+      const contrasenaHash = await bcrypt.hash(datos.contrasena, 12);
+      const usuarioRestaurado = await usuarioRepositorio.actualizar(correoExistente.id, {
+        nombre: datos.nombre.trim(),
+        rut,
+        rol: datos.rol,
+        contrasenaHash,
+        correoVerificado: true,
+        registroParcial: false,
+        cuentaActiva: true,
+        eliminadoEn: null,
+        tokenVerificacionCorreo: null,
+        tokenVerificacionCorreoExpiraEn: null,
+        tokenCambioContrasena: null,
+        tokenCambioContrasenaExpiraEn: null,
+        versionSesion: {
+          increment: 1
+        }
+      });
+
+      await crearNotificacion({
+        usuarioId: usuarioRestaurado.id,
+        titulo: 'Cuenta reactivada',
+        mensaje: 'Administración reactivó tu cuenta UBBike.',
+        tipo: TipoNotificacion.CUENTA,
+        datos: {
+          rol: usuarioRestaurado.rol,
+          cuentaActiva: usuarioRestaurado.cuentaActiva,
+          correoVerificado: usuarioRestaurado.correoVerificado
+        }
+      });
+
+      await registrarAuditoria({
+        actorUsuarioId: actorUsuarioId ?? null,
+        accion: 'USUARIO_RESTAURADO_ADMIN',
+        entidad: 'usuarios',
+        entidadId: usuarioRestaurado.id,
+        datos: { correo: usuarioRestaurado.correo, rol: usuarioRestaurado.rol }
+      });
+
+      return mapearUsuarioPublico(usuarioRestaurado);
+    }
+
+    throw new ErrorHttp(409, 'El correo ya está registrado');
+  }
+
+  if (rut) {
+    const rutExistente = await usuarioRepositorio.buscarPorRut(rut);
+    if (rutExistente) {
+      throw new ErrorHttp(409, 'El RUT ya está registrado');
+    }
+  }
+
+  const contrasenaHash = await bcrypt.hash(datos.contrasena, 12);
+
+  const usuarioGuardado = await usuarioRepositorio.crear({
+    nombre: datos.nombre.trim(),
+    correo: correoNormalizado,
+    rut,
+    rol: datos.rol,
+    contrasenaHash,
+    correoVerificado: true,
+    registroParcial: false,
+    cuentaActiva: true
+  });
+
+  await registrarAuditoria({
+    actorUsuarioId: actorUsuarioId ?? null,
+    accion: 'USUARIO_CREADO_ADMIN',
+    entidad: 'usuarios',
+    entidadId: usuarioGuardado.id,
+    datos: { correo: usuarioGuardado.correo, rol: usuarioGuardado.rol }
+  });
+
+  emitirCambioUsuarios();
+
+  return mapearUsuarioPublico(usuarioGuardado);
+};
+
+export const eliminarUsuarioAdmin = async (usuarioId: string, actorUsuarioId?: string) => {
+  if (usuarioId === actorUsuarioId) {
+    throw new ErrorHttp(400, 'No puedes eliminar tu propia cuenta');
+  }
+
+  const usuario = await usuarioRepositorio.buscarPorId(usuarioId);
+  if (!usuario) {
+    throw new ErrorHttp(404, 'Usuario no encontrado');
+  }
+  if (usuario.eliminadoEn) {
+    throw new ErrorHttp(409, 'La cuenta ya fue eliminada');
+  }
+  if (usuario.rol === RolUsuario.ADMINISTRADOR) {
+    await asegurarNoEsUltimoAdministrador(usuario.id);
+  }
+
+  const usuarioGuardado = await usuarioRepositorio.actualizar(usuario.id, {
+    cuentaActiva: false,
+    eliminadoEn: new Date(),
+    tokenVerificacionCorreo: null,
+    tokenVerificacionCorreoExpiraEn: null,
+    tokenCambioContrasena: null,
+    tokenCambioContrasenaExpiraEn: null,
+    versionSesion: { increment: 1 }
+  });
+
+  await registrarAuditoria({
+    actorUsuarioId: actorUsuarioId ?? null,
+    accion: 'USUARIO_ELIMINADO_ADMIN',
+    entidad: 'usuarios',
+    entidadId: usuarioGuardado.id,
+    datos: { correo: usuarioGuardado.correo }
+  });
+
+  emitirCambioUsuarios();
+
+  return { message: 'Cuenta eliminada (desactivada y sesiones cerradas)' };
 };
 
 export const actualizarPermisosUsuario = async (
@@ -58,22 +189,23 @@ export const actualizarPermisosUsuario = async (
   datos: DatosActualizarPermisos,
   actorUsuarioId?: string
 ) => {
-  const usuario = await prisma.usuario.findUnique({
-    where: {
-      id: usuarioId
-    }
-  });
+  const usuario = await usuarioRepositorio.buscarPorId(usuarioId);
 
   if (!usuario) {
     throw new ErrorHttp(404, 'Usuario no encontrado');
   }
-
-  if (usuario.rol === RolUsuario.ADMIN_CENTRAL) {
-    throw new ErrorHttp(403, 'El admin general no gestiona cuentas de admin central');
+  if (usuario.eliminadoEn) {
+    throw new ErrorHttp(409, 'No puedes modificar una cuenta eliminada');
   }
 
-  if (datos.rol === RolUsuario.ADMIN_CENTRAL) {
-    throw new ErrorHttp(400, 'El rol admin central no esta disponible');
+  const dejaDeSerAdministradorActivo =
+    usuario.rol === RolUsuario.ADMINISTRADOR &&
+    ((datos.rol !== undefined && datos.rol !== RolUsuario.ADMINISTRADOR) ||
+      datos.cuentaActiva === false ||
+      datos.correoVerificado === false);
+
+  if (dejaDeSerAdministradorActivo) {
+    await asegurarNoEsUltimoAdministrador(usuario.id);
   }
 
   let invalidarSesiones = false;
@@ -102,13 +234,24 @@ export const actualizarPermisosUsuario = async (
   }
 
   if (datos.correo !== undefined) {
-    const correoNormalizado = datos.correo.toLowerCase();
+    const correoNormalizado = datos.correo.trim().toLowerCase();
+    const correoExistente = await usuarioRepositorio.buscarPorCorreo(correoNormalizado);
+    if (correoExistente && correoExistente.id !== usuario.id) {
+      throw new ErrorHttp(409, 'El correo ya está registrado');
+    }
     invalidarSesiones = invalidarSesiones || usuario.correo !== correoNormalizado;
     datosActualizacion.correo = correoNormalizado;
   }
 
   if (datos.rut !== undefined) {
-    datosActualizacion.rut = datos.rut || null;
+    const rut = datos.rut?.trim() ? datos.rut.trim() : null;
+    if (rut) {
+      const rutExistente = await usuarioRepositorio.buscarPorRut(rut);
+      if (rutExistente && rutExistente.id !== usuario.id) {
+        throw new ErrorHttp(409, 'El RUT ya está registrado');
+      }
+    }
+    datosActualizacion.rut = rut;
   }
 
   if (datos.cuentaActiva !== undefined) {
@@ -131,12 +274,7 @@ export const actualizarPermisosUsuario = async (
     };
   }
 
-  const usuarioGuardado = await prisma.usuario.update({
-    where: {
-      id: usuario.id
-    },
-    data: datosActualizacion
-  });
+  const usuarioGuardado = await usuarioRepositorio.actualizar(usuario.id, datosActualizacion);
 
   await crearNotificacion({
     usuarioId: usuarioGuardado.id,
@@ -163,6 +301,8 @@ export const actualizarPermisosUsuario = async (
       sesionesInvalidadas: invalidarSesiones
     }
   });
+
+  emitirCambioUsuarios();
 
   return mapearUsuarioPublico(usuarioGuardado);
 };
