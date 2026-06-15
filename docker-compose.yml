@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ubbike}
       POSTGRES_USER: ${POSTGRES_USER:-ubbike}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ubbike_password_demo_2026}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ubbike_local_dev_password_segura_2026}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
@@ -59,27 +59,34 @@ services:
       DB_PORT: 5432
       DB_USER: ${POSTGRES_USER:-ubbike}
       DB_NAME: ${POSTGRES_DB:-ubbike}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-ubbike_password_demo_2026}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-ubbike_local_dev_password_segura_2026}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
       JWT_SECRET: ${JWT_SECRET:-ubbike_jwt_secret_demo_para_entrega_2026}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-2h}
       JWT_ISSUER: ${JWT_ISSUER:-ubbike-api}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-ubbike-app}
+      REFRESH_TOKEN_EXPIRES_DAYS: ${REFRESH_TOKEN_EXPIRES_DAYS:-30}
+      QR_DURATION_SECONDS: ${QR_DURATION_SECONDS:-15}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
       REDIS_URL: redis://redis:6379
       REQUIRE_REDIS_RATE_LIMIT: "true"
       TRUST_PROXY: "false"
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_SECURE: "false"
-      MAIL_FROM: UBBike <no-reply@ubbike.local>
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8082}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8082,http://127.0.0.1:8082}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-UBBike <no-reply@ubbike.local>}
+      FRONTEND_URL: ${DOCKER_FRONTEND_URL:-http://localhost:8082}
+      CORS_ORIGINS: ${DOCKER_CORS_ORIGINS:-http://localhost:8082,http://127.0.0.1:8082}
+      UPLOADS_DIR: /app/uploads
+      UPLOADS_PUBLIC_PATH: /uploads
     ports:
       - "127.0.0.1:${BACKEND_PORT:-3001}:3000"
-    read_only: true
+    volumes:
+      - uploads_data:/app/uploads
     tmpfs:
       - /tmp
-      - /app/uploads:uid=1000,gid=1000,mode=700
     cap_drop:
       - ALL
     security_opt:
@@ -89,8 +96,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      mailpit:
-        condition: service_started
     healthcheck:
       test:
         [
@@ -113,7 +118,8 @@ services:
       dockerfile: Dockerfile
       args:
         API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:3001}
-        CSP_CONNECT_SRC: "'self' ${PUBLIC_API_BASE_URL:-http://localhost:3001} http://127.0.0.1:${BACKEND_PORT:-3001}"
+        CSP_CONNECT_SRC: "'self' ${PUBLIC_API_BASE_URL:-http://localhost:3001} ${PUBLIC_WS_BASE_URL:-ws://localhost:3001} http://127.0.0.1:${BACKEND_PORT:-3001} ws://127.0.0.1:${BACKEND_PORT:-3001}"
+        CSP_IMG_SRC: "'self' data: blob: ${PUBLIC_API_BASE_URL:-http://localhost:3001} http://127.0.0.1:${BACKEND_PORT:-3001}"
     container_name: ubbike_taller_frontend
     restart: unless-stopped
     ports:
@@ -139,23 +145,11 @@ services:
     networks:
       - frontend_network
 
-  mailpit:
-    image: axllent/mailpit@sha256:757f22b56c1da03570afdb3d259effe5091018008a81bbedc8158cee7e16fdbc
-    container_name: ubbike_taller_mailpit
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:${MAILPIT_WEB_PORT:-8026}:8025"
-      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1026}:1025"
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    networks:
-      - backend_network
-
 volumes:
   postgres_data:
     name: ubbike_taller_postgres_data
+  uploads_data:
+    name: ubbike_taller_uploads_data
 
 networks:
   backend_network:
