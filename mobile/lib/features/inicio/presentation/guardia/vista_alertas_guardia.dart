@@ -8,7 +8,7 @@ class VistaAlertasGuardia extends StatefulWidget {
 }
 
 class _VistaAlertasGuardiaState extends State<VistaAlertasGuardia> {
-  final solicitudGuardiaApi = SolicitudGuardiaApi();
+  late final SolicitudGuardiaRepository solicitudGuardiaRepository;
   final busquedaController = TextEditingController();
   String estadoFiltro = 'TODOS';
   late Future<List<SolicitudGuardiaApp>> futuroSolicitudes;
@@ -19,6 +19,10 @@ class _VistaAlertasGuardiaState extends State<VistaAlertasGuardia> {
   @override
   void initState() {
     super.initState();
+    solicitudGuardiaRepository = _leerProvider(
+      context,
+      solicitudGuardiaRepositoryProvider,
+    );
     futuroSolicitudes = _cargarSolicitudes();
     temporizadorAlertas = Timer.periodic(
       const Duration(seconds: 15),
@@ -53,7 +57,7 @@ class _VistaAlertasGuardiaState extends State<VistaAlertasGuardia> {
   Future<List<SolicitudGuardiaApp>> _cargarSolicitudes({
     bool avisarNuevas = false,
   }) async {
-    final solicitudes = await solicitudGuardiaApi.listarSolicitudes();
+    final solicitudes = await solicitudGuardiaRepository.listarSolicitudes();
     final abiertas = solicitudes.where(_solicitudAbierta).toList();
     final idsAbiertas = abiertas.map((solicitud) => solicitud.id).toSet();
     final nuevas = abiertas
@@ -94,7 +98,7 @@ class _VistaAlertasGuardiaState extends State<VistaAlertasGuardia> {
         solicitud: solicitud,
         mostrarSolicitante: true,
         onActualizar: (estado) async {
-          await solicitudGuardiaApi.actualizarEstado(
+          await solicitudGuardiaRepository.actualizarEstado(
             solicitudId: solicitud.id,
             estado: estado,
           );
