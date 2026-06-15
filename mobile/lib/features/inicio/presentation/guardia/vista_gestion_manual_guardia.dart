@@ -10,7 +10,9 @@ class VistaGestionManualGuardia extends StatefulWidget {
 
 class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
   final formKeyGestionManual = GlobalKey<FormState>();
-  final accesoApi = AccesoApi();
+  late final AccesoRepository accesoRepository;
+  late final SolicitudGuardiaRepository solicitudGuardiaRepository;
+  final nombreController = TextEditingController();
   final correoController = TextEditingController();
   final rutController = TextEditingController();
   final comentarioController = TextEditingController();
@@ -20,15 +22,20 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
   final bicicletaColorController = TextEditingController();
   final bicicletaAroController = TextEditingController();
   final bicicletaNumeroSerieController = TextEditingController();
+  String? fotoBicicletaManual;
   String operacion = 'INGRESO';
   Timer? temporizadorBusqueda;
   CoincidenciaManualApp? coincidenciaManual;
+  List<BicicleteroApp> bicicleteros = [];
   String? bicicletaSeleccionadaId;
+  String? bicicleteroSeleccionadoId;
   String? errorBusquedaManual;
+  String? errorBicicleteros;
   bool buscandoCoincidencia = false;
   bool busquedaRealizada = false;
   bool actualizandoCampos = false;
   bool registrando = false;
+  bool cargandoBicicleteros = false;
 
   bool get _retiroBloqueadoPorRegistroParcial =>
       coincidenciaManual?.usuario.registroParcial == true &&
@@ -39,12 +46,19 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       busquedaRealizada ||
       bicicletaDescripcionController.text.trim().isNotEmpty;
 
+  bool get _requiereDatosUsuarioNuevo =>
+      busquedaRealizada && coincidenciaManual == null;
+
   @override
   void initState() {
     super.initState();
+    accesoRepository = _leerProvider(context, accesoRepositoryProvider);
+    solicitudGuardiaRepository =
+        _leerProvider(context, solicitudGuardiaRepositoryProvider);
     correoController.addListener(_programarBusquedaCoincidencia);
     rutController.addListener(_programarBusquedaCoincidencia);
     bicicletaDescripcionController.addListener(_actualizarOperacionVisible);
+    _cargarBicicleteros();
   }
 
   @override
@@ -53,6 +67,7 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
     correoController.removeListener(_programarBusquedaCoincidencia);
     rutController.removeListener(_programarBusquedaCoincidencia);
     bicicletaDescripcionController.removeListener(_actualizarOperacionVisible);
+    nombreController.dispose();
     correoController.dispose();
     rutController.dispose();
     comentarioController.dispose();
@@ -66,15 +81,57 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
   }
 
   void _actualizarOperacionVisible() {
+    if (actualizandoCampos) {
+      return;
+    }
     if (mounted) {
       setState(() {});
     }
   }
 
+  Future<void> _cargarBicicleteros() async {
+    setState(() {
+      cargandoBicicleteros = true;
+      errorBicicleteros = null;
+    });
+
+    try {
+      final datos = await solicitudGuardiaRepository.listarBicicleteros();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        bicicleteros = datos;
+        if (!bicicleteros.any((item) => item.id == bicicleteroSeleccionadoId)) {
+          bicicleteroSeleccionadoId = null;
+        }
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        bicicleteros = [];
+        bicicleteroSeleccionadoId = null;
+        errorBicicleteros = 'No se pudieron cargar los bicicleteros.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => cargandoBicicleteros = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final rolSesion = _rolSesionActual(context);
+    final requiereBicicletero =
+        rolSesion != RolUsuario.guardia && operacion == 'INGRESO';
     final retiroRegistroParcialBloqueado = _retiroBloqueadoPorRegistroParcial;
     final mostrarOperacion = _debeMostrarOperacion;
+    final bicicletaSeleccionada =
+        _buscarBicicletaSeleccionada(bicicletaSeleccionadaId);
+    final creandoBicicletaNueva = bicicletaSeleccionadaId == null;
 
     return ListView(
       children: [
@@ -94,6 +151,18 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                     ),
                     const SizedBox(height: 14),
                   ],
+                  if (requiereBicicletero) ...[
+                    _SelectorBicicleteroManual(
+                      bicicleteros: bicicleteros,
+                      value: bicicleteroSeleccionadoId,
+                      cargando: cargandoBicicleteros,
+                      error: errorBicicleteros,
+                      onChanged: (valor) =>
+                          setState(() => bicicleteroSeleccionadoId = valor),
+                      onRecargar: _cargarBicicleteros,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   TextFormField(
                     controller: correoController,
                     keyboardType: TextInputType.emailAddress,
@@ -102,8 +171,11 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                     decoration: const InputDecoration(
                       labelText: 'Correo institucional',
                     ),
-                    validator: (valor) =>
-                        _validarCorreoGestionManual(valor, rutController.text),
+                    validator: (valor) => _validarCorreoGestionManual(
+                      valor,
+                      rutController.text,
+                      requiereCorreo: _requiereDatosUsuarioNuevo,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -112,29 +184,58 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                     decoration: const InputDecoration(
                       labelText: 'RUT',
                     ),
-                    validator: _validarRutGestionManual,
+                    validator: (valor) => _validarRutGestionManual(
+                      valor,
+                      requerido: _requiereDatosUsuarioNuevo,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: nombreController,
+                    readOnly: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre',
+                      hintText: 'Se completa si existe coincidencia',
+                    ),
                   ),
                   _EstadoBusquedaManual(
                     buscando: buscandoCoincidencia,
-                    busquedaRealizada: busquedaRealizada,
                     error: errorBusquedaManual,
-                    coincidencia: coincidenciaManual,
-                    onUsarDatos:
-                        coincidenciaManual == null ? null : _autocompletarDatos,
                   ),
                   const SizedBox(height: 12),
-                  ExpansionTile(
-                    tilePadding: EdgeInsets.zero,
-                    childrenPadding: const EdgeInsets.only(top: 8),
-                    initiallyExpanded:
-                        busquedaRealizada && coincidenciaManual == null,
-                    title: const Text('Datos de bicicleta'),
-                    subtitle: Text(
-                      bicicletaSeleccionadaId == null
-                          ? 'Para usuario nuevo o bicicleta no registrada'
-                          : 'Bicicleta registrada seleccionada',
-                    ),
+                  Text(
+                    'Datos de bicicleta',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: ColoresUbb.azulNoche,
+                        ),
+                  ),
+                  const SizedBox(height: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (bicicletaSeleccionadaId != null)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 10),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: ChipEstado(
+                              texto: 'Bicicleta registrada',
+                              color: ColoresUbb.azulApp,
+                            ),
+                          ),
+                        )
+                      else if (busquedaRealizada)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 10),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: ChipEstado(
+                              texto: 'Bicicleta no registrada',
+                              color: ColoresUbb.azulMedio,
+                            ),
+                          ),
+                        ),
                       if ((coincidenciaManual?.bicicletas ?? const [])
                           .isNotEmpty) ...[
                         LayoutBuilder(
@@ -183,45 +284,71 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                           labelText: 'Descripción',
                           hintText: 'Ej: MTB roja con canasto',
                         ),
-                        validator: (valor) =>
-                            _validarDescripcionBicicletaManual(
-                          valor,
-                          bicicletaSeleccionadaId == null,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: bicicletaMarcaController,
-                        readOnly: bicicletaSeleccionadaId != null,
-                        decoration: const InputDecoration(
-                          labelText: 'Marca',
-                        ),
-                        validator: (valor) =>
-                            _validarCampoOpcionalGestionManual(valor, 80),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: bicicletaModeloController,
-                        readOnly: bicicletaSeleccionadaId != null,
-                        decoration: const InputDecoration(
-                          labelText: 'Modelo',
-                        ),
-                        validator: (valor) =>
-                            _validarCampoOpcionalGestionManual(valor, 80),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: bicicletaColorController,
-                        readOnly: bicicletaSeleccionadaId != null,
-                        decoration: const InputDecoration(
-                          labelText: 'Color',
-                        ),
-                        validator: (valor) =>
-                            _validarCampoOpcionalGestionManual(valor, 60),
+                        validator: (valor) => creandoBicicletaNueva
+                            ? validarDescripcionBicicleta(valor)
+                            : _validarDescripcionBicicletaManual(
+                                valor,
+                                false,
+                              ),
                       ),
                       const SizedBox(height: 12),
                       Row(
                         children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: bicicletaMarcaController,
+                              readOnly: bicicletaSeleccionadaId != null,
+                              decoration: const InputDecoration(
+                                labelText: 'Marca',
+                              ),
+                              validator: (valor) =>
+                                  _validarCampoRequeridoConFormato(
+                                valor,
+                                requerido: creandoBicicletaNueva,
+                                mensajeRequerido: 'Ingresa la marca.',
+                                validarFormato: validarMarcaBicicleta,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: bicicletaModeloController,
+                              readOnly: bicicletaSeleccionadaId != null,
+                              decoration: const InputDecoration(
+                                labelText: 'Modelo',
+                              ),
+                              validator: (valor) =>
+                                  _validarCampoRequeridoConFormato(
+                                valor,
+                                requerido: creandoBicicletaNueva,
+                                mensajeRequerido: 'Ingresa el modelo.',
+                                validarFormato: validarModeloBicicleta,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: bicicletaColorController,
+                              readOnly: bicicletaSeleccionadaId != null,
+                              decoration: const InputDecoration(
+                                labelText: 'Color',
+                              ),
+                              validator: (valor) =>
+                                  _validarCampoRequeridoConFormato(
+                                valor,
+                                requerido: creandoBicicletaNueva,
+                                mensajeRequerido: 'Ingresa el color.',
+                                validarFormato: validarColorBicicleta,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: TextFormField(
                               controller: bicicletaAroController,
@@ -229,24 +356,49 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                               decoration: const InputDecoration(
                                 labelText: 'Aro',
                               ),
-                              validator: (valor) =>
-                                  _validarCampoOpcionalGestionManual(valor, 30),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: bicicletaNumeroSerieController,
-                              readOnly: bicicletaSeleccionadaId != null,
-                              decoration: const InputDecoration(
-                                labelText: 'N. serie',
+                              validator: (valor) => _validarAroGestionManual(
+                                valor,
+                                requerido: creandoBicicletaNueva,
                               ),
-                              validator: (valor) =>
-                                  _validarCampoOpcionalGestionManual(
-                                      valor, 120),
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: bicicletaNumeroSerieController,
+                        readOnly: bicicletaSeleccionadaId != null,
+                        decoration: const InputDecoration(
+                          labelText: 'N° de serie',
+                        ),
+                        validator: (valor) => _validarCampoRequeridoConFormato(
+                          valor,
+                          requerido: creandoBicicletaNueva,
+                          mensajeRequerido: 'Ingresa el numero de serie.',
+                          validarFormato: validarNumeroSerieBicicleta,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _SelectorFotoBicicleta(
+                        fotoDataUrl: bicicletaSeleccionada?.fotoUrl ??
+                            fotoBicicletaManual,
+                        onCamara: creandoBicicletaNueva
+                            ? () => _seleccionarFotoBicicletaManual(
+                                  ImageSource.camera,
+                                )
+                            : () {},
+                        onGaleria: creandoBicicletaNueva
+                            ? () => _seleccionarFotoBicicletaManual(
+                                  ImageSource.gallery,
+                                )
+                            : () {},
+                        onQuitar: !creandoBicicletaNueva ||
+                                fotoBicicletaManual == null
+                            ? null
+                            : () => setState(
+                                  () => fotoBicicletaManual = null,
+                                ),
+                        mostrarAcciones: creandoBicicletaNueva,
                       ),
                     ],
                   ),
@@ -262,26 +414,6 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                     validator: (valor) =>
                         _validarCampoOpcionalGestionManual(valor, 600),
                   ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: ColoresUbb.superficieAzulSuave,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: ColoresUbb.borde),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.info_outline, color: ColoresUbb.azulApp),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Ingresa correo o RUT. Si existe coincidencia, los datos y la operacion se detectan automaticamente.',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                   if (retiroRegistroParcialBloqueado) ...[
                     const SizedBox(height: 12),
                     const _CajaBusquedaManual(
@@ -295,19 +427,58 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                     ),
                   ],
                   const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: registrando || retiroRegistroParcialBloqueado
-                        ? null
-                        : _registrarManual,
-                    child: registrando
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: registrando ||
+                                  buscandoCoincidencia ||
+                                  retiroRegistroParcialBloqueado
+                              ? null
+                              : () => _registrarManual(),
+                          icon: registrando
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.check_circle_outline),
+                          label: Text(
                             'Registrar ${operacion == 'INGRESO' ? 'ingreso' : 'retiro'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: ColoresUbb.rojoInstitucional,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: registrando ||
+                                  buscandoCoincidencia ||
+                                  retiroRegistroParcialBloqueado
+                              ? null
+                              : () => _mostrarRechazoManual(context),
+                          icon: const Icon(Icons.block_outlined),
+                          label: Text(
+                            'Rechazar ${operacion == 'INGRESO' ? 'ingreso' : 'retiro'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: registrando ? null : _cancelarAccionManual,
+                    icon: const Icon(Icons.close),
+                    label: const Text('Cancelar acción'),
                   ),
                 ],
               ),
@@ -328,22 +499,26 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
     final rut = rutController.text.trim();
 
     if (correo.isEmpty && rut.isEmpty) {
+      nombreController.clear();
       setState(() {
         buscandoCoincidencia = false;
         busquedaRealizada = false;
         coincidenciaManual = null;
         bicicletaSeleccionadaId = null;
+        fotoBicicletaManual = null;
         errorBusquedaManual = null;
       });
       return;
     }
 
     if (!_datoBusquedaSuficiente(correo, rut)) {
+      nombreController.clear();
       setState(() {
         buscandoCoincidencia = false;
         busquedaRealizada = false;
         coincidenciaManual = null;
         bicicletaSeleccionadaId = null;
+        fotoBicicletaManual = null;
         errorBusquedaManual = null;
       });
       return;
@@ -354,8 +529,10 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       busquedaRealizada = false;
       coincidenciaManual = null;
       bicicletaSeleccionadaId = null;
+      fotoBicicletaManual = null;
       errorBusquedaManual = null;
     });
+    nombreController.clear();
 
     temporizadorBusqueda = Timer(
       const Duration(milliseconds: 550),
@@ -370,7 +547,7 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
 
   Future<void> _buscarCoincidencia(String correo, String rut) async {
     try {
-      final coincidencia = await accesoApi.buscarCoincidenciaManual(
+      final coincidencia = await accesoRepository.buscarCoincidenciaManual(
         correo: correo,
         rut: rut,
       );
@@ -382,11 +559,19 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       }
 
       if (coincidencia == null) {
+        nombreController.clear();
         setState(() {
           buscandoCoincidencia = false;
           busquedaRealizada = true;
           coincidenciaManual = null;
           bicicletaSeleccionadaId = null;
+          fotoBicicletaManual = null;
+          bicicletaDescripcionController.clear();
+          bicicletaMarcaController.clear();
+          bicicletaModeloController.clear();
+          bicicletaColorController.clear();
+          bicicletaAroController.clear();
+          bicicletaNumeroSerieController.clear();
           errorBusquedaManual = null;
         });
         return;
@@ -395,30 +580,23 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       _aplicarCoincidenciaManual(coincidencia);
     } on ExcepcionApi catch (error) {
       if (!mounted) return;
+      nombreController.clear();
       setState(() {
         buscandoCoincidencia = false;
         busquedaRealizada = true;
         coincidenciaManual = null;
         bicicletaSeleccionadaId = null;
+        fotoBicicletaManual = null;
         errorBusquedaManual = error.mensaje;
       });
     }
-  }
-
-  void _autocompletarDatos() {
-    final coincidencia = coincidenciaManual;
-    if (coincidencia == null) {
-      return;
-    }
-
-    _aplicarCoincidenciaManual(coincidencia);
-    context.mostrarInfo('Datos cargados para ${coincidencia.usuario.nombre}');
   }
 
   void _aplicarCoincidenciaManual(
     CoincidenciaManualApp coincidencia,
   ) {
     actualizandoCampos = true;
+    nombreController.text = coincidencia.usuario.nombre;
     correoController.text = coincidencia.usuario.correo;
     rutController.text = coincidencia.usuario.rut ?? rutController.text.trim();
     actualizandoCampos = false;
@@ -430,10 +608,17 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       busquedaRealizada = true;
       coincidenciaManual = coincidencia;
       bicicletaSeleccionadaId = preferida?.id;
+      fotoBicicletaManual = null;
       errorBusquedaManual = null;
 
       if (preferida == null) {
         operacion = 'INGRESO';
+        bicicletaDescripcionController.clear();
+        bicicletaMarcaController.clear();
+        bicicletaModeloController.clear();
+        bicicletaColorController.clear();
+        bicicletaAroController.clear();
+        bicicletaNumeroSerieController.clear();
         return;
       }
 
@@ -494,6 +679,7 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
     setState(() {
       bicicletaSeleccionadaId = bicicleta?.id;
       if (bicicleta != null) {
+        fotoBicicletaManual = null;
         _cargarDatosBicicleta(bicicleta);
         operacion = _operacionParaBicicleta(bicicleta);
       }
@@ -509,10 +695,54 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
     bicicletaNumeroSerieController.text = bicicleta.numeroSerie ?? '';
   }
 
+  Future<void> _seleccionarFotoBicicletaManual(ImageSource source) async {
+    try {
+      final imagen = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 72,
+        maxWidth: 1200,
+        maxHeight: 1200,
+      );
+
+      if (imagen == null) {
+        return;
+      }
+
+      final bytes = await imagen.readAsBytes();
+      final mime = _detectarMimeDesdeBytes(bytes);
+
+      if (!_mimesFotoPermitidos.contains(mime)) {
+        if (mounted) {
+          context.mostrarError('La foto debe ser JPG, PNG o WEBP.');
+        }
+        return;
+      }
+
+      final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
+      if (dataUrl.length > _maxFotoDataUrlLength) {
+        if (mounted) {
+          context.mostrarError(
+            'La foto es muy pesada. Elige una imagen mas liviana.',
+          );
+        }
+        return;
+      }
+
+      if (mounted) {
+        setState(() => fotoBicicletaManual = dataUrl);
+      }
+    } catch (_) {
+      if (mounted) {
+        context.mostrarError('No se pudo cargar la foto.');
+      }
+    }
+  }
+
   void _usarBicicletaNoRegistrada() {
     setState(() {
       operacion = 'INGRESO';
       bicicletaSeleccionadaId = null;
+      fotoBicicletaManual = null;
       bicicletaDescripcionController.clear();
       bicicletaMarcaController.clear();
       bicicletaModeloController.clear();
@@ -530,21 +760,74 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
     return '${bicicleta.descripcion} | $activa | $estado';
   }
 
-  Future<void> _registrarManual() async {
+  void _mostrarRechazoManual(BuildContext context) {
+    if (!_validarFormularioGestionManual()) {
+      return;
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _SheetDenegacion(
+        onConfirmar: (motivo) => _registrarManual(
+          denegar: true,
+          motivo: motivo,
+        ),
+      ),
+    );
+  }
+
+  bool _validarFormularioGestionManual() {
+    final crearBicicletaNueva = bicicletaSeleccionadaId == null;
+    final requiereBicicletero =
+        _rolSesionActual(context) != RolUsuario.guardia &&
+            operacion == 'INGRESO';
+
+    if (registrando) {
+      return false;
+    }
+    if (buscandoCoincidencia) {
+      context
+          .mostrarError('Espera a que termine la busqueda de coincidencias.');
+      return false;
+    }
+    if (formKeyGestionManual.currentState?.validate() != true) {
+      return false;
+    }
+    if (crearBicicletaNueva && fotoBicicletaManual == null) {
+      context.mostrarError('Toma o sube una foto de la bicicleta.');
+      return false;
+    }
+    if (requiereBicicletero && bicicleteroSeleccionadoId == null) {
+      context.mostrarError('Selecciona el bicicletero del ingreso.');
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<bool> _registrarManual({
+    bool denegar = false,
+    String? motivo,
+  }) async {
     final correo = correoController.text.trim();
     final rut = rutController.text.trim();
+    final crearBicicletaNueva = bicicletaSeleccionadaId == null;
 
-    if (formKeyGestionManual.currentState?.validate() != true) {
-      return;
+    if (!_validarFormularioGestionManual()) {
+      return false;
     }
 
     setState(() => registrando = true);
 
     try {
-      final movimiento = await accesoApi.registrarManual(
+      final movimiento = await accesoRepository.registrarManual(
         correo: correo,
         rut: rut,
         bicicletaId: bicicletaSeleccionadaId,
+        bicicleteroId:
+            operacion == 'INGRESO' ? bicicleteroSeleccionadoId : null,
         tipo: operacion,
         comentario: comentarioController.text.trim(),
         bicicletaDescripcion: bicicletaDescripcionController.text.trim(),
@@ -553,44 +836,82 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
         bicicletaColor: bicicletaColorController.text.trim(),
         bicicletaAro: bicicletaAroController.text.trim(),
         bicicletaNumeroSerie: bicicletaNumeroSerieController.text.trim(),
+        bicicletaFotoUrl: fotoBicicletaManual,
+        crearBicicletaNueva: crearBicicletaNueva,
+        denegar: denegar,
+        motivo: motivo,
       );
 
       if (mounted) {
-        correoController.clear();
-        rutController.clear();
-        comentarioController.clear();
-        bicicletaDescripcionController.clear();
-        bicicletaMarcaController.clear();
-        bicicletaModeloController.clear();
-        bicicletaColorController.clear();
-        bicicletaAroController.clear();
-        bicicletaNumeroSerieController.clear();
-        setState(() {
-          bicicletaSeleccionadaId = null;
-          coincidenciaManual = null;
-          busquedaRealizada = false;
-          errorBusquedaManual = null;
-        });
+        _limpiarFormularioGestionManual();
+        final tipoMovimiento =
+            movimiento.tipo == 'INGRESO' ? 'Ingreso' : 'Retiro';
         context.mostrarExito(
-          '${movimiento.tipo == 'INGRESO' ? 'Ingreso' : 'Retiro'} registrado para ${movimiento.usuarioNombre}',
+          '$tipoMovimiento ${denegar ? 'rechazado' : 'registrado'} para ${movimiento.usuarioNombre}',
         );
       }
+      return true;
     } on ExcepcionApi catch (error) {
       if (mounted) {
         context.mostrarError(error.mensaje);
       }
+      return false;
     } finally {
       if (mounted) {
         setState(() => registrando = false);
       }
     }
   }
+
+  void _cancelarAccionManual() {
+    _limpiarFormularioGestionManual();
+    context.mostrarInfo('Acción cancelada');
+  }
+
+  void _limpiarFormularioGestionManual() {
+    temporizadorBusqueda?.cancel();
+    actualizandoCampos = true;
+    nombreController.clear();
+    correoController.clear();
+    rutController.clear();
+    comentarioController.clear();
+    bicicletaDescripcionController.clear();
+    bicicletaMarcaController.clear();
+    bicicletaModeloController.clear();
+    bicicletaColorController.clear();
+    bicicletaAroController.clear();
+    bicicletaNumeroSerieController.clear();
+    actualizandoCampos = false;
+
+    setState(() {
+      operacion = 'INGRESO';
+      buscandoCoincidencia = false;
+      busquedaRealizada = false;
+      coincidenciaManual = null;
+      bicicletaSeleccionadaId = null;
+      bicicleteroSeleccionadoId = null;
+      fotoBicicletaManual = null;
+      errorBusquedaManual = null;
+    });
+  }
 }
 
-String? _validarCorreoGestionManual(String? valor, String rutActual) {
+RolUsuario _rolSesionActual(BuildContext context) {
+  final sesion = _leerProvider(context, sesionProvider).value;
+  return sesion is SesionActiva ? sesion.usuario.rol : RolUsuario.estudiante;
+}
+
+String? _validarCorreoGestionManual(
+  String? valor,
+  String rutActual, {
+  bool requiereCorreo = false,
+}) {
   final correo = valor?.trim() ?? '';
   final rut = rutActual.trim();
 
+  if (requiereCorreo && correo.isEmpty) {
+    return 'Ingresa correo para crear el registro parcial.';
+  }
   if (correo.isEmpty && rut.isEmpty) {
     return 'Ingresa correo o RUT.';
   }
@@ -608,8 +929,14 @@ String? _validarCorreoGestionManual(String? valor, String rutActual) {
   return null;
 }
 
-String? _validarRutGestionManual(String? valor) {
+String? _validarRutGestionManual(
+  String? valor, {
+  bool requerido = false,
+}) {
   final rut = valor?.trim() ?? '';
+  if (requerido && rut.isEmpty) {
+    return 'Ingresa RUT para crear el registro parcial.';
+  }
   if (rut.isEmpty) {
     return null;
   }
@@ -620,6 +947,39 @@ String? _validarRutGestionManual(String? valor) {
   final rutLimpio = rut.replaceAll('.', '').replaceAll('-', '');
   if (rutLimpio.length < 7) {
     return 'Ingresa un RUT valido.';
+  }
+  return null;
+}
+
+String? _validarCampoRequeridoConFormato(
+  String? valor, {
+  required bool requerido,
+  required String mensajeRequerido,
+  required String? Function(String?) validarFormato,
+}) {
+  final texto = valor?.trim() ?? '';
+  if (requerido && texto.isEmpty) {
+    return mensajeRequerido;
+  }
+  if (!requerido && texto.isEmpty) {
+    return null;
+  }
+  return validarFormato(valor);
+}
+
+String? _validarAroGestionManual(
+  String? valor, {
+  required bool requerido,
+}) {
+  final texto = valor?.trim() ?? '';
+  if (requerido && texto.isEmpty) {
+    return 'Ingresa el aro.';
+  }
+  if (!requerido && texto.isEmpty) {
+    return null;
+  }
+  if (normalizarAroBicicleta(texto) == null) {
+    return 'Ingresa un aro valido.';
   }
   return null;
 }
@@ -652,6 +1012,93 @@ String? _validarCampoOpcionalGestionManual(String? valor, int maximo) {
   return null;
 }
 
+class _SelectorBicicleteroManual extends StatelessWidget {
+  const _SelectorBicicleteroManual({
+    required this.bicicleteros,
+    required this.value,
+    required this.cargando,
+    required this.error,
+    required this.onChanged,
+    required this.onRecargar,
+  });
+
+  final List<BicicleteroApp> bicicleteros;
+  final String? value;
+  final bool cargando;
+  final String? error;
+  final ValueChanged<String?> onChanged;
+  final VoidCallback onRecargar;
+
+  @override
+  Widget build(BuildContext context) {
+    if (cargando) {
+      return const _CajaBusquedaManual(
+        icono: Icons.hourglass_empty_outlined,
+        color: ColoresUbb.azulApp,
+        children: [
+          Text('Cargando bicicleteros disponibles...'),
+        ],
+      );
+    }
+
+    if (error != null) {
+      return _CajaBusquedaManual(
+        icono: Icons.error_outline,
+        color: ColoresUbb.rojoInstitucional,
+        children: [
+          Text(error!),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: onRecargar,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (bicicleteros.isEmpty) {
+      return const _CajaBusquedaManual(
+        icono: Icons.info_outline,
+        color: ColoresUbb.azulApp,
+        children: [
+          Text('No hay bicicleteros activos para registrar el ingreso.'),
+        ],
+      );
+    }
+
+    final valorSeguro =
+        bicicleteros.any((bicicletero) => bicicletero.id == value)
+            ? value
+            : null;
+
+    return DropdownAnclado<String>(
+      value: valorSeguro,
+      borderRadius: BorderRadius.circular(16),
+      menuMaxHeight: 320,
+      decoration: const InputDecoration(
+        labelText: 'Bicicletero del ingreso',
+        prefixIcon: Icon(Icons.local_parking_outlined),
+      ),
+      items: bicicleteros
+          .map(
+            (bicicletero) => DropdownMenuItem<String>(
+              value: bicicletero.id,
+              child: Text(
+                '${bicicletero.nombre} | ${bicicletero.cuposDisponibles} cupos',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          )
+          .toList(),
+      onChanged: onChanged,
+    );
+  }
+}
+
 class _IndicadorOperacionManual extends StatelessWidget {
   const _IndicadorOperacionManual({
     required this.operacion,
@@ -666,20 +1113,13 @@ class _IndicadorOperacionManual extends StatelessWidget {
     final esIngreso = operacion == 'INGRESO';
     final color = esIngreso ? ColoresUbb.exito : ColoresUbb.azulApp;
     final textoBase = esIngreso ? 'Ingreso' : 'Retiro';
-    final textoOperacion =
-        autodetectada ? '$textoBase autodetectado' : textoBase;
+    final textoOperacion = autodetectada ? '$textoBase detectado' : textoBase;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        children: [
-          ChipEstado(texto: textoOperacion, color: color),
-        ],
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ChipEstado(
+        texto: textoOperacion,
+        color: color,
       ),
     );
   }
@@ -688,17 +1128,11 @@ class _IndicadorOperacionManual extends StatelessWidget {
 class _EstadoBusquedaManual extends StatelessWidget {
   const _EstadoBusquedaManual({
     required this.buscando,
-    required this.busquedaRealizada,
-    required this.coincidencia,
     required this.error,
-    required this.onUsarDatos,
   });
 
   final bool buscando;
-  final bool busquedaRealizada;
-  final CoincidenciaManualApp? coincidencia;
   final String? error;
-  final VoidCallback? onUsarDatos;
 
   @override
   Widget build(BuildContext context) {
@@ -722,77 +1156,13 @@ class _EstadoBusquedaManual extends StatelessWidget {
 
     if (error != null) {
       return Padding(
-        padding: const EdgeInsets.only(top: 10),
-        child: _CajaBusquedaManual(
-          icono: Icons.error_outline,
-          color: ColoresUbb.rojoInstitucional,
-          children: [Text(error!)],
-        ),
-      );
-    }
-
-    final datos = coincidencia;
-    if (datos != null) {
-      final cantidadBicicletas = datos.bicicletas.length;
-      return Padding(
-        padding: const EdgeInsets.only(top: 10),
-        child: _CajaBusquedaManual(
-          icono: Icons.manage_search_outlined,
-          color: ColoresUbb.exito,
-          children: [
-            Text(
-              'Coincidencia encontrada',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            FilaDato(etiqueta: 'Usuario', valor: datos.usuario.nombre),
-            FilaDato(
-              etiqueta: 'Correo',
-              valor: datos.usuario.correo,
-              anchoCompleto: true,
-            ),
-            FilaDato(
-              etiqueta: 'RUT',
-              valor: datos.usuario.rut ?? 'Sin RUT',
-            ),
-            if (datos.usuario.registroParcial)
-              const FilaDato(
-                etiqueta: 'Estado',
-                valor: 'Registro pendiente',
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(
+          error!,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: ColoresUbb.rojoInstitucional,
+                fontWeight: FontWeight.w700,
               ),
-            FilaDato(
-              etiqueta: 'Bicicletas',
-              valor: cantidadBicicletas == 0
-                  ? 'Sin bicicletas registradas'
-                  : '$cantidadBicicletas registradas',
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.icon(
-                onPressed: onUsarDatos,
-                icon: const Icon(Icons.auto_fix_high_outlined),
-                label: const Text('Usar datos encontrados'),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (busquedaRealizada) {
-      return const Padding(
-        padding: EdgeInsets.only(top: 10),
-        child: _CajaBusquedaManual(
-          icono: Icons.info_outline,
-          color: ColoresUbb.azulApp,
-          children: [
-            Text(
-              'Sin coincidencia. Para un usuario nuevo, completa correo, RUT y datos de bicicleta.',
-            ),
-          ],
         ),
       );
     }
