@@ -1,4 +1,4 @@
-import '../helpers/env-setup';
+﻿import '../helpers/env-setup';
 import { validarReglaMovimiento } from '../../src/modulos/acceso/operaciones/acceso.reglas';
 import { TipoMovimiento } from '../../src/modulos/historial/tipo-movimiento';
 
