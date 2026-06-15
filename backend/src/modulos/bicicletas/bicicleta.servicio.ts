@@ -1,7 +1,7 @@
 import { ErrorHttp } from '../../comun/errors/error-http';
-import { prisma } from '../../configuracion/prisma';
 import type { Bicicleta } from '../../generated/prisma/client';
 import { eliminarArchivoFotoBicicleta, guardarFotoBicicleta } from './foto-bicicleta.servicio';
+import * as bicicletaRepositorio from './bicicleta.repositorio';
 
 type DatosCrearBicicleta = {
   usuarioId: string;
@@ -55,21 +55,7 @@ const mapearBicicleta = (
 });
 
 const buscarBicicletaUsuario = async (usuarioId: string, bicicletaId: string) => {
-  const bicicleta = await prisma.bicicleta.findFirst({
-    where: {
-      id: bicicletaId,
-      usuarioId,
-      eliminadoEn: null
-    },
-    include: {
-      bicicleteroActual: {
-        select: {
-          id: true,
-          nombre: true
-        }
-      }
-    }
-  });
+  const bicicleta = await bicicletaRepositorio.buscarDeUsuario(usuarioId, bicicletaId);
 
   if (!bicicleta) {
     throw new ErrorHttp(404, 'Bicicleta no encontrada');
@@ -79,62 +65,18 @@ const buscarBicicletaUsuario = async (usuarioId: string, bicicletaId: string) =>
 };
 
 const dejarSoloActiva = async (usuarioId: string, bicicletaId: string) => {
-  await prisma.bicicleta.updateMany({
-    where: {
-      usuarioId,
-      eliminadoEn: null
-    },
-    data: {
-      activa: false
-    }
-  });
-
-  await prisma.bicicleta.update({
-    where: {
-      id: bicicletaId
-    },
-    data: {
-      activa: true
-    }
-  });
+  await bicicletaRepositorio.desactivarTodasDeUsuario(usuarioId);
+  await bicicletaRepositorio.actualizar(bicicletaId, { activa: true });
 };
 
 export const listarBicicletasUsuario = async (usuarioId: string) => {
-  const bicicletas = await prisma.bicicleta.findMany({
-    where: {
-      usuarioId,
-      eliminadoEn: null
-    },
-    include: {
-      bicicleteroActual: {
-        select: {
-          id: true,
-          nombre: true
-        }
-      }
-    },
-    orderBy: [{ activa: 'desc' }, { actualizadoEn: 'desc' }]
-  });
+  const bicicletas = await bicicletaRepositorio.listarDeUsuario(usuarioId);
 
   return bicicletas.map(mapearBicicleta);
 };
 
 export const obtenerBicicletaActivaUsuario = async (usuarioId: string) => {
-  const bicicleta = await prisma.bicicleta.findFirst({
-    where: {
-      usuarioId,
-      activa: true,
-      eliminadoEn: null
-    },
-    include: {
-      bicicleteroActual: {
-        select: {
-          id: true,
-          nombre: true
-        }
-      }
-    }
-  });
+  const bicicleta = await bicicletaRepositorio.buscarActivaDeUsuario(usuarioId);
 
   return bicicleta ? mapearBicicleta(bicicleta) : null;
 };
@@ -144,33 +86,26 @@ export const crearBicicleta = async (datos: DatosCrearBicicleta) => {
     ? await guardarFotoBicicleta('bicicleta', datos.fotoUrl!)
     : null;
 
-  const totalBicicletas = await prisma.bicicleta.count({
-    where: {
-      usuarioId: datos.usuarioId,
-      eliminadoEn: null
-    }
-  });
+  const totalBicicletas = await bicicletaRepositorio.contarDeUsuario(datos.usuarioId);
 
   const debeActivar = totalBicicletas === 0 || datos.activar === true;
 
-  const guardada = await prisma.bicicleta.create({
-    data: {
-      usuarioId: datos.usuarioId,
-      descripcion: datos.descripcion,
-      marca: datos.marca || null,
-      modelo: datos.modelo || null,
-      color: datos.color || null,
-      aro: datos.aro || null,
-      numeroSerie: datos.numeroSerie || null,
-      fotoUrl: fotoGuardada?.fotoUrl ?? null,
-      fotoNombreArchivo: fotoGuardada?.fotoNombreArchivo ?? null,
-      fotoMimeType: fotoGuardada?.fotoMimeType ?? null,
-      fotoTamanoBytes: fotoGuardada?.fotoTamanoBytes ?? null,
-      fotoActualizadaEn: fotoGuardada?.fotoActualizadaEn ?? null,
-      activa: false,
-      dentroBicicletero: false,
-      bicicleteroActualId: null
-    }
+  const guardada = await bicicletaRepositorio.crear({
+    usuarioId: datos.usuarioId,
+    descripcion: datos.descripcion,
+    marca: datos.marca || null,
+    modelo: datos.modelo || null,
+    color: datos.color || null,
+    aro: datos.aro || null,
+    numeroSerie: datos.numeroSerie || null,
+    fotoUrl: fotoGuardada?.fotoUrl ?? null,
+    fotoNombreArchivo: fotoGuardada?.fotoNombreArchivo ?? null,
+    fotoMimeType: fotoGuardada?.fotoMimeType ?? null,
+    fotoTamanoBytes: fotoGuardada?.fotoTamanoBytes ?? null,
+    fotoActualizadaEn: fotoGuardada?.fotoActualizadaEn ?? null,
+    activa: false,
+    dentroBicicletero: false,
+    bicicleteroActualId: null
   });
 
   if (debeActivar) {
@@ -231,31 +166,18 @@ export const actualizarBicicleta = async (
     }
   }
 
-  const guardada = await prisma.bicicleta.update({
-    where: {
-      id: bicicleta.id
-    },
-    data: {
-      descripcion: bicicleta.descripcion,
-      marca: bicicleta.marca,
-      modelo: bicicleta.modelo,
-      color: bicicleta.color,
-      aro: bicicleta.aro,
-      numeroSerie: bicicleta.numeroSerie,
-      fotoUrl: bicicleta.fotoUrl,
-      fotoNombreArchivo: bicicleta.fotoNombreArchivo,
-      fotoMimeType: bicicleta.fotoMimeType,
-      fotoTamanoBytes: bicicleta.fotoTamanoBytes,
-      fotoActualizadaEn: bicicleta.fotoActualizadaEn
-    },
-    include: {
-      bicicleteroActual: {
-        select: {
-          id: true,
-          nombre: true
-        }
-      }
-    }
+  const guardada = await bicicletaRepositorio.actualizarConBicicletero(bicicleta.id, {
+    descripcion: bicicleta.descripcion,
+    marca: bicicleta.marca,
+    modelo: bicicleta.modelo,
+    color: bicicleta.color,
+    aro: bicicleta.aro,
+    numeroSerie: bicicleta.numeroSerie,
+    fotoUrl: bicicleta.fotoUrl,
+    fotoNombreArchivo: bicicleta.fotoNombreArchivo,
+    fotoMimeType: bicicleta.fotoMimeType,
+    fotoTamanoBytes: bicicleta.fotoTamanoBytes,
+    fotoActualizadaEn: bicicleta.fotoActualizadaEn
   });
   return mapearBicicleta(guardada);
 };
@@ -264,28 +186,15 @@ export const eliminarBicicleta = async (usuarioId: string, bicicletaId: string) 
   const bicicleta = await buscarBicicletaUsuario(usuarioId, bicicletaId);
   const estabaActiva = bicicleta.activa;
 
-  await prisma.bicicleta.update({
-    where: {
-      id: bicicleta.id
-    },
-    data: {
-      eliminadoEn: new Date(),
-      activa: false
-    }
+  await bicicletaRepositorio.actualizar(bicicleta.id, {
+    eliminadoEn: new Date(),
+    activa: false
   });
 
   await eliminarArchivoFotoBicicleta(bicicleta.fotoNombreArchivo);
 
   if (estabaActiva) {
-    const siguiente = await prisma.bicicleta.findFirst({
-      where: {
-        usuarioId,
-        eliminadoEn: null
-      },
-      orderBy: {
-        actualizadoEn: 'desc'
-      }
-    });
+    const siguiente = await bicicletaRepositorio.buscarSiguienteActivable(usuarioId);
 
     if (siguiente) {
       await dejarSoloActiva(usuarioId, siguiente.id);
@@ -306,21 +215,8 @@ export const activarBicicleta = async (usuarioId: string, bicicletaId: string) =
 
 export const desactivarBicicleta = async (usuarioId: string, bicicletaId: string) => {
   const bicicleta = await buscarBicicletaUsuario(usuarioId, bicicletaId);
-  const guardada = await prisma.bicicleta.update({
-    where: {
-      id: bicicleta.id
-    },
-    data: {
-      activa: false
-    },
-    include: {
-      bicicleteroActual: {
-        select: {
-          id: true,
-          nombre: true
-        }
-      }
-    }
+  const guardada = await bicicletaRepositorio.actualizarConBicicletero(bicicleta.id, {
+    activa: false
   });
   return mapearBicicleta(guardada);
 };
