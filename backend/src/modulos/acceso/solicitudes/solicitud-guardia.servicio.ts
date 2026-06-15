@@ -1,5 +1,5 @@
 import { ErrorHttp } from '../../../comun/errors/error-http';
-import { prisma, type ClientePrisma } from '../../../configuracion/prisma';
+import type { ClientePrisma } from '../../../configuracion/prisma';
 import { Prisma } from '../../../generated/prisma/client';
 import { registrarAuditoria } from '../../auditoria/auditoria.servicio';
 import {
@@ -8,7 +8,14 @@ import {
 } from '../../notificaciones/notificacion.servicio';
 import { TipoNotificacion } from '../../notificaciones/tipo-notificacion';
 import { RolUsuario } from '../../usuarios/rol-usuario';
+import {
+  EventosTiempoReal,
+  emitirTiempoReal,
+  salaRol
+} from '../../../tiempo-real/tiempo-real';
 import { EstadoSolicitudGuardia } from './estado-solicitud-guardia';
+import * as solicitudGuardiaRepositorio from './solicitud-guardia.repositorio';
+import type { SolicitudCompleta } from './solicitud-guardia.repositorio';
 import { TipoSolicitudGuardia } from './tipo-solicitud-guardia';
 
 type DatosCrearSolicitud = {
@@ -34,8 +41,12 @@ type DatosListarSolicitudes = {
 };
 
 const segundosEsperaRecordatorio = 90;
-const rolesCentral: string[] = [RolUsuario.ADMINISTRADOR];
-const rolesGestionSolicitudes: string[] = [RolUsuario.GUARDIA, RolUsuario.ADMINISTRADOR];
+const rolesCentral: string[] = [RolUsuario.ADMIN_CENTRAL, RolUsuario.ADMINISTRADOR];
+const rolesGestionSolicitudes: string[] = [
+  RolUsuario.GUARDIA,
+  RolUsuario.ADMIN_CENTRAL,
+  RolUsuario.ADMINISTRADOR
+];
 const estadosCerrados: EstadoSolicitudGuardia[] = [
   EstadoSolicitudGuardia.RESUELTA,
   EstadoSolicitudGuardia.CANCELADA
@@ -87,16 +98,6 @@ const mensajeSolicitudParaUsuario = (estado: EstadoSolicitudGuardia, bicicletero
       return `${bicicleteroNombre}: ${etiquetaEstadoSolicitud(estado)}.`;
   }
 };
-
-const includeSolicitudCompleta = {
-  solicitadaPorUsuario: true,
-  bicicletero: true,
-  guardiaAsignado: true
-} satisfies Prisma.SolicitudGuardiaInclude;
-
-type SolicitudCompleta = Prisma.SolicitudGuardiaGetPayload<{
-  include: typeof includeSolicitudCompleta;
-}>;
 
 const mapearUsuarioSolicitud = (
   usuario: SolicitudCompleta['solicitadaPorUsuario'] | SolicitudCompleta['guardiaAsignado']
@@ -162,7 +163,7 @@ const mapearSolicitudGuardia = (solicitud: SolicitudCompleta) => {
 
 const validarRecordatorioCentral = (solicitud: SolicitudCompleta, rol: string) => {
   if (!rolesCentral.includes(rol)) {
-    throw new ErrorHttp(403, 'Solo administracion puede reenviar la notificación al guardia');
+    throw new ErrorHttp(403, 'Solo central puede reenviar la notificación al guardia');
   }
 
   if (!solicitud.guardiaAsignado) {
@@ -180,10 +181,7 @@ const validarRecordatorioCentral = (solicitud: SolicitudCompleta, rol: string) =
   const segundosRestantes = calcularSegundosParaRecordatorio(solicitud);
 
   if (segundosRestantes !== null && segundosRestantes > 0) {
-    throw new ErrorHttp(
-      409,
-      `Administracion podra notificar nuevamente en ${segundosRestantes} segundos`
-    );
+    throw new ErrorHttp(409, `Central podrá notificar nuevamente en ${segundosRestantes} segundos`);
   }
 };
 
@@ -223,7 +221,7 @@ const reiterarSolicitudAbierta = async (
   const esSolicitante = solicitud.solicitadaPorUsuario.id === usuarioId;
 
   if (!esCentral && !esSolicitante) {
-    throw new ErrorHttp(403, 'Solo el solicitante o administracion pueden notificar nuevamente');
+    throw new ErrorHttp(403, 'Solo el solicitante o central pueden notificar nuevamente');
   }
 
   if (estadosCerrados.includes(solicitud.estado)) {
@@ -234,17 +232,17 @@ const reiterarSolicitudAbierta = async (
   const ahora = new Date();
 
   if (!solicitud.guardiaAsignado) {
-    const solicitudActualizada = await db.solicitudGuardia.update({
-      where: { id: solicitud.id },
-      data: {
+    const solicitudActualizada = await solicitudGuardiaRepositorio.actualizar(
+      solicitud.id,
+      {
         mensaje: mensajeLimpio || solicitud.mensaje
       },
-      include: includeSolicitudCompleta
-    });
+      db
+    );
 
     await notificarUsuariosPorRol(
       {
-        roles: [RolUsuario.ADMINISTRADOR],
+        roles: [RolUsuario.ADMIN_CENTRAL, RolUsuario.ADMINISTRADOR],
         titulo: 'Atención pendiente',
         mensaje: `El usuario reiteró una solicitud en ${solicitud.bicicletero.nombre}. Aún no hay guardia asignado.`,
         tipo: TipoNotificacion.SOLICITUD_GUARDIA,
@@ -274,9 +272,9 @@ const reiterarSolicitudAbierta = async (
     return solicitudActualizada;
   }
 
-  const solicitudActualizada = await db.solicitudGuardia.update({
-    where: { id: solicitud.id },
-    data: {
+  const solicitudActualizada = await solicitudGuardiaRepositorio.actualizar(
+    solicitud.id,
+    {
       estado:
         solicitud.estado === EstadoSolicitudGuardia.PENDIENTE
           ? EstadoSolicitudGuardia.NOTIFICADA
@@ -288,8 +286,8 @@ const reiterarSolicitudAbierta = async (
         increment: 1
       }
     },
-    include: includeSolicitudCompleta
-  });
+    db
+  );
 
   await notificarGuardiaAsignado(solicitudActualizada, db);
 
@@ -313,31 +311,25 @@ const reiterarSolicitudAbierta = async (
 };
 
 export const crearSolicitudGuardia = async (datos: DatosCrearSolicitud) => {
-  return prisma.$transaction(async (db) => {
-    const bicicletero = await db.bicicletero.findUnique({
-      where: {
-        id: datos.bicicleteroId
-      }
-    });
+  return solicitudGuardiaRepositorio.ejecutarEnTransaccion(async (db) => {
+    const bicicletero = await solicitudGuardiaRepositorio.buscarBicicletero(
+      datos.bicicleteroId,
+      db
+    );
 
     if (!bicicletero) {
       throw new ErrorHttp(404, 'Bicicletero no encontrado');
     }
 
-    const solicitudAbierta = await db.solicitudGuardia.findFirst({
-      where: {
-        solicitadaPorUsuarioId: datos.usuarioId,
+    const solicitudAbierta = await solicitudGuardiaRepositorio.buscarSolicitudAbierta(
+      {
+        usuarioId: datos.usuarioId,
         bicicleteroId: bicicletero.id,
         tipo: datos.tipo,
-        estado: {
-          notIn: estadosCerrados
-        }
+        estadosCerrados
       },
-      include: includeSolicitudCompleta,
-      orderBy: {
-        creadaEn: 'desc'
-      }
-    });
+      db
+    );
 
     if (solicitudAbierta) {
       const solicitudReiterada = await reiterarSolicitudAbierta(
@@ -354,7 +346,7 @@ export const crearSolicitudGuardia = async (datos: DatosCrearSolicitud) => {
           titulo: solicitudReiterada.guardiaAsignado ? 'Guardia notificado' : 'Solicitud reiterada',
           mensaje: solicitudReiterada.guardiaAsignado
             ? `Tu recordatorio fue enviado al guardia asignado a ${bicicletero.nombre}.`
-            : `Administracion recibio nuevamente tu solicitud para ${bicicletero.nombre}.`,
+            : `Central recibió nuevamente tu solicitud para ${bicicletero.nombre}.`,
           tipo: TipoNotificacion.SOLICITUD_GUARDIA,
           datos: { solicitudId: solicitudReiterada.id, accionPropia: true }
         },
@@ -364,33 +356,23 @@ export const crearSolicitudGuardia = async (datos: DatosCrearSolicitud) => {
       return mapearSolicitudGuardia(solicitudReiterada);
     }
 
-    const asignacion = await db.asignacionGuardia.findFirst({
-      where: {
-        bicicleteroId: datos.bicicleteroId,
-        activa: true
-      },
-      include: {
-        guardia: true
-      },
-      orderBy: {
-        iniciaEn: 'desc'
-      }
-    });
+    const asignacion = await solicitudGuardiaRepositorio.buscarAsignacionActivaConGuardia(
+      datos.bicicleteroId,
+      db
+    );
 
-    const solicitudGuardada = await db.solicitudGuardia.create({
-      data: {
-        solicitadaPorUsuarioId: datos.usuarioId,
-        bicicleteroId: bicicletero.id,
-        guardiaAsignadoId: asignacion?.guardia.id ?? null,
-        tipo: datos.tipo,
-        estado: asignacion?.guardia
-          ? EstadoSolicitudGuardia.NOTIFICADA
-          : EstadoSolicitudGuardia.PENDIENTE,
-        mensaje: datos.mensaje || null,
-        notificadaGuardiaEn: asignacion?.guardia ? new Date() : null,
-        ultimaNotificacionUsuarioEn: asignacion?.guardia ? new Date() : null,
-        notificacionesGuardia: asignacion?.guardia ? 1 : 0
-      }
+    const solicitudGuardada = await solicitudGuardiaRepositorio.crear({
+      solicitadaPorUsuarioId: datos.usuarioId,
+      bicicleteroId: bicicletero.id,
+      guardiaAsignadoId: asignacion?.guardia.id ?? null,
+      tipo: datos.tipo,
+      estado: asignacion?.guardia
+        ? EstadoSolicitudGuardia.NOTIFICADA
+        : EstadoSolicitudGuardia.PENDIENTE,
+      mensaje: datos.mensaje || null,
+      notificadaGuardiaEn: asignacion?.guardia ? new Date() : null,
+      ultimaNotificacionUsuarioEn: asignacion?.guardia ? new Date() : null,
+      notificacionesGuardia: asignacion?.guardia ? 1 : 0
     });
 
     await crearNotificacion(
@@ -399,7 +381,7 @@ export const crearSolicitudGuardia = async (datos: DatosCrearSolicitud) => {
         titulo: asignacion?.guardia ? 'Guardia notificado' : 'Atención solicitada',
         mensaje: asignacion?.guardia
           ? `Tu solicitud fue enviada al guardia asignado a ${bicicletero.nombre}.`
-          : `Administracion recibio tu solicitud para ${bicicletero.nombre}.`,
+          : `Central recibió tu solicitud para ${bicicletero.nombre}.`,
         tipo: TipoNotificacion.SOLICITUD_GUARDIA,
         datos: { solicitudId: solicitudGuardada.id, accionPropia: true }
       },
@@ -421,7 +403,7 @@ export const crearSolicitudGuardia = async (datos: DatosCrearSolicitud) => {
 
     await notificarUsuariosPorRol(
       {
-        roles: [RolUsuario.ADMINISTRADOR],
+        roles: [RolUsuario.ADMIN_CENTRAL, RolUsuario.ADMINISTRADOR],
         titulo: 'Nueva solicitud de atención',
         mensaje: `Un usuario solicitó apoyo en ${bicicletero.nombre}.`,
         tipo: TipoNotificacion.SOLICITUD_GUARDIA,
@@ -445,10 +427,19 @@ export const crearSolicitudGuardia = async (datos: DatosCrearSolicitud) => {
       db
     );
 
-    const solicitudCompleta = await db.solicitudGuardia.findUniqueOrThrow({
-      where: { id: solicitudGuardada.id },
-      include: includeSolicitudCompleta
-    });
+    const solicitudCompleta = await solicitudGuardiaRepositorio.buscarPorIdOError(
+      solicitudGuardada.id,
+      db
+    );
+
+    emitirTiempoReal(
+      [
+        salaRol(RolUsuario.GUARDIA),
+        salaRol(RolUsuario.ADMIN_CENTRAL),
+        salaRol(RolUsuario.ADMINISTRADOR)
+      ],
+      EventosTiempoReal.SOLICITUD
+    );
 
     return mapearSolicitudGuardia(solicitudCompleta);
   });
@@ -484,24 +475,17 @@ export const listarSolicitudesGuardia = async (datos: DatosListarSolicitudes) =>
   }
 
   const limite = datos.limite && datos.limite > 0 ? Math.min(datos.limite, 500) : undefined;
-  const solicitudes = await prisma.solicitudGuardia.findMany({
+  const solicitudes = await solicitudGuardiaRepositorio.listar({
     where: condiciones.length ? { AND: condiciones } : {},
-    include: includeSolicitudCompleta,
-    orderBy: {
-      creadaEn: 'desc'
-    },
-    ...(limite ? { take: limite } : {})
+    limite
   });
 
   return solicitudes.map(mapearSolicitudGuardia);
 };
 
 export const notificarGuardiaSolicitud = async (datos: DatosNotificarGuardia) => {
-  return prisma.$transaction(async (db) => {
-    const solicitud = await db.solicitudGuardia.findUnique({
-      where: { id: datos.solicitudId },
-      include: includeSolicitudCompleta
-    });
+  return solicitudGuardiaRepositorio.ejecutarEnTransaccion(async (db) => {
+    const solicitud = await solicitudGuardiaRepositorio.buscarPorId(datos.solicitudId, db);
 
     if (!solicitud) {
       throw new ErrorHttp(404, 'Solicitud no encontrada');
@@ -520,10 +504,10 @@ export const notificarGuardiaSolicitud = async (datos: DatosNotificarGuardia) =>
         usuarioId: solicitud.solicitadaPorUsuario.id,
         titulo: solicitudActualizada.guardiaAsignado
           ? 'Guardia notificado'
-          : 'Administracion notificada nuevamente',
+          : 'Central notificada nuevamente',
         mensaje: solicitudActualizada.guardiaAsignado
           ? `Tu recordatorio fue enviado al guardia asignado a ${solicitud.bicicletero.nombre}.`
-          : `Administracion recibio nuevamente tu solicitud para ${solicitud.bicicletero.nombre}.`,
+          : `Central recibió nuevamente tu solicitud para ${solicitud.bicicletero.nombre}.`,
         tipo: TipoNotificacion.SOLICITUD_GUARDIA,
         datos: {
           solicitudId: solicitud.id,
@@ -531,6 +515,15 @@ export const notificarGuardiaSolicitud = async (datos: DatosNotificarGuardia) =>
         }
       },
       db
+    );
+
+    emitirTiempoReal(
+      [
+        salaRol(RolUsuario.GUARDIA),
+        salaRol(RolUsuario.ADMIN_CENTRAL),
+        salaRol(RolUsuario.ADMINISTRADOR)
+      ],
+      EventosTiempoReal.SOLICITUD
     );
 
     return mapearSolicitudGuardia(solicitudActualizada);
@@ -547,11 +540,8 @@ export const actualizarEstadoSolicitudGuardia = async (
     throw new ErrorHttp(403, 'No tienes permisos para actualizar solicitudes');
   }
 
-  return prisma.$transaction(async (db) => {
-    const solicitud = await db.solicitudGuardia.findUnique({
-      where: { id: solicitudId },
-      include: includeSolicitudCompleta
-    });
+  return solicitudGuardiaRepositorio.ejecutarEnTransaccion(async (db) => {
+    const solicitud = await solicitudGuardiaRepositorio.buscarPorId(solicitudId, db);
 
     if (!solicitud) {
       throw new ErrorHttp(404, 'Solicitud no encontrada');
@@ -573,9 +563,9 @@ export const actualizarEstadoSolicitudGuardia = async (
       rol === RolUsuario.GUARDIA && estado === EstadoSolicitudGuardia.EN_CAMINO;
     const ahora = new Date();
 
-    const solicitudActualizada = await db.solicitudGuardia.update({
-      where: { id: solicitud.id },
-      data: {
+    const solicitudActualizada = await solicitudGuardiaRepositorio.actualizar(
+      solicitud.id,
+      {
         estado,
         notificadaGuardiaEn:
           estado === EstadoSolicitudGuardia.NOTIFICADA ? ahora : solicitud.notificadaGuardiaEn,
@@ -598,8 +588,8 @@ export const actualizarEstadoSolicitudGuardia = async (
             ? ahora
             : null
       },
-      include: includeSolicitudCompleta
-    });
+      db
+    );
 
     await crearNotificacion(
       {
@@ -617,7 +607,7 @@ export const actualizarEstadoSolicitudGuardia = async (
         {
           usuarioId: solicitud.guardiaAsignado!.id,
           titulo: 'Recordatorio de atención',
-          mensaje: `Administracion solicito atender ${solicitud.bicicletero.nombre}.`,
+          mensaje: `Central solicitó atender ${solicitud.bicicletero.nombre}.`,
           tipo: TipoNotificacion.SOLICITUD_GUARDIA,
           datos: {
             solicitudId: solicitud.id,
@@ -632,7 +622,7 @@ export const actualizarEstadoSolicitudGuardia = async (
     if (guardiaResponde) {
       await notificarUsuariosPorRol(
         {
-          roles: [RolUsuario.ADMINISTRADOR],
+          roles: [RolUsuario.ADMIN_CENTRAL, RolUsuario.ADMINISTRADOR],
           titulo: 'Guardia en camino',
           mensaje: `${solicitud.guardiaAsignado!.nombre} confirmó traslado hacia ${solicitud.bicicletero.nombre}.`,
           tipo: TipoNotificacion.SOLICITUD_GUARDIA,
@@ -660,6 +650,15 @@ export const actualizarEstadoSolicitudGuardia = async (
         }
       },
       db
+    );
+
+    emitirTiempoReal(
+      [
+        salaRol(RolUsuario.GUARDIA),
+        salaRol(RolUsuario.ADMIN_CENTRAL),
+        salaRol(RolUsuario.ADMINISTRADOR)
+      ],
+      EventosTiempoReal.SOLICITUD
     );
 
     return mapearSolicitudGuardia(solicitudActualizada);
