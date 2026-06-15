@@ -1,10 +1,6 @@
-import { prisma, type ClientePrisma } from '../../configuracion/prisma';
+import type { ClientePrisma } from '../../configuracion/prisma';
 import type { Bicicletero } from '../../generated/prisma/client';
-
-const filtroOcupacion = {
-  dentroBicicletero: true,
-  eliminadoEn: null
-} as const;
+import * as bicicleteroRepositorio from './bicicletero.repositorio';
 
 export type StatsBicicletero = {
   id: string;
@@ -17,13 +13,9 @@ export type StatsBicicletero = {
 };
 
 export const contarOcupadosPorBicicletero = async (
-  db: ClientePrisma = prisma
+  db?: ClientePrisma
 ): Promise<Record<string, number>> => {
-  const grupos = await db.bicicleta.groupBy({
-    by: ['bicicleteroActualId'],
-    where: { ...filtroOcupacion, bicicleteroActualId: { not: null } },
-    _count: { _all: true }
-  });
+  const grupos = await bicicleteroRepositorio.contarOcupadosAgrupados(db);
 
   return Object.fromEntries(
     grupos
@@ -34,11 +26,8 @@ export const contarOcupadosPorBicicletero = async (
 
 export const contarOcupadosBicicletero = async (
   bicicleteroId: string,
-  db: ClientePrisma = prisma
-): Promise<number> =>
-  db.bicicleta.count({
-    where: { ...filtroOcupacion, bicicleteroActualId: bicicleteroId }
-  });
+  db?: ClientePrisma
+): Promise<number> => bicicleteroRepositorio.contarOcupados(bicicleteroId, db);
 
 export const construirStatsBicicletero = (
   bicicletero: Bicicletero,
