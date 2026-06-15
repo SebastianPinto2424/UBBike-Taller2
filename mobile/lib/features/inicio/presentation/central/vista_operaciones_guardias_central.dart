@@ -51,8 +51,8 @@ class VistaOperacionesGuardiasCentral extends StatefulWidget {
 
 class _VistaOperacionesGuardiasCentralState
     extends State<VistaOperacionesGuardiasCentral> {
-  final historialApi = HistorialApi();
-  final solicitudGuardiaApi = SolicitudGuardiaApi();
+  late final HistorialRepository historialRepository;
+  late final SolicitudGuardiaRepository solicitudGuardiaRepository;
   String periodo = 'DIA';
   String estadoMovimiento = 'TODOS';
   BicicleteroApp? bicicleteroSeleccionado;
@@ -62,13 +62,18 @@ class _VistaOperacionesGuardiasCentralState
   @override
   void initState() {
     super.initState();
+    historialRepository = _leerProvider(context, historialRepositoryProvider);
+    solicitudGuardiaRepository = _leerProvider(
+      context,
+      solicitudGuardiaRepositoryProvider,
+    );
     futuroMovimientos = _obtenerMovimientos();
     _cargarBicicleteros();
   }
 
   Future<void> _cargarBicicleteros() async {
     try {
-      final datos = await solicitudGuardiaApi.listarBicicleteros();
+      final datos = await solicitudGuardiaRepository.listarBicicleteros();
       if (mounted) {
         setState(() => bicicleteros = datos);
       }
@@ -80,7 +85,7 @@ class _VistaOperacionesGuardiasCentralState
   }
 
   Future<List<MovimientoApp>> _obtenerMovimientos() {
-    return historialApi.listar(
+    return historialRepository.listar(
       periodo: periodo,
       estado: estadoMovimiento,
       bicicleteroId: bicicleteroSeleccionado?.id,
