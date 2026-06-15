@@ -121,6 +121,7 @@ model Usuario {
   tokenCambioContrasenaExpiraEn   DateTime?           @map("token_cambio_contrasena_expira_en") @db.Timestamptz(6)
   creadoEn                        DateTime            @default(now()) @map("creado_en") @db.Timestamptz(6)
   actualizadoEn                   DateTime            @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  eliminadoEn                     DateTime?           @map("eliminado_en") @db.Timestamptz(6)
   bicicletas                      Bicicleta[]
   asignacionesGuardia             AsignacionGuardia[]
   solicitudesGuardiaCreadas       SolicitudGuardia[]  @relation("SolicitudGuardiaSolicitante")
