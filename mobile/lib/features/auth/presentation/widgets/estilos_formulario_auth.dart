@@ -22,11 +22,11 @@ InputDecoration decoracionCampoAuth({
     contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
     labelText: labelText,
     labelStyle: const TextStyle(color: Colors.grey),
-    prefixIcon: Icon(icono, color: ColoresUbb.azulApp),
-    suffixIcon: suffixIcon,
     helperText: helperText,
     helperStyle: const TextStyle(color: ColoresUbb.textoSecundario),
     helperMaxLines: 2,
+    prefixIcon: Icon(icono, color: ColoresUbb.azulApp),
+    suffixIcon: suffixIcon,
     errorMaxLines: 3,
   );
 }
