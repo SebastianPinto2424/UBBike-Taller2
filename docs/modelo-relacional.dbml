@@ -24,6 +24,7 @@ Table usuarios {
   tokenCambioContrasenaExpiraEn DateTime
   creadoEn DateTime [default: `now()`, not null]
   actualizadoEn DateTime [not null]
+  eliminadoEn DateTime
 }
 
 Table bicicletas {
