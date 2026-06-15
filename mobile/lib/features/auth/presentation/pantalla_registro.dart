@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/repositorios_provider.dart';
 import '../../../core/servicios/excepcion_api.dart';
 import '../../../core/tema/colores_ubb.dart';
-import '../../../features/auth/data/autenticacion_api.dart';
 import '../../../shared/utils/identidad.dart';
 import '../../../shared/widgets/contenedor_responsivo.dart';
 import '../../../shared/widgets/marca_ubbike.dart';
 import '../../../shared/widgets/snackbar_semantico.dart';
 import 'widgets/estilos_formulario_auth.dart';
 
-class PantallaRegistro extends StatefulWidget {
+class PantallaRegistro extends ConsumerStatefulWidget {
   const PantallaRegistro({super.key});
 
   @override
-  State<PantallaRegistro> createState() => _PantallaRegistroState();
+  ConsumerState<PantallaRegistro> createState() => _PantallaRegistroState();
 }
 
-class _PantallaRegistroState extends State<PantallaRegistro> {
+class _PantallaRegistroState extends ConsumerState<PantallaRegistro> {
   final formKey = GlobalKey<FormState>();
   final nombreController = TextEditingController();
   final rutController = TextEditingController();
@@ -26,7 +27,6 @@ class _PantallaRegistroState extends State<PantallaRegistro> {
   final rutFocusNode = FocusNode();
   final correoFocusNode = FocusNode();
   final contrasenaFocusNode = FocusNode();
-  final autenticacionApi = AutenticacionApi();
   bool cargando = false;
   bool mostrarContrasena = false;
 
@@ -254,12 +254,12 @@ class _PantallaRegistroState extends State<PantallaRegistro> {
     try {
       final correo = correoController.text.trim();
 
-      final mensaje = await autenticacionApi.registrar(
-        nombre: nombreController.text.trim(),
-        rut: rutController.text.trim(),
-        correo: correo,
-        contrasena: contrasenaController.text,
-      );
+      final mensaje = await ref.read(autenticacionRepositoryProvider).registrar(
+            nombre: nombreController.text.trim(),
+            rut: rutController.text.trim(),
+            correo: correo,
+            contrasena: contrasenaController.text,
+          );
 
       if (mounted) {
         _mostrarConfirmacion(context, mensaje);
