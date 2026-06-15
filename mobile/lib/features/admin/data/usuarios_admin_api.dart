@@ -1,11 +1,9 @@
 import '../../../core/servicios/cliente_api.dart';
 import '../../../shared/modelos/rol_usuario.dart';
 import '../../../shared/modelos/usuario_app.dart';
-import '../../../shared/servicios/sesion_actual.dart';
 
 class UsuariosAdminApi {
-  UsuariosAdminApi()
-      : cliente = ClienteApi(obtenerToken: () => SesionActual.token);
+  const UsuariosAdminApi({required this.cliente});
 
   final ClienteApi cliente;
 
@@ -31,6 +29,27 @@ class UsuariosAdminApi {
         .toList();
   }
 
+  Future<UsuarioApp> crearUsuario({
+    required String nombre,
+    required String correo,
+    required RolUsuario rol,
+    required String contrasena,
+    String? rut,
+  }) async {
+    final respuesta = await cliente.post(
+      '/usuarios',
+      body: {
+        'nombre': nombre,
+        'correo': correo,
+        'rol': rol.valorApi,
+        'contrasena': contrasena,
+        if (rut != null && rut.trim().isNotEmpty) 'rut': rut.trim(),
+      },
+    );
+
+    return UsuarioApp.desdeJson(respuesta['usuario'] as Map<String, dynamic>);
+  }
+
   Future<UsuarioApp> actualizarPermisos({
     required String usuarioId,
     String? nombre,
@@ -53,5 +72,9 @@ class UsuariosAdminApi {
     );
 
     return UsuarioApp.desdeJson(respuesta['usuario'] as Map<String, dynamic>);
+  }
+
+  Future<void> eliminarUsuario(String usuarioId) async {
+    await cliente.delete('/usuarios/$usuarioId');
   }
 }
