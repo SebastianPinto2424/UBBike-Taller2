@@ -30,7 +30,7 @@ describe('actualizarEstadoIncidencia', () => {
     await expect(
       actualizarEstadoIncidencia({
         usuarioId: 'admin-uuid-1',
-        rol: RolUsuario.ADMINISTRADOR,
+        rol: RolUsuario.ADMIN_CENTRAL,
         incidenciaId: 'inc-uuid-1',
         estado: EstadoIncidencia.EN_REVISION
       })
@@ -48,7 +48,7 @@ describe('actualizarEstadoIncidencia', () => {
     await expect(
       actualizarEstadoIncidencia({
         usuarioId: 'admin-uuid-1',
-        rol: RolUsuario.ADMINISTRADOR,
+        rol: RolUsuario.ADMIN_CENTRAL,
         incidenciaId: 'inc-uuid-1',
         estado: EstadoIncidencia.PENDIENTE
       })
