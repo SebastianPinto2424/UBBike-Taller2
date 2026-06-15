@@ -13,7 +13,7 @@
     "typecheck": "prisma generate && tsc --noEmit",
     "lint": "eslint \"src/**/*.ts\" --ignore-pattern \"src/generated/**\"",
     "format": "prettier --write \"src/**/*.ts\" \"!src/generated/**\"",
-    "test": "prisma generate && jest --passWithNoTests",
+    "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
@@ -39,6 +39,7 @@
     "pg": "^8.13.1",
     "prisma": "^7.8.0",
     "redis": "^5.10.0",
+    "socket.io": "^4.8.3",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
   },
