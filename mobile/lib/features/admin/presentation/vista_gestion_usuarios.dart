@@ -1,14 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/repositorios_provider.dart';
 import '../../../core/servicios/excepcion_api.dart';
 import '../../../core/tema/colores_ubb.dart';
 import '../../../shared/modelos/rol_usuario.dart';
 import '../../../shared/modelos/usuario_app.dart';
 import '../../../shared/widgets/chip_estado.dart';
 import '../../../shared/widgets/snackbar_semantico.dart';
-import '../data/usuarios_admin_api.dart';
+import '../data/usuarios_admin_repository.dart';
 
 enum _FiltroEstadoCuenta { todos, activos, denegados }
 
@@ -38,13 +40,6 @@ extension _DatosFiltroEstadoCuenta on _FiltroEstadoCuenta {
 
 enum _FiltroEstadoCorreo { todos, verificados, pendientes }
 
-const _rolesGestionablesAdmin = [
-  RolUsuario.estudiante,
-  RolUsuario.funcionario,
-  RolUsuario.guardia,
-  RolUsuario.administrador,
-];
-
 extension _DatosFiltroEstadoCorreo on _FiltroEstadoCorreo {
   String get etiqueta {
     switch (this) {
@@ -69,15 +64,16 @@ extension _DatosFiltroEstadoCorreo on _FiltroEstadoCorreo {
   }
 }
 
-class VistaGestionUsuarios extends StatefulWidget {
+class VistaGestionUsuarios extends ConsumerStatefulWidget {
   const VistaGestionUsuarios({super.key});
 
   @override
-  State<VistaGestionUsuarios> createState() => _VistaGestionUsuariosState();
+  ConsumerState<VistaGestionUsuarios> createState() =>
+      _VistaGestionUsuariosState();
 }
 
-class _VistaGestionUsuariosState extends State<VistaGestionUsuarios> {
-  final usuariosApi = UsuariosAdminApi();
+class _VistaGestionUsuariosState extends ConsumerState<VistaGestionUsuarios> {
+  late final UsuariosAdminRepository usuariosRepository;
   final busquedaController = TextEditingController();
   late Future<List<UsuarioApp>> futuroUsuarios;
   Timer? debounceBusqueda;
@@ -89,6 +85,7 @@ class _VistaGestionUsuariosState extends State<VistaGestionUsuarios> {
   @override
   void initState() {
     super.initState();
+    usuariosRepository = ref.read(usuariosAdminRepositoryProvider);
     futuroUsuarios = _consultarUsuarios();
   }
 
@@ -100,7 +97,7 @@ class _VistaGestionUsuariosState extends State<VistaGestionUsuarios> {
   }
 
   Future<List<UsuarioApp>> _consultarUsuarios() {
-    return usuariosApi.listarUsuarios(
+    return usuariosRepository.listarUsuarios(
       q: filtroBusqueda,
       rol: filtroRol,
       cuentaActiva: filtroEstadoCuenta.valor,
@@ -181,7 +178,7 @@ class _VistaGestionUsuariosState extends State<VistaGestionUsuarios> {
     bool? correoVerificado,
   }) async {
     try {
-      await usuariosApi.actualizarPermisos(
+      await usuariosRepository.actualizarPermisos(
         usuarioId: usuario.id,
         nombre: nombre,
         correo: correo,
@@ -193,6 +190,102 @@ class _VistaGestionUsuariosState extends State<VistaGestionUsuarios> {
       _recargar();
       if (mounted) {
         context.mostrarExito('Permisos actualizados');
+      }
+    } on ExcepcionApi catch (error) {
+      if (mounted) {
+        context.mostrarError(error.mensaje);
+      }
+    } catch (_) {
+      if (mounted) {
+        context.mostrarError('No se pudo conectar con el backend');
+      }
+    }
+  }
+
+  Future<void> _crearUsuario() async {
+    final resultado = await showModalBottomSheet<
+        ({
+          String nombre,
+          String correo,
+          String rut,
+          RolUsuario rol,
+          String contrasena,
+        })>(
+      context: context,
+      isScrollControlled: true,
+      enableDrag: false,
+      isDismissible: false,
+      showDragHandle: false,
+      useSafeArea: true,
+      builder: (_) => const _SheetCrearUsuario(),
+    );
+
+    if (resultado == null) {
+      return;
+    }
+
+    try {
+      await usuariosRepository.crearUsuario(
+        nombre: resultado.nombre,
+        correo: resultado.correo,
+        rut: resultado.rut,
+        rol: resultado.rol,
+        contrasena: resultado.contrasena,
+      );
+      _recargar();
+      if (mounted) {
+        context.mostrarExito('Cuenta creada correctamente');
+      }
+    } on ExcepcionApi catch (error) {
+      if (mounted) {
+        context.mostrarError(error.mensaje);
+      }
+    } catch (_) {
+      if (mounted) {
+        context.mostrarError('No se pudo conectar con el backend');
+      }
+    }
+  }
+
+  Future<void> _eliminarUsuario(UsuarioApp usuario) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(
+          Icons.delete_forever_outlined,
+          color: ColoresUbb.rojoInstitucional,
+          size: 44,
+        ),
+        title: const Text('Eliminar cuenta'),
+        content: Text(
+          'Se desactivara la cuenta de ${usuario.nombre}, se cerraran sus sesiones y dejara de aparecer en la gestion diaria.',
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: ColoresUbb.rojoInstitucional,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) {
+      return;
+    }
+
+    try {
+      await usuariosRepository.eliminarUsuario(usuario.id);
+      _recargar();
+      if (mounted) {
+        context.mostrarExito('Cuenta eliminada');
       }
     } on ExcepcionApi catch (error) {
       if (mounted) {
@@ -219,7 +312,7 @@ class _VistaGestionUsuariosState extends State<VistaGestionUsuarios> {
 
         return Column(
           children: [
-            const _EncabezadoAdminUsuarios(),
+            _EncabezadoAdminUsuarios(onCrear: _crearUsuario),
             const SizedBox(height: 12),
             _FiltrosUsuariosAdmin(
               busquedaController: busquedaController,
@@ -279,6 +372,7 @@ class _VistaGestionUsuariosState extends State<VistaGestionUsuarios> {
                     usuario: usuario,
                     onActualizar: _actualizar,
                     onEditarCredenciales: _editarCredenciales,
+                    onEliminar: _eliminarUsuario,
                   );
                 },
               ),
@@ -319,6 +413,193 @@ class _SheetEditarCuenta extends StatefulWidget {
 
   @override
   State<_SheetEditarCuenta> createState() => _SheetEditarCuentaState();
+}
+
+class _SheetCrearUsuario extends StatefulWidget {
+  const _SheetCrearUsuario();
+
+  @override
+  State<_SheetCrearUsuario> createState() => _SheetCrearUsuarioState();
+}
+
+class _SheetCrearUsuarioState extends State<_SheetCrearUsuario> {
+  final formKeyCrearCuenta = GlobalKey<FormState>();
+  final nombreController = TextEditingController();
+  final correoController = TextEditingController();
+  final rutController = TextEditingController();
+  final contrasenaController = TextEditingController();
+  RolUsuario rol = RolUsuario.guardia;
+  bool mostrarContrasena = false;
+
+  @override
+  void dispose() {
+    nombreController.dispose();
+    correoController.dispose();
+    rutController.dispose();
+    contrasenaController.dispose();
+    super.dispose();
+  }
+
+  void _guardar() {
+    if (formKeyCrearCuenta.currentState?.validate() != true) {
+      return;
+    }
+
+    Navigator.pop(
+      context,
+      (
+        nombre: nombreController.text.trim(),
+        correo: correoController.text.trim().toLowerCase(),
+        rut: rutController.text.trim(),
+        rol: rol,
+        contrasena: contrasenaController.text,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 4,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: SingleChildScrollView(
+        child: Form(
+          key: formKeyCrearCuenta,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Crear cuenta',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Cerrar',
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Para guardias puedes usar un correo externo. La cuenta queda activa y verificada.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: ColoresUbb.textoSecundario,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: nombreController,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(labelText: 'Nombre'),
+                validator: _validarNombreCuentaAdmin,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: correoController,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                textCapitalization: TextCapitalization.none,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(labelText: 'Correo'),
+                validator: _validarCorreoCuentaAdmin,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: rutController,
+                autocorrect: false,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(labelText: 'RUT'),
+                validator: _validarRutCuentaAdmin,
+              ),
+              const SizedBox(height: 12),
+              _DropdownAdmin<RolUsuario>(
+                value: rol,
+                decoration: const InputDecoration(labelText: 'Rol'),
+                items: RolUsuario.values
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item,
+                        child: Text(item.etiqueta),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (valor) {
+                  if (valor != null) {
+                    setState(() => rol = valor);
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: contrasenaController,
+                obscureText: !mostrarContrasena,
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => _guardar(),
+                decoration: InputDecoration(
+                  labelText: 'Contrasena temporal',
+                  suffixIcon: IconButton(
+                    tooltip: mostrarContrasena
+                        ? 'Ocultar contrasena'
+                        : 'Mostrar contrasena',
+                    onPressed: () {
+                      setState(() => mostrarContrasena = !mostrarContrasena);
+                    },
+                    icon: Icon(
+                      mostrarContrasena
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                    ),
+                  ),
+                ),
+                validator: _validarContrasenaCuentaAdmin,
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancelar'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: ColoresUbb.azulApp,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _guardar,
+                      icon: const Icon(Icons.person_add_alt_1_outlined),
+                      label: const Text('Crear'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _SheetEditarCuentaState extends State<_SheetEditarCuenta> {
@@ -483,6 +764,27 @@ String? _validarCorreoCuentaAdmin(String? valor) {
   return null;
 }
 
+String? _validarContrasenaCuentaAdmin(String? valor) {
+  final texto = valor ?? '';
+  if (texto.isEmpty) {
+    return 'Ingresa una contrasena.';
+  }
+  if (texto.length < 12) {
+    return 'Minimo 12 caracteres.';
+  }
+  if (texto.length > 72) {
+    return 'Maximo 72 caracteres.';
+  }
+
+  final segura = RegExp(
+    r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$',
+  );
+  if (!segura.hasMatch(texto)) {
+    return 'Incluye mayuscula, minuscula, numero y simbolo.';
+  }
+  return null;
+}
+
 String? _validarRutCuentaAdmin(String? valor) {
   final texto = valor?.trim() ?? '';
   if (texto.isEmpty) {
@@ -528,7 +830,9 @@ bool _rutCuentaAdminValido(String valor) {
 }
 
 class _EncabezadoAdminUsuarios extends StatelessWidget {
-  const _EncabezadoAdminUsuarios();
+  const _EncabezadoAdminUsuarios({required this.onCrear});
+
+  final VoidCallback onCrear;
 
   @override
   Widget build(BuildContext context) {
@@ -571,6 +875,12 @@ class _EncabezadoAdminUsuarios extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(width: 12),
+            IconButton.filled(
+              tooltip: 'Crear cuenta',
+              onPressed: onCrear,
+              icon: const Icon(Icons.person_add_alt_1_outlined),
             ),
           ],
         ),
@@ -673,7 +983,7 @@ class _FiltrosUsuariosAdmin extends StatelessWidget {
                     selectedValue: rol,
                     onTap: onRol,
                   ),
-                  for (final item in _rolesGestionablesAdmin)
+                  for (final item in RolUsuario.values)
                     _ChipFiltroUsuarios<RolUsuario?>(
                       label: item.etiqueta,
                       value: item,
@@ -898,6 +1208,7 @@ class _TarjetaUsuarioAdmin extends StatefulWidget {
     required this.usuario,
     required this.onActualizar,
     required this.onEditarCredenciales,
+    required this.onEliminar,
   });
 
   final UsuarioApp usuario;
@@ -908,6 +1219,7 @@ class _TarjetaUsuarioAdmin extends StatefulWidget {
     bool? correoVerificado,
   }) onActualizar;
   final Future<void> Function(UsuarioApp usuario) onEditarCredenciales;
+  final Future<void> Function(UsuarioApp usuario) onEliminar;
 
   @override
   State<_TarjetaUsuarioAdmin> createState() => _TarjetaUsuarioAdminState();
@@ -987,6 +1299,7 @@ class _TarjetaUsuarioAdminState extends State<_TarjetaUsuarioAdmin> {
                 usuario: usuario,
                 onActualizar: widget.onActualizar,
                 onEditarCredenciales: widget.onEditarCredenciales,
+                onEliminar: widget.onEliminar,
               ),
           ],
         ),
@@ -1052,6 +1365,7 @@ class _PanelGestionUsuario extends StatelessWidget {
     required this.usuario,
     required this.onActualizar,
     required this.onEditarCredenciales,
+    required this.onEliminar,
   });
 
   final UsuarioApp usuario;
@@ -1062,6 +1376,7 @@ class _PanelGestionUsuario extends StatelessWidget {
     bool? correoVerificado,
   }) onActualizar;
   final Future<void> Function(UsuarioApp usuario) onEditarCredenciales;
+  final Future<void> Function(UsuarioApp usuario) onEliminar;
 
   @override
   Widget build(BuildContext context) {
@@ -1127,7 +1442,7 @@ class _PanelGestionUsuario extends StatelessWidget {
                 decoration: const InputDecoration(
                   labelText: 'Rol del usuario',
                 ),
-                items: _rolesGestionablesAdmin
+                items: RolUsuario.values
                     .map(
                       (rol) => DropdownMenuItem(
                         value: rol,
@@ -1148,6 +1463,18 @@ class _PanelGestionUsuario extends StatelessWidget {
                 onPressed: () => onEditarCredenciales(usuario),
                 icon: const Icon(Icons.edit_outlined),
                 label: const Text('Editar datos de cuenta'),
+              ),
+              const Divider(height: 28),
+              const _EtiquetaSeccion('Zona de riesgo'),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: ColoresUbb.rojoInstitucional,
+                  side: const BorderSide(color: ColoresUbb.rojoInstitucional),
+                ),
+                onPressed: () => onEliminar(usuario),
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('Eliminar cuenta'),
               ),
             ],
           ),
