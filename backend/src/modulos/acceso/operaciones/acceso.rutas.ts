@@ -14,7 +14,9 @@ import { esquemaConfirmarQr, esquemaDenegarQr, esquemaGestionManual } from './ac
 const rutasAcceso = Router();
 
 rutasAcceso.use(middlewareAutenticacion);
-rutasAcceso.use(autorizarRoles(RolUsuario.GUARDIA, RolUsuario.ADMINISTRADOR));
+rutasAcceso.use(
+  autorizarRoles(RolUsuario.GUARDIA, RolUsuario.ADMIN_CENTRAL, RolUsuario.ADMINISTRADOR)
+);
 
 rutasAcceso.post('/qr/confirmar', validarCuerpo(esquemaConfirmarQr), confirmarAccesoQr);
 rutasAcceso.post('/qr/denegar', validarCuerpo(esquemaDenegarQr), denegarAccesoQr);
