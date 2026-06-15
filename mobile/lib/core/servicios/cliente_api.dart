@@ -6,15 +6,20 @@ import '../configuracion/configuracion_api.dart';
 import 'excepcion_api.dart';
 
 class ClienteApi {
-  static String? Function()? obtenerRefreshTokenGlobal;
-  static String? Function()? obtenerUsuarioIdGlobal;
-  static Future<void> Function(String token, String? refreshToken)?
-      alActualizarTokensGlobal;
-  static Future<void> Function()? alExpirarSesionGlobal;
-
-  const ClienteApi({this.obtenerToken});
+  const ClienteApi({
+    this.obtenerToken,
+    this.obtenerRefreshToken,
+    this.obtenerUsuarioId,
+    this.alActualizarTokens,
+    this.alExpirarSesion,
+  });
 
   final String? Function()? obtenerToken;
+  final String? Function()? obtenerRefreshToken;
+  final String? Function()? obtenerUsuarioId;
+  final Future<void> Function(String token, String? refreshToken)?
+      alActualizarTokens;
+  final Future<void> Function()? alExpirarSesion;
 
   Uri _uri(String ruta) => Uri.parse('${ConfiguracionApi.baseUrl}$ruta');
 
@@ -72,12 +77,12 @@ class ClienteApi {
     var respuesta = await solicitud();
 
     if (respuesta.statusCode == 401) {
-      final refreshToken = obtenerRefreshTokenGlobal?.call();
-      final usuarioId = obtenerUsuarioIdGlobal?.call();
+      final refreshToken = obtenerRefreshToken?.call();
+      final usuarioId = obtenerUsuarioId?.call();
 
       if (refreshToken != null &&
           usuarioId != null &&
-          alActualizarTokensGlobal != null) {
+          alActualizarTokens != null) {
         final reintentado = await _intentarRefresh(refreshToken, usuarioId);
         if (reintentado) {
           respuesta = await solicitud();
@@ -88,7 +93,7 @@ class ClienteApi {
     return _procesarRespuesta(respuesta);
   }
 
-  static Future<bool> _intentarRefresh(
+  Future<bool> _intentarRefresh(
     String refreshToken,
     String usuarioId,
   ) async {
@@ -104,12 +109,12 @@ class ClienteApi {
         final datos = jsonDecode(respuesta.body) as Map<String, dynamic>;
         final nuevoToken = datos['token'] as String;
         final nuevoRefreshToken = datos['refreshToken'] as String?;
-        await alActualizarTokensGlobal!(nuevoToken, nuevoRefreshToken);
+        await alActualizarTokens!(nuevoToken, nuevoRefreshToken);
         return true;
       }
     } catch (_) {}
 
-    await alExpirarSesionGlobal?.call();
+    await alExpirarSesion?.call();
     return false;
   }
 
