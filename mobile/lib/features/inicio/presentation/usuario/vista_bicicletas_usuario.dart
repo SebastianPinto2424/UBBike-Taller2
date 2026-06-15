@@ -7,19 +7,30 @@ class VistaBicicletas extends StatefulWidget {
   State<VistaBicicletas> createState() => _VistaBicicletasState();
 }
 
-class _VistaBicicletasState extends State<VistaBicicletas> {
-  final bicicletaApi = BicicletaApi();
+class _VistaBicicletasState extends State<VistaBicicletas>
+    with AutoRefrescoMixin {
+  late final BicicletaRepository bicicletaRepository;
   late Future<List<BicicletaApp>> futuroBicicletas;
+  List<BicicletaApp>? _ultimoDato;
 
   @override
   void initState() {
     super.initState();
-    futuroBicicletas = bicicletaApi.listar();
+    bicicletaRepository = _leerProvider(context, bicicletaRepositoryProvider);
+    futuroBicicletas = bicicletaRepository.listar();
+    iniciarAutoRefresco();
+  }
+
+  @override
+  Future<void> refrescar() async {
+    if (mounted) {
+      _recargar();
+    }
   }
 
   void _recargar() {
     setState(() {
-      futuroBicicletas = bicicletaApi.listar();
+      futuroBicicletas = bicicletaRepository.listar();
     });
   }
 
@@ -41,9 +52,18 @@ class _VistaBicicletasState extends State<VistaBicicletas> {
     return FutureBuilder<List<BicicletaApp>>(
       future: futuroBicicletas,
       builder: (context, snapshot) {
-        final bicicletas = snapshot.data ?? [];
+        if (snapshot.hasData) {
+          _ultimoDato = snapshot.data;
+        }
+        final snapshotEfectivo = snapshot.connectionState ==
+                    ConnectionState.waiting &&
+                _ultimoDato != null
+            ? AsyncSnapshot<List<BicicletaApp>>.withData(
+                ConnectionState.done, _ultimoDato!)
+            : snapshot;
+        final bicicletas = snapshotEfectivo.data ?? [];
         final mostrarBotonEncabezado =
-            snapshot.hasData && bicicletas.isNotEmpty;
+            snapshotEfectivo.hasData && bicicletas.isNotEmpty;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -58,7 +78,7 @@ class _VistaBicicletasState extends State<VistaBicicletas> {
               child: RefreshIndicator(
                 onRefresh: () async => _recargar(),
                 child: _ContenidoBicicletas(
-                  snapshot: snapshot,
+                  snapshot: snapshotEfectivo,
                   onRegistrar: _mostrarFormularioBicicleta,
                   onEditar: (bicicleta) => _mostrarFormularioBicicleta(
                     bicicleta: bicicleta,
@@ -85,9 +105,9 @@ class _VistaBicicletasState extends State<VistaBicicletas> {
 
     try {
       if (activa) {
-        await bicicletaApi.activar(bicicleta.id);
+        await bicicletaRepository.activar(bicicleta.id);
       } else {
-        await bicicletaApi.desactivar(bicicleta.id);
+        await bicicletaRepository.desactivar(bicicleta.id);
       }
       _recargar();
       if (mounted) {
@@ -139,7 +159,7 @@ class _VistaBicicletasState extends State<VistaBicicletas> {
     }
 
     try {
-      await bicicletaApi.eliminar(bicicleta.id);
+      await bicicletaRepository.eliminar(bicicleta.id);
       _recargar();
       if (mounted) {
         context.mostrarExito('Bicicleta eliminada');
@@ -160,7 +180,7 @@ class _VistaBicicletasState extends State<VistaBicicletas> {
       useSafeArea: true,
       builder: (_) => _FormularioBicicletaSheet(
         bicicleta: bicicleta,
-        bicicletaApi: bicicletaApi,
+        bicicletaRepository: bicicletaRepository,
       ),
     );
 
