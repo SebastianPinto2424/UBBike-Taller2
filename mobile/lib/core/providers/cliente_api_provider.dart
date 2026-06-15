@@ -4,12 +4,25 @@ import '../servicios/cliente_api.dart';
 import 'sesion_provider.dart';
 
 final clienteApiProvider = Provider<ClienteApi>((ref) {
-  final sesionState = ref.watch(sesionProvider).value;
+  ref.watch(sesionProvider);
 
-  String? token;
-  if (sesionState is SesionActiva) {
-    token = sesionState.token;
-  }
+  SesionState? sesionActual() => ref.read(sesionProvider).value;
 
-  return ClienteApi(obtenerToken: () => token);
+  return ClienteApi(
+    obtenerToken: () => switch (sesionActual()) {
+      SesionActiva(:final token) => token,
+      _ => null,
+    },
+    obtenerRefreshToken: () => switch (sesionActual()) {
+      SesionActiva(:final refreshToken) => refreshToken,
+      _ => null,
+    },
+    obtenerUsuarioId: () => switch (sesionActual()) {
+      SesionActiva(:final usuario) => usuario.id,
+      _ => null,
+    },
+    alActualizarTokens: (token, refreshToken) =>
+        ref.read(sesionProvider.notifier).actualizarToken(token, refreshToken),
+    alExpirarSesion: () => ref.read(sesionProvider.notifier).cerrar(),
+  );
 });
