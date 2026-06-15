@@ -1,7 +1,9 @@
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 
 import 'core/providers/sesion_provider.dart';
 import 'core/tema/tema_ubb.dart';
@@ -12,6 +14,7 @@ import 'features/inicio/presentation/pantalla_principal.dart';
 final _navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
+  usePathUrlStrategy();
   runApp(const ProviderScope(child: AplicacionUBBike()));
 }
 
@@ -29,7 +32,9 @@ class _AplicacionUBBikeState extends State<AplicacionUBBike> {
   @override
   void initState() {
     super.initState();
-    _inicializarDeepLinks();
+    if (!kIsWeb) {
+      _inicializarDeepLinks();
+    }
   }
 
   Future<void> _inicializarDeepLinks() async {
@@ -41,7 +46,11 @@ class _AplicacionUBBikeState extends State<AplicacionUBBike> {
   }
 
   void _navegarDesdeUri(Uri uri) {
-    final ruta = uri.query.isEmpty ? uri.path : '${uri.path}?${uri.query}';
+    final path =
+        uri.scheme == 'ubbike' && uri.path.isEmpty && uri.host.isNotEmpty
+            ? '/${uri.host}'
+            : uri.path;
+    final ruta = uri.query.isEmpty ? path : '$path?${uri.query}';
     if (ruta == _ultimaRutaDeepLink) {
       return;
     }
@@ -55,6 +64,14 @@ class _AplicacionUBBikeState extends State<AplicacionUBBike> {
       navigatorKey: _navigatorKey,
       title: 'UBBike',
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.noScaling,
+          ),
+          child: child!,
+        );
+      },
       theme: crearTemaUbb(),
       locale: const Locale('es'),
       supportedLocales: const [Locale('es'), Locale('en')],
@@ -63,8 +80,8 @@ class _AplicacionUBBikeState extends State<AplicacionUBBike> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      initialRoute: '/',
       onGenerateRoute: _generarRuta,
-      home: const _EnrutadorRaiz(),
     );
   }
 
@@ -95,7 +112,25 @@ class _AplicacionUBBikeState extends State<AplicacionUBBike> {
       );
     }
 
-    return MaterialPageRoute(builder: (_) => const PantallaLogin());
+    if (uri.path == '/login') {
+      final verificado = uri.queryParameters['verificado'] == '1';
+      final contrasenaActualizada =
+          uri.queryParameters['contrasena_actualizada'] == '1';
+      final correo = uri.queryParameters['correo']?.trim();
+
+      return MaterialPageRoute(
+        builder: (_) => PantallaLogin(
+          correoInicial: correo != null && correo.isNotEmpty ? correo : null,
+          mensajeInicial: verificado
+              ? 'Correo verificado. Ingresa tu contraseña para iniciar sesión.'
+              : contrasenaActualizada
+                  ? 'Contraseña actualizada. Ingresa con tu nueva contraseña.'
+                  : null,
+        ),
+      );
+    }
+
+    return MaterialPageRoute(builder: (_) => const _EnrutadorRaiz());
   }
 }
 
