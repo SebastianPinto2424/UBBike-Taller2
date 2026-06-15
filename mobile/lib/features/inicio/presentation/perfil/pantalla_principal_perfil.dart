@@ -84,7 +84,8 @@ class VistaPerfil extends ConsumerWidget {
               ),
               onPressed: () async {
                 try {
-                  final mensaje = await AutenticacionApi()
+                  final mensaje = await ref
+                      .read(autenticacionRepositoryProvider)
                       .solicitarCambioContrasena(correoPerfil);
                   if (context.mounted) {
                     context.mostrarExito(mensaje);
@@ -215,7 +216,7 @@ class _SelectorBicicleteroGuardiaPerfil extends StatefulWidget {
 
 class _SelectorBicicleteroGuardiaPerfilState
     extends State<_SelectorBicicleteroGuardiaPerfil> {
-  final solicitudGuardiaApi = SolicitudGuardiaApi();
+  late final SolicitudGuardiaRepository solicitudGuardiaRepository;
   List<BicicleteroApp> bicicleteros = [];
   BicicleteroApp? bicicleteroSeleccionado;
   bool cargando = true;
@@ -225,6 +226,10 @@ class _SelectorBicicleteroGuardiaPerfilState
   @override
   void initState() {
     super.initState();
+    solicitudGuardiaRepository = _leerProvider(
+      context,
+      solicitudGuardiaRepositoryProvider,
+    );
     _cargar();
   }
 
@@ -233,8 +238,8 @@ class _SelectorBicicleteroGuardiaPerfilState
 
     try {
       final resultados = await Future.wait([
-        solicitudGuardiaApi.listarBicicleteros(),
-        solicitudGuardiaApi.obtenerBicicleteroGestionado(),
+        solicitudGuardiaRepository.listarBicicleteros(),
+        solicitudGuardiaRepository.obtenerBicicleteroGestionado(),
       ]);
       final lista = resultados[0] as List<BicicleteroApp>;
       final actual = resultados[1] as BicicleteroApp?;
@@ -280,7 +285,7 @@ class _SelectorBicicleteroGuardiaPerfilState
     setState(() => guardando = true);
 
     try {
-      final actualizado = await solicitudGuardiaApi
+      final actualizado = await solicitudGuardiaRepository
           .seleccionarBicicleteroGestionado(seleccionado.id);
 
       if (!mounted) {
@@ -381,7 +386,7 @@ class _SelectorBicicleteroGuardiaPerfilState
       return const EstadoLista(
         icono: Icons.location_off_outlined,
         titulo: 'Sin bicicleteros activos',
-        detalle: 'Administracion debe habilitar al menos un bicicletero.',
+        detalle: 'Central debe habilitar al menos un bicicletero.',
       );
     }
 
