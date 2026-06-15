@@ -12,7 +12,7 @@ rutasQr.use(middlewareAutenticacion);
 rutasQr.post('/generar', validarCuerpo(esquemaGenerarQr), generar);
 rutasQr.post(
   '/validar',
-  autorizarRoles(RolUsuario.GUARDIA, RolUsuario.ADMINISTRADOR),
+  autorizarRoles(RolUsuario.GUARDIA, RolUsuario.ADMIN_CENTRAL, RolUsuario.ADMINISTRADOR),
   validarCuerpo(esquemaValidarQr),
   validar
 );
