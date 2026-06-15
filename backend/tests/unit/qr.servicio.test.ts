@@ -1,4 +1,4 @@
-import '../helpers/env-setup';
+﻿import '../helpers/env-setup';
 import '../helpers/prisma-mock';
 import { prismaMock } from '../helpers/prisma-mock';
 
@@ -59,6 +59,11 @@ const codigoQrBase = {
   bicicletero: null
 };
 
+const bicicleteroBase = {
+  id: 'bicicletero-uuid-1',
+  nombre: 'Bicicletero Central'
+};
+
 describe('generarQrTemporal', () => {
   it('lanza 404 si no existe bicicleta activa para el usuario', async () => {
     prismaMock.bicicleta.findFirst.mockResolvedValue(null);
@@ -102,6 +107,31 @@ describe('generarQrTemporal', () => {
     expect(resultado.tipo).toBe('INGRESO');
     expect(resultado.duracionSegundos).toBe(15);
   });
+
+  it('genera QR correctamente para retiro cuando la bicicleta esta dentro', async () => {
+    prismaMock.bicicleta.findFirst.mockResolvedValue({
+      ...bicicletaBase,
+      dentroBicicletero: true,
+      bicicleteroActualId: bicicleteroBase.id,
+      bicicleteroActual: bicicleteroBase
+    } as any);
+    prismaMock.codigoQrTemporal.updateMany.mockResolvedValue({ count: 0 });
+    prismaMock.codigoQrTemporal.create.mockResolvedValue({
+      ...codigoQrBase,
+      token: 'UBBIKE-retiroToken',
+      tipo: 'RETIRO',
+      bicicleteroId: bicicleteroBase.id
+    } as any);
+
+    const resultado = await generarQrTemporal({
+      usuarioId: 'user-uuid-1'
+    });
+
+    expect(resultado.token).toMatch(/^UBBIKE-/);
+    expect(resultado.tipo).toBe('RETIRO');
+    expect(resultado.bicicletero).toEqual(bicicleteroBase);
+    expect(resultado.duracionSegundos).toBe(15);
+  });
 });
 
 describe('validarQrTemporal', () => {
@@ -117,7 +147,9 @@ describe('validarQrTemporal', () => {
       usado: true
     } as any);
 
-    await expect(validarQrTemporal('UBBIKE-tokenValido')).rejects.toMatchObject({ statusCode: 409 });
+    await expect(validarQrTemporal('UBBIKE-tokenValido')).rejects.toMatchObject({
+      statusCode: 409
+    });
   });
 
   it('lanza 410 si el QR esta expirado', async () => {
@@ -126,7 +158,9 @@ describe('validarQrTemporal', () => {
       expiraEn: new Date(Date.now() - 1000)
     } as any);
 
-    await expect(validarQrTemporal('UBBIKE-tokenValido')).rejects.toMatchObject({ statusCode: 410 });
+    await expect(validarQrTemporal('UBBIKE-tokenValido')).rejects.toMatchObject({
+      statusCode: 410
+    });
   });
 
   it('devuelve datos del usuario para QR valido', async () => {
@@ -137,5 +171,27 @@ describe('validarQrTemporal', () => {
     expect(resultado.valido).toBe(true);
     expect(resultado.usuario.id).toBe('user-uuid-1');
     expect(resultado.tipo).toBe('INGRESO');
+  });
+
+  it('devuelve datos del usuario para QR valido de retiro', async () => {
+    prismaMock.codigoQrTemporal.findFirst.mockResolvedValue({
+      ...codigoQrBase,
+      tipo: 'RETIRO',
+      bicicleteroId: bicicleteroBase.id,
+      bicicleta: {
+        ...bicicletaBase,
+        dentroBicicletero: true,
+        bicicleteroActualId: bicicleteroBase.id,
+        bicicleteroActual: bicicleteroBase
+      },
+      bicicletero: bicicleteroBase
+    } as any);
+
+    const resultado = await validarQrTemporal('UBBIKE-tokenValido');
+
+    expect(resultado.valido).toBe(true);
+    expect(resultado.usuario.id).toBe('user-uuid-1');
+    expect(resultado.tipo).toBe('RETIRO');
+    expect(resultado.bicicletero).toEqual(bicicleteroBase);
   });
 });
