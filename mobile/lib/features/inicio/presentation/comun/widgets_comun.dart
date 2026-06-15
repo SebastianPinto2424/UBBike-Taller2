@@ -12,7 +12,7 @@ import '../../../../shared/modelos/bicicleta_app.dart';
 import '../../../../shared/modelos/bicicletero_app.dart';
 import '../../../../shared/widgets/chip_estado.dart';
 import '../../../../shared/widgets/snackbar_semantico.dart';
-import '../../../acceso/data/solicitud_guardia_api.dart';
+import '../../../acceso/data/solicitud_guardia_modelos.dart';
 
 part 'bicicletas_widgets.dart';
 part 'bicicletero_widgets.dart';
