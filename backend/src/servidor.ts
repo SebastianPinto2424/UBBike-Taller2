@@ -2,6 +2,7 @@ import { aplicacion } from './aplicacion';
 import { cargarDatosIniciales } from './configuracion/datos-iniciales';
 import { entorno } from './configuracion/entorno';
 import { prisma } from './configuracion/prisma';
+import { inicializarTiempoReal } from './tiempo-real/tiempo-real';
 
 const iniciarServidor = async (): Promise<void> => {
   try {
@@ -13,6 +14,8 @@ const iniciarServidor = async (): Promise<void> => {
     const servidor = aplicacion.listen(entorno.puerto, () => {
       console.log(`UBBike backend escuchando en puerto ${entorno.puerto}`);
     });
+
+    inicializarTiempoReal(servidor);
 
     const cerrar = async () => {
       servidor.close(async () => {
