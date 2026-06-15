@@ -1,5 +1,10 @@
 import { controladorAsync } from '../../comun/utils/controlador-async';
-import { actualizarPermisosUsuario, listarUsuarios } from './usuario.servicio';
+import {
+  actualizarPermisosUsuario,
+  crearUsuarioAdmin,
+  eliminarUsuarioAdmin,
+  listarUsuarios
+} from './usuario.servicio';
 import { RolUsuario } from './rol-usuario';
 
 const leerBooleano = (valor: unknown) => {
@@ -33,7 +38,17 @@ export const listar = controladorAsync(async (req, res) => {
   return res.status(200).json({ usuarios });
 });
 
+export const crear = controladorAsync(async (req, res) => {
+  const usuario = await crearUsuarioAdmin(req.body, req.usuario?.usuarioId);
+  return res.status(201).json({ usuario });
+});
+
 export const actualizarPermisos = controladorAsync(async (req, res) => {
   const usuario = await actualizarPermisosUsuario(req.params.id, req.body, req.usuario?.usuarioId);
   return res.status(200).json({ usuario });
+});
+
+export const eliminar = controladorAsync(async (req, res) => {
+  const resultado = await eliminarUsuarioAdmin(req.params.id, req.usuario?.usuarioId);
+  return res.status(200).json(resultado);
 });
