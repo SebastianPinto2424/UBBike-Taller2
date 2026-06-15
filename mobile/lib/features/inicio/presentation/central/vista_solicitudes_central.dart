@@ -8,17 +8,31 @@ class VistaSolicitudesCentral extends StatefulWidget {
       _VistaSolicitudesCentralState();
 }
 
-class _VistaSolicitudesCentralState extends State<VistaSolicitudesCentral> {
-  final solicitudGuardiaApi = SolicitudGuardiaApi();
+class _VistaSolicitudesCentralState extends State<VistaSolicitudesCentral>
+    with AutoRefrescoMixin {
+  late final SolicitudGuardiaRepository solicitudGuardiaRepository;
   final busquedaController = TextEditingController();
   Timer? temporizadorBusqueda;
   String estadoFiltro = 'TODOS';
   late Future<List<SolicitudGuardiaApp>> futuroSolicitudes;
+  List<SolicitudGuardiaApp>? _ultimoDato;
 
   @override
   void initState() {
     super.initState();
+    solicitudGuardiaRepository = _leerProvider(
+      context,
+      solicitudGuardiaRepositoryProvider,
+    );
     futuroSolicitudes = _cargarSolicitudes();
+    iniciarAutoRefresco();
+  }
+
+  @override
+  Future<void> refrescar() async {
+    if (mounted) {
+      setState(() => futuroSolicitudes = _cargarSolicitudes());
+    }
   }
 
   @override
@@ -29,7 +43,7 @@ class _VistaSolicitudesCentralState extends State<VistaSolicitudesCentral> {
   }
 
   Future<List<SolicitudGuardiaApp>> _cargarSolicitudes() {
-    return solicitudGuardiaApi.listarSolicitudes(
+    return solicitudGuardiaRepository.listarSolicitudes(
       estado: estadoFiltro,
       q: busquedaController.text,
       limite: 300,
@@ -138,7 +152,13 @@ class _VistaSolicitudesCentralState extends State<VistaSolicitudesCentral> {
               child: FutureBuilder<List<SolicitudGuardiaApp>>(
                 future: futuroSolicitudes,
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+                  if (snapshot.hasData) {
+                    _ultimoDato = snapshot.data;
+                  }
+                  final cargandoInicial = snapshot.connectionState ==
+                          ConnectionState.waiting &&
+                      _ultimoDato == null;
+                  if (cargandoInicial) {
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: const [
@@ -150,7 +170,7 @@ class _VistaSolicitudesCentralState extends State<VistaSolicitudesCentral> {
                     );
                   }
 
-                  if (snapshot.hasError) {
+                  if (snapshot.hasError && _ultimoDato == null) {
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
@@ -165,7 +185,7 @@ class _VistaSolicitudesCentralState extends State<VistaSolicitudesCentral> {
                     );
                   }
 
-                  final solicitudes = snapshot.data ?? [];
+                  final solicitudes = _ultimoDato ?? const <SolicitudGuardiaApp>[];
 
                   if (solicitudes.isEmpty) {
                     return ListView(
@@ -199,7 +219,8 @@ class _VistaSolicitudesCentralState extends State<VistaSolicitudesCentral> {
                               permitirNotificarCentral: true,
                               mostrarAccionesGuardia: false,
                               onActualizar: (estado) async {
-                                await solicitudGuardiaApi.actualizarEstado(
+                                await solicitudGuardiaRepository
+                                    .actualizarEstado(
                                   solicitudId: solicitud.id,
                                   estado: estado,
                                 );
