@@ -8,8 +8,9 @@ class VistaMovimientosUsuario extends StatefulWidget {
       _VistaMovimientosUsuarioState();
 }
 
-class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario> {
-  final historialApi = HistorialApi();
+class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario>
+    with AutoRefrescoMixin {
+  late final HistorialRepository historialRepository;
   final filtroController = TextEditingController();
   Timer? temporizadorBusqueda;
   String periodo = 'MES';
@@ -17,11 +18,22 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario> {
   String estadoMovimiento = 'TODOS';
   String origenMovimiento = 'TODOS';
   late Future<List<MovimientoApp>> futuroMovimientos;
+  List<MovimientoApp>? _ultimoDato;
 
   @override
   void initState() {
     super.initState();
+    historialRepository = _leerProvider(context, historialRepositoryProvider);
     futuroMovimientos = _obtenerMovimientos();
+    iniciarAutoRefresco();
+  }
+
+  @override
+  Future<void> refrescar() async {
+    if (!mounted) {
+      return;
+    }
+    setState(() => futuroMovimientos = _obtenerMovimientos());
   }
 
   @override
@@ -32,7 +44,7 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario> {
   }
 
   Future<List<MovimientoApp>> _obtenerMovimientos() {
-    return historialApi.listar(
+    return historialRepository.listar(
       filtro: filtroController.text,
       periodo: periodo,
       tipo: tipoMovimiento,
@@ -185,7 +197,13 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario> {
             child: FutureBuilder<List<MovimientoApp>>(
               future: futuroMovimientos,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.hasData) {
+                  _ultimoDato = snapshot.data;
+                }
+                final cargandoInicial =
+                    snapshot.connectionState == ConnectionState.waiting &&
+                        _ultimoDato == null;
+                if (cargandoInicial) {
                   return ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.only(bottom: 24),
@@ -197,7 +215,7 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario> {
                     ],
                   );
                 }
-                if (snapshot.hasError) {
+                if (snapshot.hasError && _ultimoDato == null) {
                   return ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.only(bottom: 24),
@@ -212,7 +230,7 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario> {
                     ],
                   );
                 }
-                final movimientos = snapshot.data ?? [];
+                final movimientos = _ultimoDato ?? const <MovimientoApp>[];
                 if (movimientos.isEmpty) {
                   return ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
