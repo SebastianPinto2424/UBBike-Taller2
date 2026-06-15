@@ -36,7 +36,7 @@ describe('actualizarEstadoSolicitudGuardia', () => {
     await expect(
       actualizarEstadoSolicitudGuardia(
         'admin-uuid-1',
-        RolUsuario.ADMINISTRADOR,
+        RolUsuario.ADMIN_CENTRAL,
         'sol-uuid-1',
         EstadoSolicitudGuardia.EN_CAMINO
       )
@@ -54,7 +54,7 @@ describe('actualizarEstadoSolicitudGuardia', () => {
     await expect(
       actualizarEstadoSolicitudGuardia(
         'admin-uuid-1',
-        RolUsuario.ADMINISTRADOR,
+        RolUsuario.ADMIN_CENTRAL,
         'sol-uuid-1',
         EstadoSolicitudGuardia.EN_CAMINO
       )
