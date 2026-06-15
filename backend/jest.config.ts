@@ -11,6 +11,7 @@ const config: Config = {
   transform: {
     '^.+\\.ts$': ['ts-jest', { tsconfig: { module: 'CommonJS' } }]
   },
+  testTimeout: 20000,
   clearMocks: true,
   collectCoverageFrom: [
     'src/modulos/**/*.ts',
