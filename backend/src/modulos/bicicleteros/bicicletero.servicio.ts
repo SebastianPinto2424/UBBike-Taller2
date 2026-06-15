@@ -1,12 +1,9 @@
-import { prisma } from '../../configuracion/prisma';
 import { construirStatsBicicletero, contarOcupadosPorBicicletero } from './bicicletero.ocupacion';
+import * as bicicleteroRepositorio from './bicicletero.repositorio';
 
 export const listarBicicleteros = async () => {
   const [bicicleteros, ocupadosPorId] = await Promise.all([
-    prisma.bicicletero.findMany({
-      where: { activo: true },
-      orderBy: { nombre: 'asc' }
-    }),
+    bicicleteroRepositorio.listarActivos(),
     contarOcupadosPorBicicletero()
   ]);
 
