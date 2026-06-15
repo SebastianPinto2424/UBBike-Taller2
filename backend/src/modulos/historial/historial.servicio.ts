@@ -1,11 +1,13 @@
 import { ErrorHttp } from '../../comun/errors/error-http';
-import { prisma } from '../../configuracion/prisma';
 import { Prisma } from '../../generated/prisma/client';
 import {
   construirStatsBicicletero,
   contarOcupadosPorBicicletero
 } from '../bicicleteros/bicicletero.ocupacion';
+import * as bicicleteroRepositorio from '../bicicleteros/bicicletero.repositorio';
 import { RolUsuario } from '../usuarios/rol-usuario';
+import * as historialRepositorio from './historial.repositorio';
+import type { MovimientoCompleto } from './historial.repositorio';
 
 type FiltrosHistorial = {
   usuarioId: string;
@@ -24,18 +26,7 @@ type FiltrosHistorial = {
 };
 
 const LIMITE_MAX_HISTORIAL = 100000;
-const rolesCentral: string[] = [RolUsuario.ADMINISTRADOR];
-
-const includeMovimientoCompleto = {
-  usuario: true,
-  bicicleta: true,
-  bicicletero: true,
-  validadoPorGuardia: true
-} satisfies Prisma.MovimientoInclude;
-
-type MovimientoCompleto = Prisma.MovimientoGetPayload<{
-  include: typeof includeMovimientoCompleto;
-}>;
+const rolesCentral: string[] = [RolUsuario.ADMIN_CENTRAL, RolUsuario.ADMINISTRADOR];
 
 const inicioPeriodo = (periodo?: 'DIA' | 'SEMANA' | 'MES' | 'ANIO') => {
   if (!periodo) {
@@ -182,16 +173,8 @@ export const listarMovimientos = async (filtros: FiltrosHistorial) => {
   const saltar = (pagina - 1) * limite;
   const where = construirWhereMovimientos(filtros);
   const [movimientos, total] = await Promise.all([
-    prisma.movimiento.findMany({
-      where,
-      include: includeMovimientoCompleto,
-      orderBy: {
-        creadoEn: 'desc'
-      },
-      take: limite,
-      skip: saltar
-    }),
-    prisma.movimiento.count({ where })
+    historialRepositorio.buscarMovimientos(where, limite, saltar),
+    historialRepositorio.contarMovimientos(where)
   ]);
 
   return {
@@ -207,13 +190,13 @@ export const listarMovimientos = async (filtros: FiltrosHistorial) => {
 
 export const resumenHistorial = async (filtros: FiltrosHistorial) => {
   if (!puedeVerTodo(filtros.rol)) {
-    throw new ErrorHttp(403, 'No tienes permisos para ver el resumen administrativo');
+    throw new ErrorHttp(403, 'No tienes permisos para ver el resumen central');
   }
 
   const where = construirWhereMovimientos(filtros);
 
   const contarCon = (extra: Prisma.MovimientoWhereInput) =>
-    prisma.movimiento.count({ where: { AND: [where, extra] } });
+    historialRepositorio.contarMovimientos({ AND: [where, extra] });
 
   const [
     totalMovimientos,
@@ -225,35 +208,23 @@ export const resumenHistorial = async (filtros: FiltrosHistorial) => {
     grupoGuardias,
     grupoBicicleteros
   ] = await Promise.all([
-    prisma.movimiento.count({ where }),
+    historialRepositorio.contarMovimientos(where),
     contarCon({ tipo: 'INGRESO' }),
     contarCon({ estado: 'CONFIRMADO' }),
     contarCon({ estado: 'DENEGADO' }),
     contarCon({ origen: 'MANUAL' }),
     contarCon({ origen: 'QR' }),
-    prisma.movimiento.groupBy({
-      by: ['validadoPorGuardiaId'],
-      where,
-      _count: { _all: true },
-      orderBy: { _count: { validadoPorGuardiaId: 'desc' } }
-    }),
-    prisma.movimiento.groupBy({
-      by: ['bicicleteroId'],
-      where,
-      _count: { _all: true },
-      orderBy: { _count: { bicicleteroId: 'desc' } }
-    })
+    historialRepositorio.agruparPorGuardia(where),
+    historialRepositorio.agruparPorBicicletero(where)
   ]);
 
   const [nombresGuardias, nombresBicicleteros] = await Promise.all([
-    prisma.usuario.findMany({
-      where: { id: { in: grupoGuardias.map((g) => g.validadoPorGuardiaId) } },
-      select: { id: true, nombre: true }
-    }),
-    prisma.bicicletero.findMany({
-      where: { id: { in: grupoBicicleteros.map((b) => b.bicicleteroId) } },
-      select: { id: true, nombre: true }
-    })
+    historialRepositorio.buscarNombresUsuarios(
+      grupoGuardias.map((g) => g.validadoPorGuardiaId)
+    ),
+    historialRepositorio.buscarNombresBicicleteros(
+      grupoBicicleteros.map((b) => b.bicicleteroId)
+    )
   ]);
 
   const nombreGuardia = Object.fromEntries(nombresGuardias.map((g) => [g.id, g.nombre]));
@@ -282,18 +253,12 @@ export const resumenHistorial = async (filtros: FiltrosHistorial) => {
 
 export const opcionesHistorial = async (rol: string) => {
   if (!puedeVerTodo(rol)) {
-    throw new ErrorHttp(403, 'No tienes permisos para ver filtros administrativos');
+    throw new ErrorHttp(403, 'No tienes permisos para ver filtros centrales');
   }
 
   const [bicicleteros, guardias, ocupadosPorId] = await Promise.all([
-    prisma.bicicletero.findMany({
-      where: { activo: true },
-      orderBy: { nombre: 'asc' }
-    }),
-    prisma.usuario.findMany({
-      where: { rol: RolUsuario.GUARDIA, cuentaActiva: true },
-      orderBy: { nombre: 'asc' }
-    }),
+    bicicleteroRepositorio.listarActivos(),
+    historialRepositorio.listarGuardiasActivos(),
     contarOcupadosPorBicicletero()
   ]);
 
