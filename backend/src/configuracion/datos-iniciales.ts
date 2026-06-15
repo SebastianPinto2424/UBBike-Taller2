@@ -26,6 +26,12 @@ const usuariosDemo = [
     rol: RolUsuario.GUARDIA
   },
   {
+    nombre: 'Admin Central Seguridad',
+    correo: 'admin.central@ubiobio.cl',
+    rut: '12.444.444-4',
+    rol: RolUsuario.ADMIN_CENTRAL
+  },
+  {
     nombre: 'Administrador UBBike',
     correo: 'administrador@ubiobio.cl',
     rut: '11.555.555-5',
@@ -38,18 +44,45 @@ const bicicleterosBase = [
     nombre: 'Bicicletero cercano al Centro de Idiomas',
     ubicacion: 'Sector Centro de Idiomas',
     nombresAnteriores: ['Bicicletero Central'],
-    capacidad: 80
+    capacidad: 104
   },
   {
     nombre: 'Bicicletero cercano a la FACE',
     ubicacion: 'Sector FACE',
     nombresAnteriores: ['Bicicletero Biblioteca'],
-    capacidad: 55
+    capacidad: 120
   }
 ];
 
 export const cargarDatosIniciales = async (): Promise<void> => {
   const contrasenaHash = await bcrypt.hash(contrasenaDemo, 12);
+
+  const centralAnterior = await prisma.usuario.findUnique({
+    where: {
+      correo: 'central.seguridad@ubiobio.cl'
+    }
+  });
+  const centralActual = await prisma.usuario.findUnique({
+    where: {
+      correo: 'admin.central@ubiobio.cl'
+    }
+  });
+
+  if (centralAnterior && !centralActual) {
+    await prisma.usuario.update({
+      where: {
+        id: centralAnterior.id
+      },
+      data: {
+        nombre: 'Admin Central Seguridad',
+        correo: 'admin.central@ubiobio.cl',
+        rol: RolUsuario.ADMIN_CENTRAL,
+        cuentaActiva: true,
+        correoVerificado: true,
+        tokenVerificacionCorreoExpiraEn: null
+      }
+    });
+  }
 
   for (const usuarioDemo of usuariosDemo) {
     const existente = await prisma.usuario.findUnique({
