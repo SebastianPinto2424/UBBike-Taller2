@@ -3,11 +3,11 @@ part of '../pantalla_principal.dart';
 class _FormularioBicicletaSheet extends StatefulWidget {
   const _FormularioBicicletaSheet({
     required this.bicicleta,
-    required this.bicicletaApi,
+    required this.bicicletaRepository,
   });
 
   final BicicletaApp? bicicleta;
-  final BicicletaApi bicicletaApi;
+  final BicicletaRepository bicicletaRepository;
 
   @override
   State<_FormularioBicicletaSheet> createState() =>
@@ -41,7 +41,7 @@ class _FormularioBicicletaSheetState extends State<_FormularioBicicletaSheet> {
     numeroSerieController =
         TextEditingController(text: bicicleta?.numeroSerie ?? '');
     fotoSeleccionada = bicicleta?.fotoUrl;
-    activar = bicicleta?.activa ?? false;
+    activar = bicicleta?.activa ?? true;
   }
 
   @override
@@ -104,6 +104,12 @@ class _FormularioBicicletaSheetState extends State<_FormularioBicicletaSheet> {
       return;
     }
 
+    if (widget.bicicleta == null &&
+        (fotoSeleccionada == null || fotoSeleccionada!.trim().isEmpty)) {
+      context.mostrarError('Toma o sube una foto de la bicicleta.');
+      return;
+    }
+
     final descripcion = descripcionController.text.trim();
     final color = normalizarColorBicicleta(colorTexto) ?? '';
     final numeroSerie = numeroSerieController.text.trim().toUpperCase();
@@ -113,7 +119,7 @@ class _FormularioBicicletaSheetState extends State<_FormularioBicicletaSheet> {
     try {
       final bicicleta = widget.bicicleta;
       if (bicicleta == null) {
-        await widget.bicicletaApi.crear(
+        await widget.bicicletaRepository.crear(
           descripcion: descripcion,
           marca: marcaController.text.trim(),
           modelo: modeloController.text.trim(),
@@ -124,7 +130,7 @@ class _FormularioBicicletaSheetState extends State<_FormularioBicicletaSheet> {
           activar: activar,
         );
       } else {
-        await widget.bicicletaApi.actualizar(
+        await widget.bicicletaRepository.actualizar(
           bicicletaId: bicicleta.id,
           descripcion: descripcion,
           marca: marcaController.text.trim(),
@@ -354,12 +360,14 @@ class _SelectorFotoBicicleta extends StatelessWidget {
     required this.onCamara,
     required this.onGaleria,
     required this.onQuitar,
+    this.mostrarAcciones = true,
   });
 
   final String? fotoDataUrl;
   final VoidCallback onCamara;
   final VoidCallback onGaleria;
   final VoidCallback? onQuitar;
+  final bool mostrarAcciones;
 
   @override
   Widget build(BuildContext context) {
@@ -402,64 +410,98 @@ class _SelectorFotoBicicleta extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Container(
+        Material(
+          color: ColoresUbb.superficieAzulSuave,
+          borderRadius: BorderRadius.circular(12),
           clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: ColoresUbb.superficieAzulSuave,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: ColoresUbb.borde),
-          ),
-          child: Stack(
-            children: [
-              areaImagen,
-              if (hayFoto)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Material(
-                    color: Colors.black54,
-                    shape: const CircleBorder(),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: onQuitar,
-                      child: const Padding(
-                        padding: EdgeInsets.all(6),
-                        child: Icon(Icons.close, color: Colors.white, size: 18),
+          child: InkWell(
+            onTap: hayFoto && foto != null && foto.isNotEmpty
+                ? () => _mostrarImagenAmpliada(context, foto)
+                : null,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: ColoresUbb.borde),
+              ),
+              child: Stack(
+                children: [
+                  areaImagen,
+                  if (hayFoto && foto != null && foto.isNotEmpty)
+                    Positioned(
+                      left: 8,
+                      top: 8,
+                      child: Tooltip(
+                        message: 'Ampliar imagen',
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.56),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.open_in_full,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-            ],
+                  if (hayFoto && mostrarAcciones)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Material(
+                        color: Colors.black54,
+                        shape: const CircleBorder(),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: onQuitar,
+                          child: const Padding(
+                            padding: EdgeInsets.all(6),
+                            child: Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
-        const SizedBox(height: 6),
-        if (hayFoto)
+        if (mostrarAcciones) const SizedBox(height: 6),
+        if (hayFoto && mostrarAcciones)
           Text(
             'Toca la ✕ para quitar la imagen.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: ColoresUbb.textoSecundario,
                 ),
           ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: onCamara,
-                icon: const Icon(Icons.photo_camera_outlined),
-                label: const Text('Tomar foto'),
+        if (mostrarAcciones) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onCamara,
+                  icon: const Icon(Icons.photo_camera_outlined),
+                  label: const Text('Tomar foto'),
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: onGaleria,
-                icon: const Icon(Icons.upload_file_outlined),
-                label: const Text('Subir foto'),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onGaleria,
+                  icon: const Icon(Icons.upload_file_outlined),
+                  label: const Text('Subir foto'),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -482,6 +524,62 @@ class _SelectorFotoBicicleta extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _mostrarImagenAmpliada(
+    BuildContext context,
+    String fotoReferencia,
+  ) async {
+    final bytesFoto = decodificarFotoDataUrl(fotoReferencia);
+    final imagen = bytesFoto != null
+        ? Image.memory(bytesFoto, fit: BoxFit.contain)
+        : Image.network(
+            resolverUrlFotoBicicleta(fotoReferencia),
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => _placeholderImagen(
+              'No se pudo cargar la imagen',
+            ),
+          );
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(16),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              Container(
+                color: Colors.black,
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+                  maxWidth: MediaQuery.sizeOf(context).width * 0.94,
+                ),
+                child: InteractiveViewer(
+                  minScale: 0.8,
+                  maxScale: 4,
+                  child: Center(child: imagen),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Material(
+                  color: Colors.black54,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: IconButton(
+                    tooltip: 'Cerrar',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
