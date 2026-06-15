@@ -1,5 +1,14 @@
 ﻿import Joi from 'joi';
 import { TipoMovimiento } from '../../historial/tipo-movimiento';
+import {
+  esquemaAroBicicleta,
+  esquemaColorBicicleta,
+  esquemaDescripcionBicicleta,
+  esquemaFotoBicicleta,
+  esquemaMarcaBicicleta,
+  esquemaModeloBicicleta,
+  esquemaNumeroSerieBicicleta
+} from '../../bicicletas/bicicleta.validacion';
 
 export const esquemaConfirmarQr = Joi.object({
   token: Joi.string().trim().required(),
@@ -17,12 +26,14 @@ export const esquemaGestionManual = Joi.object({
   correo: Joi.string().trim().email().optional(),
   rut: Joi.string().trim().max(20).optional(),
   bicicletaId: Joi.string().uuid().optional(),
-  bicicletaDescripcion: Joi.string().trim().min(3).max(255).optional(),
-  bicicletaMarca: Joi.string().trim().max(80).allow('', null).optional(),
-  bicicletaModelo: Joi.string().trim().max(80).allow('', null).optional(),
-  bicicletaColor: Joi.string().trim().max(60).allow('', null).optional(),
-  bicicletaAro: Joi.string().trim().max(30).allow('', null).optional(),
-  bicicletaNumeroSerie: Joi.string().trim().max(120).allow('', null).optional(),
+  bicicletaDescripcion: esquemaDescripcionBicicleta.optional(),
+  bicicletaMarca: esquemaMarcaBicicleta.optional(),
+  bicicletaModelo: esquemaModeloBicicleta.optional(),
+  bicicletaColor: esquemaColorBicicleta.optional(),
+  bicicletaAro: esquemaAroBicicleta.optional(),
+  bicicletaNumeroSerie: esquemaNumeroSerieBicicleta.optional(),
+  bicicletaFotoUrl: esquemaFotoBicicleta.optional(),
+  crearBicicletaNueva: Joi.boolean().default(false),
   bicicleteroId: Joi.string().uuid().optional(),
   tipo: Joi.string()
     .valid(...Object.values(TipoMovimiento))
