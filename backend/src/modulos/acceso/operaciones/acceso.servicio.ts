@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { ErrorHttp } from '../../../comun/errors/error-http';
 import { entorno } from '../../../configuracion/entorno';
-import { prisma, type ClientePrisma } from '../../../configuracion/prisma';
+import type { ClientePrisma } from '../../../configuracion/prisma';
 import { Prisma } from '../../../generated/prisma/client';
 import { registrarAuditoria } from '../../auditoria/auditoria.servicio';
 import {
@@ -16,12 +16,20 @@ import { TipoNotificacion } from '../../notificaciones/tipo-notificacion';
 import { obtenerCodigoQrEscaneadoParaMovimiento } from '../../qr/qr.servicio';
 import { RolUsuario } from '../../usuarios/rol-usuario';
 import {
+  EventosTiempoReal,
+  emitirTiempoReal,
+  salaRol,
+  salaUsuario
+} from '../../../tiempo-real/tiempo-real';
+import {
   crearTokenSeguro,
   hashearToken,
   horasExpiracionVerificacionCorreo,
   resolverRolRegistrable
 } from '../../autenticacion/autenticacion.tokens';
-import { includeMovimientoCompleto, mapearMovimiento } from './acceso.mapeador';
+import { guardarFotoBicicleta } from '../../bicicletas/foto-bicicleta.servicio';
+import { mapearMovimiento } from './acceso.mapeador';
+import * as accesoRepositorio from './acceso.repositorio';
 import { validarReglaMovimiento } from './acceso.reglas';
 
 type DatosConfirmarQr = {
@@ -48,6 +56,8 @@ type DatosGestionManual = {
   bicicletaColor?: string | null;
   bicicletaAro?: string | null;
   bicicletaNumeroSerie?: string | null;
+  bicicletaFotoUrl?: string | null;
+  crearBicicletaNueva?: boolean;
   bicicleteroId?: string;
   tipo: TipoMovimiento;
   denegar?: boolean;
@@ -138,20 +148,18 @@ const obtenerBicicleteroOperacion = async (
   rol: string,
   bicicleteroId?: string,
   bicicleteroQr?: BicicleteroOperacion | null,
-  db: ClientePrisma = prisma
+  db?: ClientePrisma
 ) => {
   const validarAsignacionGuardia = async (bicicletero: BicicleteroOperacion) => {
     if (rol !== RolUsuario.GUARDIA) {
       return;
     }
 
-    const asignacion = await db.asignacionGuardia.findFirst({
-      where: {
-        guardiaId,
-        bicicleteroId: bicicletero.id,
-        activa: true
-      }
-    });
+    const asignacion = await accesoRepositorio.buscarAsignacionActiva(
+      guardiaId,
+      bicicletero.id,
+      db
+    );
 
     if (!asignacion) {
       throw new ErrorHttp(403, 'El guardia no está asignado a este bicicletero');
@@ -159,11 +167,7 @@ const obtenerBicicleteroOperacion = async (
   };
 
   if (bicicleteroId) {
-    const bicicletero = await db.bicicletero.findUnique({
-      where: {
-        id: bicicleteroId
-      }
-    });
+    const bicicletero = await accesoRepositorio.buscarBicicletero(bicicleteroId, db);
 
     if (!bicicletero) {
       throw new ErrorHttp(404, 'Bicicletero no encontrado');
@@ -178,18 +182,7 @@ const obtenerBicicleteroOperacion = async (
     return bicicleteroQr;
   }
 
-  const asignacion = await db.asignacionGuardia.findFirst({
-    where: {
-      guardiaId,
-      activa: true
-    },
-    include: {
-      bicicletero: true
-    },
-    orderBy: {
-      iniciaEn: 'desc'
-    }
-  });
+  const asignacion = await accesoRepositorio.buscarAsignacionActivaConBicicletero(guardiaId, db);
 
   if (!asignacion) {
     throw new ErrorHttp(400, 'Debes indicar bicicletero para esta operación');
@@ -222,8 +215,8 @@ const registrarMovimiento = async ({
   db: ClientePrisma;
 }) => {
   const comentarioGuardia = comentario?.trim() || null;
-  const movimiento = await db.movimiento.create({
-    data: {
+  const movimiento = await accesoRepositorio.crearMovimiento(
+    {
       usuarioId: usuario.id,
       bicicletaId: bicicleta.id,
       bicicleteroId: bicicletero.id,
@@ -233,25 +226,24 @@ const registrarMovimiento = async ({
       origen,
       motivoDenegacion: motivo ?? null,
       comentarioGuardia
-    }
-  });
+    },
+    db
+  );
 
   if (estado === EstadoMovimiento.CONFIRMADO) {
-    await db.bicicleta.update({
-      where: {
-        id: bicicleta.id
-      },
-      data:
-        tipo === TipoMovimiento.INGRESO
-          ? {
-              dentroBicicletero: true,
-              bicicleteroActualId: bicicletero.id
-            }
-          : {
-              dentroBicicletero: false,
-              bicicleteroActualId: null
-            }
-    });
+    await accesoRepositorio.actualizarBicicleta(
+      bicicleta.id,
+      tipo === TipoMovimiento.INGRESO
+        ? {
+            dentroBicicletero: true,
+            bicicleteroActualId: bicicletero.id
+          }
+        : {
+            dentroBicicletero: false,
+            bicicleteroActualId: null
+          },
+      db
+    );
   }
 
   const etiquetaMovimiento = tipo === TipoMovimiento.INGRESO ? 'Ingreso' : 'Retiro';
@@ -301,12 +293,7 @@ const registrarMovimiento = async ({
     db
   );
 
-  const movimientoCompleto = await db.movimiento.findUniqueOrThrow({
-    where: {
-      id: movimiento.id
-    },
-    include: includeMovimientoCompleto
-  });
+  const movimientoCompleto = await accesoRepositorio.buscarMovimientoCompleto(movimiento.id, db);
 
   if (origen === 'MANUAL') {
     const correo = crearCorreoMovimientoManual({
@@ -329,6 +316,15 @@ const registrarMovimiento = async ({
     });
   }
 
+  emitirTiempoReal(
+    [
+      salaUsuario(movimientoCompleto.usuario.id),
+      salaRol(RolUsuario.ADMIN_CENTRAL),
+      salaRol(RolUsuario.ADMINISTRADOR)
+    ],
+    EventosTiempoReal.MOVIMIENTO
+  );
+
   return mapearMovimiento(movimientoCompleto);
 };
 
@@ -338,38 +334,45 @@ const crearBicicletaManual = async (
   datos: DatosGestionManual
 ) => {
   const descripcion = datos.bicicletaDescripcion?.trim();
+  const marca = datos.bicicletaMarca?.trim();
+  const modelo = datos.bicicletaModelo?.trim();
+  const color = datos.bicicletaColor?.trim();
+  const aro = datos.bicicletaAro?.trim();
+  const numeroSerie = datos.bicicletaNumeroSerie?.trim();
+  const fotoUrl = datos.bicicletaFotoUrl?.trim();
 
-  if (!descripcion) {
-    throw new ErrorHttp(400, 'Debes indicar los datos de la bicicleta para el ingreso manual');
+  if (!descripcion || !marca || !modelo || !color || !aro || !numeroSerie || !fotoUrl) {
+    throw new ErrorHttp(
+      400,
+      'Debes indicar todos los datos y la foto de la bicicleta para el ingreso manual'
+    );
   }
 
-  await db.bicicleta.updateMany({
-    where: {
-      usuarioId,
-      eliminadoEn: null
-    },
-    data: {
-      activa: false
-    }
-  });
+  await accesoRepositorio.desactivarBicicletasDeUsuario(usuarioId, db);
 
-  return db.bicicleta.create({
-    data: {
+  const bicicleta = await accesoRepositorio.crearBicicleta(
+    {
       usuarioId,
       descripcion,
-      marca: datos.bicicletaMarca || null,
-      modelo: datos.bicicletaModelo || null,
-      color: datos.bicicletaColor || null,
-      aro: datos.bicicletaAro || null,
-      numeroSerie: datos.bicicletaNumeroSerie || null,
+      marca,
+      modelo,
+      color,
+      aro,
+      numeroSerie,
       activa: true,
       dentroBicicletero: false,
       bicicleteroActualId: null
     },
-    include: {
-      bicicleteroActual: true
-    }
-  });
+    db
+  );
+
+  const fotoGuardada = await guardarFotoBicicleta(bicicleta.id, fotoUrl);
+  await accesoRepositorio.actualizarBicicleta(bicicleta.id, fotoGuardada, db);
+
+  return {
+    ...bicicleta,
+    ...fotoGuardada
+  };
 };
 
 const enviarCorreoCompletarRegistro = async (correoUsuario: string, token: string) => {
@@ -385,7 +388,7 @@ const enviarCorreoCompletarRegistro = async (correoUsuario: string, token: strin
 };
 
 export const confirmarQr = async (datos: DatosConfirmarQr) => {
-  return prisma.$transaction(async (db) => {
+  return accesoRepositorio.ejecutarEnTransaccion(async (db) => {
     const codigo = await obtenerCodigoQrEscaneadoParaMovimiento(
       datos.token,
       {
@@ -405,15 +408,7 @@ export const confirmarQr = async (datos: DatosConfirmarQr) => {
 
     validarReglaMovimiento(codigo.bicicleta, tipo);
 
-    const marcado = await db.codigoQrTemporal.updateMany({
-      where: {
-        id: codigo.id,
-        usado: false
-      },
-      data: {
-        usado: true
-      }
-    });
+    const marcado = await accesoRepositorio.marcarQrUsado(codigo.id, db);
 
     if (marcado.count !== 1) {
       throw new ErrorHttp(409, 'QR ya fue usado o reemplazado');
@@ -434,7 +429,7 @@ export const confirmarQr = async (datos: DatosConfirmarQr) => {
 };
 
 export const denegarQr = async (datos: DatosDenegarQr) => {
-  return prisma.$transaction(async (db) => {
+  return accesoRepositorio.ejecutarEnTransaccion(async (db) => {
     const codigo = await obtenerCodigoQrEscaneadoParaMovimiento(
       datos.token,
       {
@@ -452,15 +447,7 @@ export const denegarQr = async (datos: DatosDenegarQr) => {
     );
     const tipo = codigo.tipo as TipoMovimiento;
 
-    const marcado = await db.codigoQrTemporal.updateMany({
-      where: {
-        id: codigo.id,
-        usado: false
-      },
-      data: {
-        usado: true
-      }
-    });
+    const marcado = await accesoRepositorio.marcarQrUsado(codigo.id, db);
 
     if (marcado.count !== 1) {
       throw new ErrorHttp(409, 'QR ya fue usado o reemplazado');
@@ -487,22 +474,7 @@ export const buscarCoincidenciaGestionManual = async (datos: DatosBuscarGestionM
     throw new ErrorHttp(400, 'Debes indicar correo o RUT para buscar coincidencias');
   }
 
-  const usuario = await prisma.usuario.findFirst({
-    where: {
-      OR: criteriosUsuario
-    },
-    include: {
-      bicicletas: {
-        where: {
-          eliminadoEn: null
-        },
-        include: {
-          bicicleteroActual: true
-        },
-        orderBy: [{ activa: 'desc' }, { dentroBicicletero: 'desc' }, { creadoEn: 'desc' }]
-      }
-    }
-  });
+  const usuario = await accesoRepositorio.buscarUsuarioGestionManual(criteriosUsuario);
 
   if (!usuario) {
     return null;
@@ -527,18 +499,14 @@ export const registrarGestionManual = async (datos: DatosGestionManual) => {
   let tokenCompletarRegistro: string | null = null;
   let correoCompletarRegistro: string | null = null;
 
-  const movimiento = await prisma.$transaction(async (db) => {
+  const movimiento = await accesoRepositorio.ejecutarEnTransaccion(async (db) => {
     const criteriosUsuario = construirCriteriosUsuarioManual(datos);
 
     if (!criteriosUsuario.length) {
       throw new ErrorHttp(400, 'Debes indicar correo o RUT');
     }
 
-    let usuario = await db.usuario.findFirst({
-      where: {
-        OR: criteriosUsuario
-      }
-    });
+    let usuario = await accesoRepositorio.buscarUsuarioPorCriterios(criteriosUsuario, db);
 
     if (!usuario) {
       if (!datos.correo || !datos.rut) {
@@ -557,21 +525,19 @@ export const registrarGestionManual = async (datos: DatosGestionManual) => {
       tokenCompletarRegistro = crearTokenSeguro();
       correoCompletarRegistro = correoNormalizado;
 
-      usuario = await db.usuario.create({
-        data: {
-          nombre: 'Registro pendiente',
-          correo: correoNormalizado,
-          rut: datos.rut,
-          rol: rolAsignado,
-          contrasenaHash: await bcrypt.hash(crearTokenSeguro(), 12),
-          cuentaActiva: true,
-          correoVerificado: false,
-          registroParcial: true,
-          tokenVerificacionCorreo: hashearToken(tokenCompletarRegistro),
-          tokenVerificacionCorreoExpiraEn: new Date(
-            Date.now() + 1000 * 60 * 60 * horasExpiracionVerificacionCorreo
-          )
-        }
+      usuario = await accesoRepositorio.crearUsuario({
+        nombre: 'Registro pendiente',
+        correo: correoNormalizado,
+        rut: datos.rut,
+        rol: rolAsignado,
+        contrasenaHash: await bcrypt.hash(crearTokenSeguro(), 12),
+        cuentaActiva: true,
+        correoVerificado: false,
+        registroParcial: true,
+        tokenVerificacionCorreo: hashearToken(tokenCompletarRegistro),
+        tokenVerificacionCorreoExpiraEn: new Date(
+          Date.now() + 1000 * 60 * 60 * horasExpiracionVerificacionCorreo
+        )
       });
     } else if (usuario.registroParcial) {
       if (datos.tipo === TipoMovimiento.RETIRO) {
@@ -584,35 +550,37 @@ export const registrarGestionManual = async (datos: DatosGestionManual) => {
       tokenCompletarRegistro = crearTokenSeguro();
       correoCompletarRegistro = usuario.correo;
 
-      usuario = await db.usuario.update({
-        where: {
-          id: usuario.id
-        },
-        data: {
+      usuario = await accesoRepositorio.actualizarUsuario(
+        usuario.id,
+        {
           tokenVerificacionCorreo: hashearToken(tokenCompletarRegistro),
           tokenVerificacionCorreoExpiraEn: new Date(
             Date.now() + 1000 * 60 * 60 * horasExpiracionVerificacionCorreo
           )
-        }
-      });
+        },
+        db
+      );
     }
 
-    let bicicleta = await db.bicicleta.findFirst({
-      where: datos.bicicletaId
-        ? {
-            id: datos.bicicletaId,
-            usuarioId: usuario.id,
-            eliminadoEn: null
-          }
-        : {
-            usuarioId: usuario.id,
-            activa: true,
-            eliminadoEn: null
-          },
-      include: {
-        bicicleteroActual: true
-      }
-    });
+    if (datos.crearBicicletaNueva && datos.bicicletaId) {
+      throw new ErrorHttp(400, 'No puedes seleccionar y crear una bicicleta al mismo tiempo');
+    }
+
+    const criteriosBicicleta = datos.bicicletaId
+      ? {
+          id: datos.bicicletaId,
+          usuarioId: usuario.id,
+          eliminadoEn: null
+        }
+      : {
+          usuarioId: usuario.id,
+          activa: true,
+          eliminadoEn: null
+        };
+
+    let bicicleta = datos.crearBicicletaNueva
+      ? null
+      : await accesoRepositorio.buscarBicicletaParaGestionManual(criteriosBicicleta, db);
 
     if (!bicicleta) {
       if (datos.tipo !== TipoMovimiento.INGRESO) {
