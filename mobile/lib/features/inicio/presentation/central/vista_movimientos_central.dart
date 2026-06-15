@@ -12,7 +12,7 @@ class _VistaMovimientosCentralState extends State<VistaMovimientosCentral> {
   static const int _limiteVistaHistorial = 300;
   static const int _limiteReporteHistorial = 100000;
 
-  final historialApi = HistorialApi();
+  late final HistorialRepository historialRepository;
   final filtroController = TextEditingController();
   Timer? temporizadorBusqueda;
   String periodo = 'SEMANA';
@@ -30,16 +30,18 @@ class _VistaMovimientosCentralState extends State<VistaMovimientosCentral> {
   Future<OpcionesHistorialApp>? futuroOpciones;
 
   bool get _esCentral {
-    final rol = SesionActual.usuario?.rol;
-    return rol == RolUsuario.administrador;
+    final sesion = _leerProvider(context, sesionProvider).value;
+    final rol = sesion is SesionActiva ? sesion.usuario.rol : null;
+    return rol == RolUsuario.adminCentral || rol == RolUsuario.administrador;
   }
 
   @override
   void initState() {
     super.initState();
+    historialRepository = _leerProvider(context, historialRepositoryProvider);
     futuroMovimientos = _obtenerMovimientos();
     if (_esCentral) {
-      futuroOpciones = historialApi.opciones();
+      futuroOpciones = historialRepository.opciones();
     }
   }
 
@@ -53,7 +55,7 @@ class _VistaMovimientosCentralState extends State<VistaMovimientosCentral> {
   Future<List<MovimientoApp>> _obtenerMovimientos({
     int limite = _limiteVistaHistorial,
   }) {
-    return historialApi.listar(
+    return historialRepository.listar(
       filtro: filtroController.text,
       periodo: periodo,
       desde: fechaDesde,
@@ -156,7 +158,7 @@ class _VistaMovimientosCentralState extends State<VistaMovimientosCentral> {
     if (exportando) return;
     setState(() => exportando = true);
     try {
-      final excel = await historialApi.exportarExcel(
+      final excel = await historialRepository.exportarExcel(
         filtro: filtroController.text,
         periodo: periodo,
         desde: fechaDesde,
