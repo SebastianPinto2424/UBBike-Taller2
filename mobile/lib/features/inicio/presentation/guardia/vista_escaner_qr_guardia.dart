@@ -9,13 +9,19 @@ class VistaEscanerQrGuardia extends StatefulWidget {
 
 class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
   final formKeyQrValidado = GlobalKey<FormState>();
-  final accesoApi = AccesoApi();
+  late final AccesoRepository accesoRepository;
   final comentarioController = TextEditingController();
   final MobileScannerController _scannerController = MobileScannerController();
   String? codigoDetectado;
   QrValidadoApp? qrLeido;
   bool cargando = false;
   bool escaneando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    accesoRepository = _leerProvider(context, accesoRepositoryProvider);
+  }
 
   @override
   void dispose() {
@@ -33,6 +39,7 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
       codigoDetectado = codigo;
       escaneando = false;
     });
+    unawaited(_validarQr(codigo));
   }
 
   void _toggleEscanear() {
@@ -64,8 +71,21 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
   @override
   Widget build(BuildContext context) {
     final qr = qrLeido;
-    final hayCodigoDetectado =
-        codigoDetectado != null && codigoDetectado!.trim().isNotEmpty;
+    if (qr != null) {
+      return ListView(
+        children: [
+          const SizedBox(height: 8),
+          _FormularioQrValidado(
+            formKey: formKeyQrValidado,
+            qr: qr,
+            comentarioController: comentarioController,
+            onConfirmar: () => _confirmarQr(qr),
+            onDenegar: () => _mostrarDenegacion(context, qr),
+            onLeerOtro: _limpiarLectura,
+          ),
+        ],
+      );
+    }
 
     return ListView(
       children: [
@@ -89,122 +109,40 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
               child: _ContenidoPanelEscaneoGuardia(
                 escaneando: escaneando,
                 cargando: cargando,
-                codigoDetectado: hayCodigoDetectado,
-                qrValidado: qr != null,
+                codigoDetectado: codigoDetectado != null &&
+                    codigoDetectado!.trim().isNotEmpty,
+                qrValidado: false,
                 controller: _scannerController,
                 onDetect: _onDeteccion,
               ),
             ),
           ),
         ),
-        if (qr == null) ...[
-          const SizedBox(height: 32),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: ColoresUbb.azulApp,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            onPressed: cargando ? null : _toggleEscanear,
-            child: Text(
-              escaneando ? 'Detener escaneo' : 'Escanear QR',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+        const SizedBox(height: 32),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            backgroundColor: ColoresUbb.azulApp,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
           ),
-          if (hayCodigoDetectado) ...[
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: cargando ? null : _validarQr,
-              icon: cargando
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.verified_outlined),
-              label: Text(cargando ? 'Validando...' : 'Validar QR'),
-            ),
-          ],
-        ],
-        if (qr != null) ...[
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Form(
-                key: formKeyQrValidado,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const ChipEstado(
-                        texto: 'QR válido', color: ColoresUbb.exito),
-                    const SizedBox(height: 12),
-                    _ResumenUsuarioQrGuardia(qr: qr),
-                    const SizedBox(height: 12),
-                    const SizedBox(height: 14),
-                    _FichaVerificacionBicicleta(qr: qr),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: comentarioController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Comentario opcional del guardia',
-                        hintText: 'Ej: Usuario posee U-Lock',
-                        alignLabelWithHint: true,
-                        prefixIcon: Icon(Icons.sticky_note_2_outlined),
-                      ),
-                      validator: _validarComentarioQrGuardia,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: () => _confirmarQr(qr),
-                      icon: const Icon(Icons.check_circle_outline),
-                      label: Text(
-                        qr.tipo == 'INGRESO'
-                            ? 'Confirmar ingreso'
-                            : 'Confirmar retiro',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: () => _mostrarDenegacion(context, qr),
-                      icon: const Icon(Icons.block_outlined),
-                      label: Text(
-                        qr.tipo == 'INGRESO'
-                            ? 'Denegar ingreso'
-                            : 'Denegar retiro',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          qrLeido = null;
-                          codigoDetectado = null;
-                          comentarioController.clear();
-                        });
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Leer otro QR'),
-                    ),
-                  ],
-                ),
-              ),
+          onPressed: cargando ? null : _toggleEscanear,
+          child: Text(
+            escaneando ? 'Detener escaneo' : 'Escanear QR',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
             ),
           ),
-        ],
+        ),
       ],
     );
   }
 
-  Future<void> _validarQr() async {
-    final token = codigoDetectado?.trim();
+  Future<void> _validarQr([String? codigo]) async {
+    final token = (codigo ?? codigoDetectado)?.trim();
     if (token == null || token.isEmpty) {
       return;
     }
@@ -212,7 +150,7 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
     setState(() => cargando = true);
 
     try {
-      final qr = await accesoApi.validarQr(token);
+      final qr = await accesoRepository.validarQr(token);
       if (mounted) {
         setState(() {
           qrLeido = qr;
@@ -240,7 +178,7 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
     }
 
     try {
-      final movimiento = await accesoApi.confirmarQr(
+      final movimiento = await accesoRepository.confirmarQr(
         qr.token,
         comentario: comentarioController.text.trim(),
       );
@@ -271,7 +209,7 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
 
   Future<bool> _confirmarDenegacion(QrValidadoApp qr, String motivo) async {
     try {
-      await accesoApi.denegarQr(token: qr.token, motivo: motivo);
+      await accesoRepository.denegarQr(token: qr.token, motivo: motivo);
       if (mounted) {
         _limpiarLectura();
         if (context.mounted) {
@@ -404,139 +342,276 @@ String? _validarMotivoDenegacionQrGuardia(String? valor) {
   return null;
 }
 
-class _ResumenUsuarioQrGuardia extends StatelessWidget {
-  const _ResumenUsuarioQrGuardia({required this.qr});
+class _FormularioQrValidado extends StatelessWidget {
+  const _FormularioQrValidado({
+    required this.formKey,
+    required this.qr,
+    required this.comentarioController,
+    required this.onConfirmar,
+    required this.onDenegar,
+    required this.onLeerOtro,
+  });
 
+  final GlobalKey<FormState> formKey;
   final QrValidadoApp qr;
+  final TextEditingController comentarioController;
+  final VoidCallback onConfirmar;
+  final VoidCallback onDenegar;
+  final VoidCallback onLeerOtro;
 
   @override
   Widget build(BuildContext context) {
-    final operacion = qr.tipo == 'INGRESO' ? 'Ingreso' : 'Retiro';
-    final colorOperacion =
-        qr.tipo == 'INGRESO' ? ColoresUbb.exito : ColoresUbb.azulApp;
+    final esIngreso = qr.tipo == 'INGRESO';
+    final color = esIngreso ? ColoresUbb.exito : ColoresUbb.azulApp;
+    final accion = esIngreso ? 'Ingreso' : 'Retiro';
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: ColoresUbb.superficieAzulSuave,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ColoresUbb.borde),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Form(
+          key: formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.person_outline,
-                  color: ColoresUbb.azulApp,
-                ),
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      esIngreso ? Icons.login : Icons.logout,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'QR válido',
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: color,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                        ),
+                        Text(
+                          'Autorizar $accion',
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: ColoresUbb.azulNoche,
+                                  ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ChipEstado(texto: accion, color: color),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Datos del usuario',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: ColoresUbb.azulApp,
-                            fontWeight: FontWeight.w800,
-                          ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      qr.usuarioNombre,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: ColoresUbb.azulNoche,
-                          ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      qr.usuarioCorreo,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: ColoresUbb.textoSecundario,
-                          ),
-                    ),
-                  ],
-                ),
+              const SizedBox(height: 14),
+              const _TituloFormularioQr(
+                icono: Icons.person_outline,
+                texto: 'Información del usuario',
               ),
-              const SizedBox(width: 8),
-              ChipEstado(texto: operacion, color: colorOperacion),
+              const SizedBox(height: 10),
+              _CampoLecturaQr(
+                label: 'Nombre',
+                valor: qr.usuarioNombre,
+              ),
+              const SizedBox(height: 10),
+              _CampoLecturaQr(
+                label: 'Correo',
+                valor: qr.usuarioCorreo,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _CampoLecturaQr(
+                      label: 'RUT',
+                      valor: qr.usuarioRut ?? 'Sin RUT',
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _CampoLecturaQr(
+                      label: 'Bicicletero',
+                      valor: qr.bicicleteroNombre ?? 'Asignación guardia',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const _TituloFormularioQr(
+                icono: Icons.pedal_bike_outlined,
+                texto: 'Datos de bicicleta',
+              ),
+              const SizedBox(height: 10),
+              _CampoLecturaQr(
+                label: 'Descripción',
+                valor: qr.bicicletaDescripcion,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _CampoLecturaQr(
+                      label: 'Marca',
+                      valor: _textoNoVacio(qr.bicicletaMarca, 'Sin marca'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _CampoLecturaQr(
+                      label: 'Modelo',
+                      valor: _textoNoVacio(qr.bicicletaModelo, 'Sin modelo'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _CampoLecturaQr(
+                      label: 'Color',
+                      valor: _textoNoVacio(qr.bicicletaColor, 'Sin color'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _CampoLecturaQr(
+                      label: 'Aro',
+                      valor: _textoNoVacio(qr.bicicletaAro, 'Sin aro'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _CampoLecturaQr(
+                label: 'Número de serie',
+                valor: _textoNoVacio(qr.bicicletaNumeroSerie, 'Sin serie'),
+              ),
+              const SizedBox(height: 12),
+              _SelectorFotoBicicleta(
+                fotoDataUrl: qr.bicicletaFotoUrl,
+                onCamara: () {},
+                onGaleria: () {},
+                onQuitar: null,
+                mostrarAcciones: false,
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: comentarioController,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Comentario opcional del guardia',
+                  hintText: 'Ej: Usuario posee U-Lock',
+                  alignLabelWithHint: true,
+                  prefixIcon: Icon(Icons.sticky_note_2_outlined),
+                ),
+                validator: _validarComentarioQrGuardia,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: onConfirmar,
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: Text(
+                        'Confirmar ${accion.toLowerCase()}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ColoresUbb.rojoInstitucional,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: onDenegar,
+                      icon: const Icon(Icons.block_outlined),
+                      label: Text(
+                        'Denegar ${accion.toLowerCase()}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              OutlinedButton.icon(
+                onPressed: onLeerOtro,
+                icon: const Icon(Icons.qr_code_scanner_outlined),
+                label: const Text('Escanear nuevamente'),
+              ),
             ],
           ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _DatoResumenQr(
-                etiqueta: 'RUT',
-                valor: qr.usuarioRut ?? 'Sin RUT',
-              ),
-              _DatoResumenQr(
-                etiqueta: 'Bicicletero',
-                valor: qr.bicicleteroNombre ?? 'Asignacion del guardia',
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
+    );
+  }
+
+  String _textoNoVacio(String? valor, String respaldo) {
+    final texto = valor?.trim();
+    return texto == null || texto.isEmpty ? respaldo : texto;
+  }
+}
+
+class _TituloFormularioQr extends StatelessWidget {
+  const _TituloFormularioQr({
+    required this.icono,
+    required this.texto,
+  });
+
+  final IconData icono;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icono, color: ColoresUbb.azulApp, size: 18),
+        const SizedBox(width: 8),
+        Text(
+          texto,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: ColoresUbb.azulNoche,
+                fontWeight: FontWeight.w900,
+              ),
+        ),
+      ],
     );
   }
 }
 
-class _DatoResumenQr extends StatelessWidget {
-  const _DatoResumenQr({
-    required this.etiqueta,
+class _CampoLecturaQr extends StatelessWidget {
+  const _CampoLecturaQr({
+    required this.label,
     required this.valor,
   });
 
-  final String etiqueta;
+  final String label;
   final String valor;
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 136),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: ColoresUbb.borde),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                etiqueta,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: ColoresUbb.textoSecundario,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                valor,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: ColoresUbb.azulNoche,
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-            ],
-          ),
-        ),
+    return TextFormField(
+      key: ValueKey('$label-$valor'),
+      initialValue: valor,
+      readOnly: true,
+      decoration: InputDecoration(
+        labelText: label,
+        isDense: true,
       ),
     );
   }
@@ -581,7 +656,7 @@ class _ContenidoPanelEscaneoGuardia extends StatelessWidget {
       icono = Icons.hourglass_empty_outlined;
       color = ColoresUbb.azulApp;
       titulo = 'Validando QR';
-      detalle = 'Estamos revisando el codigo detectado.';
+      detalle = 'Estamos revisando el movimiento detectado.';
     } else if (qrValidado) {
       icono = Icons.verified_outlined;
       color = ColoresUbb.exito;
@@ -591,7 +666,7 @@ class _ContenidoPanelEscaneoGuardia extends StatelessWidget {
       icono = Icons.qr_code_scanner;
       color = ColoresUbb.exito;
       titulo = 'QR detectado';
-      detalle = 'Presiona Validar QR para revisar el movimiento.';
+      detalle = 'Abriendo el formulario de validacion.';
     } else {
       icono = Icons.qr_code_2;
       color = ColoresUbb.azulApp;
@@ -639,208 +714,6 @@ class _ContenidoPanelEscaneoGuardia extends StatelessWidget {
                 ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _FichaVerificacionBicicleta extends StatelessWidget {
-  const _FichaVerificacionBicicleta({required this.qr});
-
-  final QrValidadoApp qr;
-
-  @override
-  Widget build(BuildContext context) {
-    final foto = qr.bicicletaFotoUrl;
-    final bytesFoto = decodificarFotoDataUrl(foto);
-    final imagenMovil = _ImagenBicicletaQr(
-      foto: foto,
-      bytesFoto: bytesFoto,
-      height: 190,
-    );
-    final imagenAncha = _ImagenBicicletaQr(
-      foto: foto,
-      bytesFoto: bytesFoto,
-      height: 170,
-    );
-    final detalles = <Widget>[
-      if (qr.bicicletaMarca?.isNotEmpty == true)
-        ChipEstado(texto: qr.bicicletaMarca!, color: ColoresUbb.azulApp),
-      if (qr.bicicletaModelo?.isNotEmpty == true)
-        ChipEstado(texto: qr.bicicletaModelo!, color: ColoresUbb.azulMedio),
-      if (qr.bicicletaColor?.isNotEmpty == true)
-        ChipEstado(texto: qr.bicicletaColor!, color: ColoresUbb.turquesa),
-      if (qr.bicicletaAro?.isNotEmpty == true)
-        ChipEstado(texto: 'Aro ${qr.bicicletaAro}', color: ColoresUbb.exito),
-    ];
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: ColoresUbb.superficieAzulSuave,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ColoresUbb.borde),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Verificacion de bicicleta',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final contenido = Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    qr.bicicletaDescripcion,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w900),
-                  ),
-                  if (detalles.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Wrap(spacing: 8, runSpacing: 8, children: detalles),
-                  ],
-                  if (qr.bicicletaNumeroSerie?.isNotEmpty == true) ...[
-                    const SizedBox(height: 10),
-                    FilaDato(
-                      etiqueta: 'Serie',
-                      valor: qr.bicicletaNumeroSerie!,
-                    ),
-                  ],
-                ],
-              );
-
-              if (constraints.maxWidth < 520) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    imagenMovil,
-                    const SizedBox(height: 12),
-                    contenido,
-                  ],
-                );
-              }
-
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(width: 220, child: imagenAncha),
-                  const SizedBox(width: 14),
-                  Expanded(child: contenido),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ImagenBicicletaQr extends StatelessWidget {
-  const _ImagenBicicletaQr({
-    required this.foto,
-    required this.bytesFoto,
-    required this.height,
-  });
-
-  final String? foto;
-  final Uint8List? bytesFoto;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    final fotoUrl = foto?.trim();
-    final puedeUsarUrl = fotoUrl != null &&
-        fotoUrl.isNotEmpty &&
-        !fotoUrl.startsWith('data:image');
-    final tieneImagen = bytesFoto != null || puedeUsarUrl;
-
-    final Widget imagen;
-    if (bytesFoto != null) {
-      imagen = Image.memory(bytesFoto!, fit: BoxFit.cover);
-    } else if (puedeUsarUrl) {
-      imagen = Image.network(
-        resolverUrlFotoBicicleta(fotoUrl),
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const _PlaceholderImagenBicicleta(),
-      );
-    } else {
-      imagen = const _PlaceholderImagenBicicleta();
-    }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: SizedBox(
-        width: double.infinity,
-        height: height,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            imagen,
-            if (tieneImagen)
-              Positioned(
-                right: 10,
-                bottom: 10,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    child: Text(
-                      'Imagen app',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PlaceholderImagenBicicleta extends StatelessWidget {
-  const _PlaceholderImagenBicicleta();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      child: const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.pedal_bike_outlined,
-              color: ColoresUbb.azulApp,
-              size: 48,
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Sin imagen registrada',
-              style: TextStyle(
-                color: ColoresUbb.textoSecundario,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
