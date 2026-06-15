@@ -8,22 +8,30 @@ class VistaInicioUsuario extends StatefulWidget {
 }
 
 class _VistaInicioUsuarioState extends State<VistaInicioUsuario> {
-  final bicicletaApi = BicicletaApi();
-  final solicitudGuardiaApi = SolicitudGuardiaApi();
+  late final BicicletaRepository bicicletaRepository;
+  late final SolicitudGuardiaRepository solicitudGuardiaRepository;
   late Future<BicicletaApp?> futuroBicicletaActiva;
   late Future<List<BicicleteroApp>> futuroBicicleteros;
+  BicicletaApp? ultimaBicicletaActiva;
+  bool bicicletaActivaConsultada = false;
+  List<BicicleteroApp>? ultimosBicicleteros;
 
   @override
   void initState() {
     super.initState();
-    futuroBicicletaActiva = bicicletaApi.obtenerActiva();
-    futuroBicicleteros = solicitudGuardiaApi.listarBicicleteros();
+    bicicletaRepository = _leerProvider(context, bicicletaRepositoryProvider);
+    solicitudGuardiaRepository = _leerProvider(
+      context,
+      solicitudGuardiaRepositoryProvider,
+    );
+    futuroBicicletaActiva = bicicletaRepository.obtenerActiva();
+    futuroBicicleteros = solicitudGuardiaRepository.listarBicicleteros();
   }
 
   void _recargar() {
     setState(() {
-      futuroBicicletaActiva = bicicletaApi.obtenerActiva();
-      futuroBicicleteros = solicitudGuardiaApi.listarBicicleteros();
+      futuroBicicletaActiva = bicicletaRepository.obtenerActiva();
+      futuroBicicleteros = solicitudGuardiaRepository.listarBicicleteros();
     });
   }
 
@@ -35,7 +43,8 @@ class _VistaInicioUsuarioState extends State<VistaInicioUsuario> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           EncabezadoSeccion(
-            titulo: '${_saludoActual()}, ${_nombreSesion('Usuario UBB')}',
+            titulo:
+                '${_saludoActual()}, ${_nombreSesion(context, 'Usuario UBB')}',
             detalle: 'Estado de tus bicicletas y bicicleteros disponibles.',
             icono: Icons.home_outlined,
           ),
@@ -43,12 +52,18 @@ class _VistaInicioUsuarioState extends State<VistaInicioUsuario> {
           FutureBuilder<BicicletaApp?>(
             future: futuroBicicletaActiva,
             builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.waiting &&
+                  !snapshot.hasError) {
+                ultimaBicicletaActiva = snapshot.data;
+                bicicletaActivaConsultada = true;
+              }
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const EstadoLista(
-                  icono: Icons.pedal_bike,
-                  titulo: 'Cargando estado',
-                  detalle: 'Consultando tu bicicleta activa.',
-                );
+                if (bicicletaActivaConsultada) {
+                  return _EstadoActualUsuario(
+                    bicicleta: ultimaBicicletaActiva,
+                  );
+                }
+                return const SizedBox.shrink();
               }
               return _EstadoActualUsuario(bicicleta: snapshot.data);
             },
@@ -59,8 +74,15 @@ class _VistaInicioUsuarioState extends State<VistaInicioUsuario> {
           FutureBuilder<List<BicicleteroApp>>(
             future: futuroBicicleteros,
             builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                ultimosBicicleteros = snapshot.data;
+              }
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                final bicicleteros = ultimosBicicleteros;
+                if (bicicleteros == null) {
+                  return const SizedBox.shrink();
+                }
+                return _ListaBicicleterosUsuario(bicicleteros: bicicleteros);
               }
               if (snapshot.hasError) {
                 return TarjetaAccion(
@@ -80,20 +102,31 @@ class _VistaInicioUsuarioState extends State<VistaInicioUsuario> {
                       'Cuando existan bicicleteros activos aparecerán aquí.',
                 );
               }
-              return Column(
-                children: bicicleteros
-                    .map(
-                      (bicicletero) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: TarjetaBicicleteroApp(bicicletero: bicicletero),
-                      ),
-                    )
-                    .toList(),
-              );
+              return _ListaBicicleterosUsuario(bicicleteros: bicicleteros);
             },
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ListaBicicleterosUsuario extends StatelessWidget {
+  const _ListaBicicleterosUsuario({required this.bicicleteros});
+
+  final List<BicicleteroApp> bicicleteros;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: bicicleteros
+          .map(
+            (bicicletero) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: TarjetaBicicleteroApp(bicicletero: bicicletero),
+            ),
+          )
+          .toList(),
     );
   }
 }
