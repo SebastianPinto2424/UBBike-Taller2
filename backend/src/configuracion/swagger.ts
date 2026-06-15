@@ -42,7 +42,7 @@ const opciones: swaggerJsdoc.Options = {
             rut: { type: 'string', nullable: true },
             rol: {
               type: 'string',
-              enum: ['ESTUDIANTE', 'FUNCIONARIO', 'GUARDIA', 'ADMINISTRADOR']
+              enum: ['ESTUDIANTE', 'FUNCIONARIO', 'GUARDIA', 'ADMIN_CENTRAL', 'ADMINISTRADOR']
             },
             correoVerificado: { type: 'boolean' },
             cuentaActiva: { type: 'boolean' },
