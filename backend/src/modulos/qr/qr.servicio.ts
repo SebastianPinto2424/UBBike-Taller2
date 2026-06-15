@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { ErrorHttp } from '../../comun/errors/error-http';
 import { entorno } from '../../configuracion/entorno';
-import { prisma, type ClientePrisma } from '../../configuracion/prisma';
+import type { ClientePrisma } from '../../configuracion/prisma';
 import type {
   Bicicleta,
   Bicicletero,
@@ -10,6 +10,7 @@ import type {
 } from '../../generated/prisma/client';
 import { TipoMovimiento } from '../historial/tipo-movimiento';
 import { RolUsuario } from '../usuarios/rol-usuario';
+import * as qrRepositorio from './qr.repositorio';
 
 const duracionQrSegundos = entorno.qr.duracionSegundos;
 
@@ -36,25 +37,7 @@ type CodigoQrCompleto = CodigoQrTemporal & {
 };
 
 const buscarBicicletaParaQr = async (usuarioId: string, bicicletaId?: string) => {
-  const where = bicicletaId
-    ? {
-        id: bicicletaId,
-        usuarioId,
-        eliminadoEn: null
-      }
-    : {
-        activa: true,
-        usuarioId,
-        eliminadoEn: null
-      };
-
-  const bicicleta = await prisma.bicicleta.findFirst({
-    where,
-    include: {
-      usuario: true,
-      bicicleteroActual: true
-    }
-  });
+  const bicicleta = await qrRepositorio.buscarBicicletaParaQr(usuarioId, bicicletaId);
 
   if (!bicicleta) {
     throw new ErrorHttp(
@@ -71,7 +54,7 @@ export const generarQrTemporal = async (datos: DatosGenerarQr) => {
   const tipo =
     datos.tipo ?? (bicicleta.dentroBicicletero ? TipoMovimiento.RETIRO : TipoMovimiento.INGRESO);
   const bicicletero = datos.bicicleteroId
-    ? await prisma.bicicletero.findUnique({ where: { id: datos.bicicleteroId } })
+    ? await qrRepositorio.buscarBicicletero(datos.bicicleteroId)
     : bicicleta.bicicleteroActual;
 
   if (datos.bicicleteroId && !bicicletero) {
@@ -92,19 +75,11 @@ export const generarQrTemporal = async (datos: DatosGenerarQr) => {
 
   const token = `UBBIKE-${crypto.randomBytes(24).toString('base64url')}`;
   const expiraEn = new Date(Date.now() + duracionQrSegundos * 1000);
-  const codigo = await prisma.$transaction(async (tx) => {
-    await tx.codigoQrTemporal.updateMany({
-      where: {
-        usuarioId: datos.usuarioId,
-        usado: false
-      },
-      data: {
-        usado: true
-      }
-    });
+  const codigo = await qrRepositorio.ejecutarEnTransaccion(async (tx) => {
+    await qrRepositorio.invalidarQrActivos(datos.usuarioId, tx);
 
-    return tx.codigoQrTemporal.create({
-      data: {
+    return qrRepositorio.crearQr(
+      {
         token,
         usuarioId: datos.usuarioId,
         bicicletaId: bicicleta.id,
@@ -112,8 +87,9 @@ export const generarQrTemporal = async (datos: DatosGenerarQr) => {
         tipo,
         expiraEn,
         usado: false
-      }
-    });
+      },
+      tx
+    );
   });
 
   return {
@@ -155,13 +131,10 @@ const validarBicicleteroGuardia = async (
     throw new ErrorHttp(400, 'El QR no tiene bicicletero asociado');
   }
 
-  const asignacion = await prisma.asignacionGuardia.findFirst({
-    where: {
-      guardiaId: contexto.validadorUsuarioId,
-      bicicleteroId: bicicleteroQr.id,
-      activa: true
-    }
-  });
+  const asignacion = await qrRepositorio.buscarAsignacionActiva(
+    contexto.validadorUsuarioId,
+    bicicleteroQr.id
+  );
 
   if (!asignacion) {
     throw new ErrorHttp(403, 'El QR corresponde a otro bicicletero o no está asignado a tu turno');
@@ -173,20 +146,10 @@ export const validarQrTemporal = async (token: string, contexto?: ContextoValida
   await validarBicicleteroGuardia(codigo, contexto);
 
   if (contexto) {
-    const marcado = await prisma.codigoQrTemporal.updateMany({
-      where: {
-        id: codigo.id,
-        usado: false,
-        OR: [
-          { escaneadoPorGuardiaId: null },
-          { escaneadoPorGuardiaId: contexto.validadorUsuarioId }
-        ]
-      },
-      data: {
-        escaneadoPorGuardiaId: contexto.validadorUsuarioId,
-        escaneadoEn: new Date()
-      }
-    });
+    const marcado = await qrRepositorio.marcarEscaneadoPorGuardia(
+      codigo.id,
+      contexto.validadorUsuarioId
+    );
 
     if (marcado.count !== 1) {
       throw new ErrorHttp(409, 'QR ya fue tomado por otro validador');
@@ -225,22 +188,9 @@ export const validarQrTemporal = async (token: string, contexto?: ContextoValida
 
 export const obtenerCodigoQrValido = async (
   token: string,
-  db: ClientePrisma = prisma
+  db?: ClientePrisma
 ): Promise<CodigoQrCompleto> => {
-  const codigo = await db.codigoQrTemporal.findFirst({
-    where: {
-      token
-    },
-    include: {
-      usuario: true,
-      bicicleta: {
-        include: {
-          bicicleteroActual: true
-        }
-      },
-      bicicletero: true
-    }
-  });
+  const codigo = await qrRepositorio.buscarCodigoCompletoPorToken(token, db);
 
   if (!codigo) {
     throw new ErrorHttp(404, 'QR no encontrado');
@@ -260,22 +210,9 @@ export const obtenerCodigoQrValido = async (
 export const obtenerCodigoQrEscaneadoParaMovimiento = async (
   token: string,
   contexto: ContextoValidacionQr,
-  db: ClientePrisma = prisma
+  db?: ClientePrisma
 ): Promise<CodigoQrCompleto> => {
-  const codigo = await db.codigoQrTemporal.findFirst({
-    where: {
-      token
-    },
-    include: {
-      usuario: true,
-      bicicleta: {
-        include: {
-          bicicleteroActual: true
-        }
-      },
-      bicicletero: true
-    }
-  });
+  const codigo = await qrRepositorio.buscarCodigoCompletoPorToken(token, db);
 
   if (!codigo) {
     throw new ErrorHttp(404, 'QR no encontrado');
