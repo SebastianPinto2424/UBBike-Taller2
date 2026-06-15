@@ -1,7 +1,22 @@
 import path from 'path';
 import dotenv from 'dotenv';
 
-dotenv.config();
+const cargarVariablesEntorno = () => {
+  const cwd = process.cwd();
+  const rutas =
+    path.basename(cwd).toLowerCase() === 'backend'
+      ? [path.resolve(cwd, '..', '.env')]
+      : [path.resolve(cwd, '.env')];
+
+  for (const ruta of rutas) {
+    dotenv.config({ path: ruta });
+  }
+};
+
+cargarVariablesEntorno();
+
+const valorEntorno = (principal: string, alternativo?: string): string | undefined =>
+  process.env[principal] ?? (alternativo ? process.env[alternativo] : undefined);
 
 const convertirNumero = (valor: string | undefined, valorPorDefecto: number): number => {
   const valorConvertido = Number(valor);
@@ -42,7 +57,13 @@ const convertirTrustProxy = (valor: string | undefined): boolean | number | stri
 
 const ambiente = process.env.NODE_ENV ?? 'development';
 const secretoJwt = process.env.JWT_SECRET ?? 'cambiar-este-secreto-en-produccion';
-const contrasenaBaseDatos = process.env.DB_PASSWORD ?? '';
+const contrasenaBaseDatos = valorEntorno('DB_PASSWORD', 'POSTGRES_PASSWORD') ?? '';
+const contrasenasBaseDatosInvalidas = new Set([
+  'ubbike',
+  'ubbike_password_demo_2026',
+  'CAMBIAR_POR_PASSWORD_DEMO_LOCAL_16_CHARS_MIN',
+  'CAMBIAR_POR_CONTRASEÑA_UNICA_PRODUCCION_20_CHARS_MIN'
+]);
 
 if (
   secretoJwt === 'cambiar-este-secreto-en-produccion' ||
@@ -52,8 +73,8 @@ if (
   throw new Error('JWT_SECRET debe ser seguro y tener al menos 32 caracteres');
 }
 
-if (!contrasenaBaseDatos || contrasenaBaseDatos === 'ubbike' || contrasenaBaseDatos.length < 16) {
-  throw new Error('DB_PASSWORD debe ser seguro y tener al menos 16 caracteres');
+if (!contrasenaBaseDatos || contrasenasBaseDatosInvalidas.has(contrasenaBaseDatos)) {
+  throw new Error('DB_PASSWORD debe estar configurado y no puede usar valores demo');
 }
 
 const construirUrlBaseDatos = () => {
@@ -61,24 +82,24 @@ const construirUrlBaseDatos = () => {
     return process.env.DATABASE_URL;
   }
 
-  const usuario = encodeURIComponent(process.env.DB_USER ?? 'ubbike');
+  const usuario = encodeURIComponent(valorEntorno('DB_USER', 'POSTGRES_USER') ?? 'ubbike');
   const contrasena = encodeURIComponent(contrasenaBaseDatos);
   const host = process.env.DB_HOST ?? 'localhost';
-  const puerto = convertirNumero(process.env.DB_PORT, 5432);
-  const nombre = encodeURIComponent(process.env.DB_NAME ?? 'ubbike');
+  const puerto = convertirNumero(valorEntorno('DB_PORT', 'POSTGRES_PORT'), 5432);
+  const nombre = encodeURIComponent(valorEntorno('DB_NAME', 'POSTGRES_DB') ?? 'ubbike');
 
   return `postgresql://${usuario}:${contrasena}@${host}:${puerto}/${nombre}?schema=public`;
 };
 
 export const entorno = {
   ambiente,
-  puerto: convertirNumero(process.env.PORT, 3000),
+  puerto: convertirNumero(valorEntorno('PORT', 'BACKEND_PORT'), 3000),
   baseDatos: {
     host: process.env.DB_HOST ?? 'localhost',
-    puerto: convertirNumero(process.env.DB_PORT, 5432),
-    usuario: process.env.DB_USER ?? 'ubbike',
+    puerto: convertirNumero(valorEntorno('DB_PORT', 'POSTGRES_PORT'), 5432),
+    usuario: valorEntorno('DB_USER', 'POSTGRES_USER') ?? 'ubbike',
     contrasena: contrasenaBaseDatos,
-    nombre: process.env.DB_NAME ?? 'ubbike',
+    nombre: valorEntorno('DB_NAME', 'POSTGRES_DB') ?? 'ubbike',
     url: construirUrlBaseDatos()
   },
   jwt: {
@@ -96,8 +117,12 @@ export const entorno = {
   },
   cors: {
     origenes: separarLista(process.env.CORS_ORIGINS, [
+      'http://localhost:8080',
       'http://localhost:8081',
-      'http://127.0.0.1:8081'
+      'http://localhost:8082',
+      'http://127.0.0.1:8080',
+      'http://127.0.0.1:8081',
+      'http://127.0.0.1:8082'
     ])
   },
   servidor: {
