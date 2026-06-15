@@ -1,27 +1,31 @@
 import Joi from 'joi';
+import { validarRutChileno } from '../../comun/utils/rut';
+import { validarNombreCompleto } from '../../comun/utils/nombre';
 
-const validarRut = (valor: string, helpers: Joi.CustomHelpers) => {
-  const limpio = valor.replace(/\./g, '').replace('-', '').toUpperCase();
-  const cuerpo = limpio.slice(0, -1);
-  const dv = limpio.slice(-1);
-
-  if (!/^\d{7,8}[0-9K]$/.test(limpio)) {
-    return helpers.error('any.invalid');
-  }
-
-  let suma = 0;
-  let multiplicador = 2;
-
-  for (let i = cuerpo.length - 1; i >= 0; i -= 1) {
-    suma += Number(cuerpo[i]) * multiplicador;
-    multiplicador = multiplicador === 7 ? 2 : multiplicador + 1;
-  }
-
-  const esperado = 11 - (suma % 11);
-  const dvEsperado = esperado === 11 ? '0' : esperado === 10 ? 'K' : esperado.toString();
-
-  return dv === dvEsperado ? valor : helpers.error('any.invalid');
+const mensajeNombre = {
+  'any.invalid': 'Ingresa dos nombres y dos apellidos (Nombre Nombre Apellido Apellido)'
 };
+
+const mensajeRut = {
+  'any.invalid': 'RUT inválido. Usa el formato con guion: xx.xxx.xxx-x'
+};
+
+const mensajeCorreoInstitucional = {
+  'any.invalid': 'Debes usar un correo @ubiobio.cl o @alumnos.ubiobio.cl'
+};
+
+const validarCorreoInstitucional = (valor: string, helpers: Joi.CustomHelpers) => {
+  const correo = valor.toLowerCase();
+  return correo.endsWith('@ubiobio.cl') || correo.endsWith('@alumnos.ubiobio.cl')
+    ? correo
+    : helpers.error('any.invalid');
+};
+
+const esquemaNombre = Joi.string()
+  .trim()
+  .max(120)
+  .custom(validarNombreCompleto)
+  .messages(mensajeNombre);
 
 const esquemaContrasena = Joi.string()
   .min(12)
@@ -33,12 +37,18 @@ const esquemaContrasena = Joi.string()
     'string.pattern.base': 'La contraseña debe incluir mayúscula, minúscula, número y símbolo'
   });
 
+const esquemaCorreoInstitucional = Joi.string()
+  .trim()
+  .lowercase()
+  .email()
+  .max(160)
+  .custom(validarCorreoInstitucional)
+  .messages(mensajeCorreoInstitucional);
+
 export const esquemaRegistro = Joi.object({
-  nombre: Joi.string().trim().min(2).max(120).required(),
-  rut: Joi.string().trim().min(7).max(20).custom(validarRut).optional().messages({
-    'any.invalid': 'El RUT no es válido'
-  }),
-  correo: Joi.string().trim().email().max(160).required(),
+  nombre: esquemaNombre.required(),
+  rut: Joi.string().trim().max(20).custom(validarRutChileno).optional().messages(mensajeRut),
+  correo: esquemaCorreoInstitucional.required(),
   contrasena: esquemaContrasena
 });
 
@@ -48,7 +58,7 @@ export const esquemaLogin = Joi.object({
 });
 
 export const esquemaSolicitudCambioContrasena = Joi.object({
-  correo: Joi.string().trim().email().required()
+  correo: esquemaCorreoInstitucional.required()
 });
 
 export const esquemaVerificarCorreo = Joi.object({
@@ -57,7 +67,7 @@ export const esquemaVerificarCorreo = Joi.object({
 
 export const esquemaCompletarRegistro = Joi.object({
   token: Joi.string().trim().required(),
-  nombre: Joi.string().trim().min(2).max(120).required(),
+  nombre: esquemaNombre.required(),
   contrasena: esquemaContrasena
 });
 
