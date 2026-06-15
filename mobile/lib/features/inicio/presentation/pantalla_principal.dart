@@ -10,30 +10,36 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../../../core/providers/repositorios_provider.dart';
 import '../../../core/providers/sesion_provider.dart';
 import '../../../core/tema/colores_ubb.dart';
 import '../../../core/servicios/excepcion_api.dart';
-import '../../../features/acceso/data/solicitud_guardia_api.dart';
+import '../../../core/servicios/tiempo_real_service.dart';
+import '../../../features/acceso/data/acceso_modelos.dart';
+import '../../../features/acceso/data/solicitud_guardia_modelos.dart';
+import '../../../features/acceso/data/solicitud_guardia_repository.dart';
 import '../../../features/admin/presentation/vista_gestion_usuarios.dart';
-import '../../../features/auth/data/autenticacion_api.dart';
-import '../../../features/bicicletas/data/bicicleta_api.dart';
-import '../../../features/acceso/data/acceso_api.dart';
-import '../../../features/historial/data/historial_api.dart';
-import '../../../features/incidencias/data/incidencia_api.dart';
+import '../../../features/bicicletas/data/bicicleta_repository.dart';
+import '../../../features/acceso/data/acceso_repository.dart';
+import '../../../features/historial/data/historial_modelos.dart';
+import '../../../features/historial/data/historial_repository.dart';
+import '../../../features/incidencias/data/incidencia_modelos.dart';
+import '../../../features/incidencias/data/incidencia_repository.dart';
 import '../../../features/inicio/application/controlador_notificaciones_inicio.dart';
 import '../../../features/notificaciones/presentation/pantalla_notificaciones.dart';
-import '../../../features/qr/data/qr_api.dart';
+import '../../../features/qr/data/qr_modelos.dart';
+import '../../../features/qr/data/qr_repository.dart';
 import '../../../shared/modelos/bicicleta_app.dart';
 import '../../../shared/modelos/bicicletero_app.dart';
 import '../../../shared/modelos/movimiento_app.dart';
 import '../../../shared/modelos/rol_usuario.dart';
-import '../../../shared/servicios/sesion_actual.dart';
 import '../../../shared/servicios/descarga_reporte.dart';
-import '../../../shared/utils/identidad.dart';
-import '../../../shared/utils/opciones_bicicleta.dart';
 import '../../../shared/widgets/chip_estado.dart';
 import '../../../shared/widgets/contenedor_responsivo.dart';
 import '../../../shared/widgets/tarjeta_accion.dart';
+import '../../../shared/utils/auto_refresco.dart';
+import '../../../shared/utils/identidad.dart';
+import '../../../shared/utils/opciones_bicicleta.dart';
 import '../../../shared/widgets/snackbar_semantico.dart';
 import 'comun/widgets_comun.dart';
 
@@ -64,6 +70,10 @@ const Set<String> _mimesFotoPermitidos = {
   'image/webp',
 };
 
+T _leerProvider<T>(BuildContext context, ProviderListenable<T> provider) {
+  return ProviderScope.containerOf(context, listen: false).read(provider);
+}
+
 class PantallaPrincipal extends ConsumerStatefulWidget {
   const PantallaPrincipal({super.key});
 
@@ -74,7 +84,8 @@ class PantallaPrincipal extends ConsumerStatefulWidget {
 class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   int indice = 0;
   ModoIngresoGuardia modoIngresoGuardia = ModoIngresoGuardia.qr;
-  final controladorNotificaciones = ControladorNotificacionesInicio();
+  late final ControladorNotificacionesInicio controladorNotificaciones;
+  late final TiempoRealService tiempoRealService;
 
   void _abrirIngresoGuardia(ModoIngresoGuardia modo) {
     setState(() {
@@ -86,15 +97,35 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   @override
   void initState() {
     super.initState();
+    tiempoRealService = TiempoRealService();
+    controladorNotificaciones = ControladorNotificacionesInicio(
+      notificacionRepository: ref.read(notificacionRepositoryProvider),
+      eventosTiempoReal: tiempoRealService.notificaciones,
+    );
     controladorNotificaciones.addListener(_sincronizarNotificaciones);
     controladorNotificaciones.iniciar();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _sincronizarTiempoRealConSesion(ref.read(sesionProvider).value);
+      }
+    });
   }
 
   @override
   void dispose() {
     controladorNotificaciones.removeListener(_sincronizarNotificaciones);
     controladorNotificaciones.dispose();
+    tiempoRealService.dispose();
     super.dispose();
+  }
+
+  void _sincronizarTiempoRealConSesion(SesionState? sesion) {
+    if (sesion is SesionActiva) {
+      tiempoRealService.conectar(sesion.token);
+      return;
+    }
+
+    tiempoRealService.desconectar();
   }
 
   Future<void> _abrirNotificaciones() async {
@@ -218,6 +249,10 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(sesionProvider, (_, siguiente) {
+      _sincronizarTiempoRealConSesion(siguiente.value);
+    });
+
     final sesion = ref.watch(sesionProvider).value;
     final rol =
         sesion is SesionActiva ? sesion.usuario.rol : RolUsuario.estudiante;
@@ -316,7 +351,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
       ];
     }
 
-    if (rol == RolUsuario.administrador) {
+    if (rol == RolUsuario.adminCentral) {
       return const [
         NavigationDestination(
           icon: Icon(Icons.dashboard_outlined),
@@ -329,9 +364,9 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
           label: 'Movimientos',
         ),
         NavigationDestination(
-          icon: Icon(Icons.manage_accounts_outlined),
-          selectedIcon: Icon(Icons.manage_accounts),
-          label: 'Usuarios',
+          icon: Icon(Icons.security_outlined),
+          selectedIcon: Icon(Icons.security),
+          label: 'Guardias',
         ),
         NavigationDestination(
           icon: Icon(Icons.support_agent_outlined),
@@ -339,6 +374,41 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
           label: 'Soporte',
         ),
         NavigationDestination(
+          icon: Icon(Icons.person_outline),
+          selectedIcon: Icon(Icons.person),
+          label: 'Perfil',
+        ),
+      ];
+    }
+
+    if (rol == RolUsuario.administrador) {
+      return [
+        const NavigationDestination(
+          icon: Icon(Icons.dashboard_outlined),
+          selectedIcon: Icon(Icons.dashboard),
+          label: 'Inicio',
+        ),
+        const NavigationDestination(
+          icon: Icon(Icons.manage_search_outlined),
+          selectedIcon: Icon(Icons.manage_search),
+          label: 'Movimientos',
+        ),
+        const NavigationDestination(
+          icon: Icon(Icons.manage_accounts_outlined),
+          selectedIcon: Icon(Icons.manage_accounts),
+          label: 'Usuarios',
+        ),
+        NavigationDestination(
+          icon: iconoQrGuardia,
+          selectedIcon: iconoQrGuardia,
+          label: 'Validar',
+        ),
+        const NavigationDestination(
+          icon: Icon(Icons.support_agent_outlined),
+          selectedIcon: Icon(Icons.support_agent),
+          label: 'Soporte',
+        ),
+        const NavigationDestination(
           icon: Icon(Icons.person_outline),
           selectedIcon: Icon(Icons.person),
           label: 'Perfil',
@@ -388,15 +458,30 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
       ];
     }
 
+    if (rol == RolUsuario.adminCentral) {
+      return [
+        VistaDashboardCentral(
+          onAbrirMovimientos: () => setState(() => indice = 1),
+          onAbrirGuardias: () => setState(() => indice = 2),
+          onAbrirSoporte: () => setState(() => indice = 3),
+        ),
+        const VistaMovimientosCentral(),
+        const VistaOperacionesGuardiasCentral(),
+        const VistaSoporteCentral(),
+        const VistaPerfil(rol: RolUsuario.adminCentral),
+      ];
+    }
+
     if (rol == RolUsuario.administrador) {
       return [
         VistaDashboardCentral(
           onAbrirMovimientos: () => setState(() => indice = 1),
-          onAbrirGuardias: () => setState(() => indice = 3),
-          onAbrirSoporte: () => setState(() => indice = 3),
+          onAbrirGuardias: () => setState(() => indice = 4),
+          onAbrirSoporte: () => setState(() => indice = 4),
         ),
         const VistaMovimientosCentral(),
         const VistaGestionUsuarios(),
+        VistaIngresoGuardia(modoInicial: modoIngresoGuardia),
         const VistaSoporteAdministrador(),
         const VistaPerfil(rol: RolUsuario.administrador),
       ];
@@ -421,11 +506,21 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
         (Icons.person_outline, 'Perfil'),
       ];
     }
+    if (rol == RolUsuario.adminCentral) {
+      return const [
+        (Icons.dashboard_outlined, 'Inicio'),
+        (Icons.manage_search_outlined, 'Movimientos'),
+        (Icons.security_outlined, 'Guardias'),
+        (Icons.support_agent_outlined, 'Soporte'),
+        (Icons.person_outline, 'Perfil'),
+      ];
+    }
     if (rol == RolUsuario.administrador) {
       return const [
         (Icons.dashboard_outlined, 'Inicio'),
         (Icons.manage_search_outlined, 'Movimientos'),
         (Icons.manage_accounts_outlined, 'Usuarios'),
+        (Icons.qr_code_scanner, 'Validar'),
         (Icons.support_agent_outlined, 'Soporte'),
         (Icons.person_outline, 'Perfil'),
       ];
@@ -451,8 +546,10 @@ String _saludoActual() {
   return 'Buenas noches';
 }
 
-String _nombreSesion(String respaldo) {
-  return nombreCorto(_textoNoVacio(SesionActual.usuario?.nombre, respaldo));
+String _nombreSesion(BuildContext context, String respaldo) {
+  final sesion = _leerProvider(context, sesionProvider).value;
+  final nombre = sesion is SesionActiva ? sesion.usuario.nombre : null;
+  return nombreCorto(_textoNoVacio(nombre, respaldo));
 }
 
 String _textoNoVacio(String? valor, String respaldo) {
