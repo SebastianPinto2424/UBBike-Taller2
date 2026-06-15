@@ -44,6 +44,8 @@ export const registrarManual = controladorAsync<SolicitudAutenticada>(async (req
     bicicletaColor: req.body.bicicletaColor,
     bicicletaAro: req.body.bicicletaAro,
     bicicletaNumeroSerie: req.body.bicicletaNumeroSerie,
+    bicicletaFotoUrl: req.body.bicicletaFotoUrl,
+    crearBicicletaNueva: req.body.crearBicicletaNueva,
     bicicleteroId: req.body.bicicleteroId,
     tipo: req.body.tipo,
     denegar: req.body.denegar,
