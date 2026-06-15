@@ -1,9 +1,8 @@
 import '../../../core/servicios/cliente_api.dart';
 import '../../../shared/modelos/bicicleta_app.dart';
-import '../../../shared/servicios/sesion_actual.dart';
 
 class BicicletaApi {
-  BicicletaApi() : cliente = ClienteApi(obtenerToken: () => SesionActual.token);
+  const BicicletaApi({required this.cliente});
 
   final ClienteApi cliente;
 
