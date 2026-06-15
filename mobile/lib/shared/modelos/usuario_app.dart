@@ -10,6 +10,7 @@ class UsuarioApp {
     required this.registroParcial,
     required this.cuentaActiva,
     this.rut,
+    this.eliminadoEn,
   });
 
   final String id;
@@ -20,6 +21,7 @@ class UsuarioApp {
   final bool correoVerificado;
   final bool registroParcial;
   final bool cuentaActiva;
+  final DateTime? eliminadoEn;
 
   factory UsuarioApp.fromJson(Map<String, dynamic> json) {
     return UsuarioApp(
@@ -31,6 +33,9 @@ class UsuarioApp {
       correoVerificado: json['correoVerificado'] as bool? ?? false,
       registroParcial: json['registroParcial'] as bool? ?? false,
       cuentaActiva: json['cuentaActiva'] as bool? ?? true,
+      eliminadoEn: json['eliminadoEn'] == null
+          ? null
+          : DateTime.parse(json['eliminadoEn'] as String),
     );
   }
 
