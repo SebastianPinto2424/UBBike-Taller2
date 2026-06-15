@@ -20,13 +20,15 @@ class VistaIncidencias extends StatefulWidget {
   State<VistaIncidencias> createState() => _VistaIncidenciasState();
 }
 
-class _VistaIncidenciasState extends State<VistaIncidencias> {
-  final incidenciaApi = IncidenciaApi();
-  final solicitudGuardiaApi = SolicitudGuardiaApi();
-  final bicicletaApi = BicicletaApi();
+class _VistaIncidenciasState extends State<VistaIncidencias>
+    with AutoRefrescoMixin {
+  late final IncidenciaRepository incidenciaRepository;
+  late final SolicitudGuardiaRepository solicitudGuardiaRepository;
+  late final BicicletaRepository bicicletaRepository;
   final busquedaController = TextEditingController();
   Timer? temporizadorBusqueda;
   late Future<List<IncidenciaApp>> futuroIncidencias;
+  List<IncidenciaApp>? _ultimoDato;
   List<BicicleteroApp> bicicleteros = [];
   List<BicicletaApp> bicicletas = [];
   String estadoFiltro = 'TODOS';
@@ -36,8 +38,22 @@ class _VistaIncidenciasState extends State<VistaIncidencias> {
   @override
   void initState() {
     super.initState();
+    incidenciaRepository = _leerProvider(context, incidenciaRepositoryProvider);
+    solicitudGuardiaRepository = _leerProvider(
+      context,
+      solicitudGuardiaRepositoryProvider,
+    );
+    bicicletaRepository = _leerProvider(context, bicicletaRepositoryProvider);
     futuroIncidencias = _cargarIncidencias();
     _cargarFormulario();
+    iniciarAutoRefresco();
+  }
+
+  @override
+  Future<void> refrescar() async {
+    if (mounted) {
+      setState(() => futuroIncidencias = _cargarIncidencias());
+    }
   }
 
   @override
@@ -48,7 +64,7 @@ class _VistaIncidenciasState extends State<VistaIncidencias> {
   }
 
   Future<List<IncidenciaApp>> _cargarIncidencias() {
-    return incidenciaApi.listar(
+    return incidenciaRepository.listar(
       estado: estadoFiltro,
       tipo: tipoFiltro,
       q: busquedaController.text,
@@ -58,15 +74,15 @@ class _VistaIncidenciasState extends State<VistaIncidencias> {
   Future<void> _cargarFormulario() async {
     try {
       final datosBicicletero = widget.gestionGuardia
-          ? await solicitudGuardiaApi.obtenerBicicleteroGestionado()
+          ? await solicitudGuardiaRepository.obtenerBicicleteroGestionado()
           : null;
       final bicicleterosDisponibles = widget.gestionGuardia
           ? [
               if (datosBicicletero != null) datosBicicletero,
             ]
-          : await solicitudGuardiaApi.listarBicicleteros();
+          : await solicitudGuardiaRepository.listarBicicleteros();
       final bicicletasUsuario = widget.permitirBicicletaPropia
-          ? await bicicletaApi.listar()
+          ? await bicicletaRepository.listar()
           : <BicicletaApp>[];
 
       if (!mounted) {
@@ -118,7 +134,7 @@ class _VistaIncidenciasState extends State<VistaIncidencias> {
     String? bicicletaId,
   }) async {
     try {
-      await incidenciaApi.crear(
+      await incidenciaRepository.crear(
         bicicleteroId: bicicleteroId,
         tipo: tipo,
         descripcion: descripcion,
@@ -175,7 +191,7 @@ class _VistaIncidenciasState extends State<VistaIncidencias> {
     }
 
     try {
-      await incidenciaApi.actualizarEstado(
+      await incidenciaRepository.actualizarEstado(
         incidenciaId: incidencia.id,
         estado: estado,
         respuesta: respuesta,
@@ -244,7 +260,13 @@ class _VistaIncidenciasState extends State<VistaIncidencias> {
               child: FutureBuilder<List<IncidenciaApp>>(
                 future: futuroIncidencias,
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+                  if (snapshot.hasData) {
+                    _ultimoDato = snapshot.data;
+                  }
+                  final cargandoInicial = snapshot.connectionState ==
+                          ConnectionState.waiting &&
+                      _ultimoDato == null;
+                  if (cargandoInicial) {
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.only(bottom: 24),
@@ -257,7 +279,7 @@ class _VistaIncidenciasState extends State<VistaIncidencias> {
                     );
                   }
 
-                  if (snapshot.hasError) {
+                  if (snapshot.hasError && _ultimoDato == null) {
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.only(bottom: 24),
@@ -273,7 +295,7 @@ class _VistaIncidenciasState extends State<VistaIncidencias> {
                     );
                   }
 
-                  final incidencias = snapshot.data ?? [];
+                  final incidencias = _ultimoDato ?? const <IncidenciaApp>[];
 
                   if (incidencias.isEmpty) {
                     return ListView(
