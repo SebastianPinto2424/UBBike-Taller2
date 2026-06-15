@@ -1,5 +1,5 @@
 import { ErrorHttp } from '../../comun/errors/error-http';
-import { prisma, type ClientePrisma } from '../../configuracion/prisma';
+import type { ClientePrisma } from '../../configuracion/prisma';
 import { Prisma } from '../../generated/prisma/client';
 import { registrarAuditoria } from '../auditoria/auditoria.servicio';
 import {
@@ -8,7 +8,14 @@ import {
 } from '../notificaciones/notificacion.servicio';
 import { TipoNotificacion } from '../notificaciones/tipo-notificacion';
 import { RolUsuario } from '../usuarios/rol-usuario';
+import {
+  EventosTiempoReal,
+  emitirTiempoReal,
+  salaRol
+} from '../../tiempo-real/tiempo-real';
 import { EstadoIncidencia } from './estado-incidencia';
+import * as incidenciaRepositorio from './incidencia.repositorio';
+import type { IncidenciaCompleta } from './incidencia.repositorio';
 import { TipoIncidencia } from './tipo-incidencia';
 
 type DatosCrearIncidencia = {
@@ -43,7 +50,7 @@ type DatosActualizarIncidencia = {
   userAgent?: string | null;
 };
 
-const rolesCentral: string[] = [RolUsuario.ADMINISTRADOR];
+const rolesCentral: string[] = [RolUsuario.ADMIN_CENTRAL, RolUsuario.ADMINISTRADOR];
 const estadosCerradosIncidencia: EstadoIncidencia[] = [
   EstadoIncidencia.RESUELTA,
   EstadoIncidencia.DESCARTADA
@@ -63,17 +70,6 @@ const etiquetaEstadoIncidencia = (estado: EstadoIncidencia) => {
       return estado;
   }
 };
-
-const includeIncidenciaCompleta = {
-  reportadaPorUsuario: true,
-  gestionadaPorUsuario: true,
-  bicicletero: true,
-  bicicleta: true
-} satisfies Prisma.IncidenciaInclude;
-
-type IncidenciaCompleta = Prisma.IncidenciaGetPayload<{
-  include: typeof includeIncidenciaCompleta;
-}>;
 
 const mapearUsuarioIncidencia = (
   usuario: IncidenciaCompleta['reportadaPorUsuario'] | IncidenciaCompleta['gestionadaPorUsuario']
@@ -123,29 +119,14 @@ const mapearIncidencia = (incidencia: IncidenciaCompleta) => ({
     : null
 });
 
-const obtenerBicicleterosAsignadosGuardia = async (
-  guardiaId: string,
-  db: ClientePrisma = prisma
-) => {
-  const asignaciones = await db.asignacionGuardia.findMany({
-    where: {
-      guardiaId,
-      activa: true
-    },
-    select: {
-      bicicleteroId: true
-    }
-  });
+const obtenerBicicleterosAsignadosGuardia = async (guardiaId: string, db?: ClientePrisma) => {
+  const asignaciones = await incidenciaRepositorio.buscarBicicleterosAsignados(guardiaId, db);
 
   return asignaciones.map((asignacion) => asignacion.bicicleteroId);
 };
 
 const asegurarBicicleteroExiste = async (bicicleteroId: string, db: ClientePrisma) => {
-  const bicicletero = await db.bicicletero.findUnique({
-    where: {
-      id: bicicleteroId
-    }
-  });
+  const bicicletero = await incidenciaRepositorio.buscarBicicletero(bicicleteroId, db);
 
   if (!bicicletero) {
     throw new ErrorHttp(404, 'Bicicletero no encontrado');
@@ -162,12 +143,7 @@ const asegurarBicicletaValida = async (
     return null;
   }
 
-  const bicicleta = await db.bicicleta.findFirst({
-    where: {
-      id: datos.bicicletaId,
-      eliminadoEn: null
-    }
-  });
+  const bicicleta = await incidenciaRepositorio.buscarBicicletaActiva(datos.bicicletaId, db);
 
   if (!bicicleta) {
     throw new ErrorHttp(404, 'Bicicleta no encontrada');
@@ -237,7 +213,7 @@ const construirWhereIncidencias = async (filtros: DatosListarIncidencias) => {
 };
 
 export const crearIncidencia = async (datos: DatosCrearIncidencia) => {
-  return prisma.$transaction(async (db) => {
+  return incidenciaRepositorio.ejecutarEnTransaccion(async (db) => {
     const bicicletero = await asegurarBicicleteroExiste(datos.bicicleteroId, db);
     if (datos.rol === RolUsuario.GUARDIA) {
       const asignados = await obtenerBicicleterosAsignadosGuardia(datos.usuarioId, db);
@@ -248,16 +224,16 @@ export const crearIncidencia = async (datos: DatosCrearIncidencia) => {
     }
 
     const bicicleta = await asegurarBicicletaValida(datos, db);
-    const incidencia = await db.incidencia.create({
-      data: {
+    const incidencia = await incidenciaRepositorio.crear(
+      {
         reportadaPorUsuarioId: datos.usuarioId,
         bicicleteroId: bicicletero.id,
         bicicletaId: bicicleta?.id ?? null,
         tipo: datos.tipo,
         descripcion: datos.descripcion
       },
-      include: includeIncidenciaCompleta
-    });
+      db
+    );
 
     await crearNotificacion(
       {
@@ -272,7 +248,7 @@ export const crearIncidencia = async (datos: DatosCrearIncidencia) => {
 
     await notificarUsuariosPorRol(
       {
-        roles: [RolUsuario.ADMINISTRADOR],
+        roles: [RolUsuario.ADMIN_CENTRAL, RolUsuario.ADMINISTRADOR],
         titulo: 'Nueva incidencia reportada',
         mensaje: `Hay un reporte operativo pendiente en ${bicicletero.nombre}.`,
         tipo: TipoNotificacion.INCIDENCIA,
@@ -281,18 +257,10 @@ export const crearIncidencia = async (datos: DatosCrearIncidencia) => {
       db
     );
 
-    const asignacion = await db.asignacionGuardia.findFirst({
-      where: {
-        bicicleteroId: bicicletero.id,
-        activa: true
-      },
-      include: {
-        guardia: true
-      },
-      orderBy: {
-        iniciaEn: 'desc'
-      }
-    });
+    const asignacion = await incidenciaRepositorio.buscarAsignacionActivaConGuardia(
+      bicicletero.id,
+      db
+    );
 
     if (asignacion?.guardia.id && asignacion.guardia.id !== datos.usuarioId) {
       await crearNotificacion(
@@ -324,6 +292,15 @@ export const crearIncidencia = async (datos: DatosCrearIncidencia) => {
       db
     );
 
+    emitirTiempoReal(
+      [
+        salaRol(RolUsuario.GUARDIA),
+        salaRol(RolUsuario.ADMIN_CENTRAL),
+        salaRol(RolUsuario.ADMINISTRADOR)
+      ],
+      EventosTiempoReal.INCIDENCIA
+    );
+
     return mapearIncidencia(incidencia);
   });
 };
@@ -335,12 +312,10 @@ export const listarIncidencias = async (filtros: DatosListarIncidencias) => {
   const limite = Math.min(filtros.limite ?? LIMITE_DEFAULT_INCIDENCIAS, LIMITE_MAX_INCIDENCIAS);
   const where = await construirWhereIncidencias(filtros);
 
-  const incidencias = await prisma.incidencia.findMany({
+  const incidencias = await incidenciaRepositorio.listar({
     where,
-    include: includeIncidenciaCompleta,
-    orderBy: { creadaEn: 'desc' },
     take: limite + 1,
-    ...(filtros.cursor ? { cursor: { id: filtros.cursor }, skip: 1 } : {})
+    cursor: filtros.cursor
   });
 
   const hayMas = incidencias.length > limite;
@@ -358,13 +333,8 @@ export const actualizarEstadoIncidencia = async (datos: DatosActualizarIncidenci
     throw new ErrorHttp(403, 'Solo administracion puede gestionar incidencias');
   }
 
-  return prisma.$transaction(async (db) => {
-    const incidencia = await db.incidencia.findUnique({
-      where: {
-        id: datos.incidenciaId
-      },
-      include: includeIncidenciaCompleta
-    });
+  return incidenciaRepositorio.ejecutarEnTransaccion(async (db) => {
+    const incidencia = await incidenciaRepositorio.buscarPorId(datos.incidenciaId, db);
 
     if (!incidencia) {
       throw new ErrorHttp(404, 'Incidencia no encontrada');
@@ -383,18 +353,16 @@ export const actualizarEstadoIncidencia = async (datos: DatosActualizarIncidenci
 
     const ahora = new Date();
 
-    const actualizada = await db.incidencia.update({
-      where: {
-        id: incidencia.id
-      },
-      data: {
+    const actualizada = await incidenciaRepositorio.actualizar(
+      incidencia.id,
+      {
         estado: datos.estado,
         respuesta: respuesta ?? incidencia.respuesta,
         gestionadaPorUsuarioId: datos.usuarioId,
         resueltaEn: cerrada ? ahora : null
       },
-      include: includeIncidenciaCompleta
-    });
+      db
+    );
 
     await crearNotificacion(
       {
@@ -422,6 +390,15 @@ export const actualizarEstadoIncidencia = async (datos: DatosActualizarIncidenci
         }
       },
       db
+    );
+
+    emitirTiempoReal(
+      [
+        salaRol(RolUsuario.GUARDIA),
+        salaRol(RolUsuario.ADMIN_CENTRAL),
+        salaRol(RolUsuario.ADMINISTRADOR)
+      ],
+      EventosTiempoReal.INCIDENCIA
     );
 
     return mapearIncidencia(actualizada);
