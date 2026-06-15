@@ -8,7 +8,7 @@ class VistaSolicitarGuardia extends StatefulWidget {
 }
 
 class _VistaSolicitarGuardiaState extends State<VistaSolicitarGuardia> {
-  final solicitudGuardiaApi = SolicitudGuardiaApi();
+  late final SolicitudGuardiaRepository solicitudGuardiaRepository;
   List<BicicleteroApp> bicicleteros = [];
   late Future<List<SolicitudGuardiaApp>> futuroSolicitudes;
   bool cargando = true;
@@ -17,13 +17,17 @@ class _VistaSolicitarGuardiaState extends State<VistaSolicitarGuardia> {
   @override
   void initState() {
     super.initState();
-    futuroSolicitudes = solicitudGuardiaApi.listarSolicitudes();
+    solicitudGuardiaRepository = _leerProvider(
+      context,
+      solicitudGuardiaRepositoryProvider,
+    );
+    futuroSolicitudes = solicitudGuardiaRepository.listarSolicitudes();
     _cargarBicicleteros();
   }
 
   Future<void> _cargarBicicleteros() async {
     try {
-      final datos = await solicitudGuardiaApi.listarBicicleteros();
+      final datos = await solicitudGuardiaRepository.listarBicicleteros();
       if (mounted) {
         setState(() {
           bicicleteros = datos;
@@ -39,13 +43,13 @@ class _VistaSolicitarGuardiaState extends State<VistaSolicitarGuardia> {
 
   void _recargar() {
     setState(() {
-      futuroSolicitudes = solicitudGuardiaApi.listarSolicitudes();
+      futuroSolicitudes = solicitudGuardiaRepository.listarSolicitudes();
     });
   }
 
   Future<bool> _crearSolicitud(String bicicleteroId, String mensaje) async {
     try {
-      await solicitudGuardiaApi.crearSolicitud(
+      await solicitudGuardiaRepository.crearSolicitud(
         bicicleteroId: bicicleteroId,
         tipo: 'REQUIERE_SERVICIO',
         mensaje: mensaje,
@@ -53,8 +57,8 @@ class _VistaSolicitarGuardiaState extends State<VistaSolicitarGuardia> {
 
       if (mounted) {
         _recargar();
-        context.mostrarExito(
-            'Solicitud enviada al guardia con copia a administracion');
+        context
+            .mostrarExito('Solicitud enviada al guardia con copia a central');
       }
       return true;
     } on ExcepcionApi catch (error) {
@@ -94,7 +98,9 @@ class _VistaSolicitarGuardiaState extends State<VistaSolicitarGuardia> {
     setState(() => notificando = true);
 
     try {
-      await solicitudGuardiaApi.notificarGuardia(solicitudId: solicitud.id);
+      await solicitudGuardiaRepository.notificarGuardia(
+        solicitudId: solicitud.id,
+      );
 
       if (mounted) {
         _recargar();
