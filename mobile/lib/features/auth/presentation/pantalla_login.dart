@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/repositorios_provider.dart';
 import '../../../core/providers/sesion_provider.dart';
 import '../../../core/servicios/excepcion_api.dart';
 import '../../../core/tema/colores_ubb.dart';
-import '../../../features/auth/data/autenticacion_api.dart';
 import '../../../features/auth/presentation/pantalla_registro.dart';
 import '../../../shared/widgets/contenedor_responsivo.dart';
 import '../../../shared/widgets/marca_ubbike.dart';
@@ -12,7 +12,14 @@ import '../../../shared/widgets/snackbar_semantico.dart';
 import 'widgets/estilos_formulario_auth.dart';
 
 class PantallaLogin extends ConsumerStatefulWidget {
-  const PantallaLogin({super.key});
+  const PantallaLogin({
+    super.key,
+    this.correoInicial,
+    this.mensajeInicial,
+  });
+
+  final String? correoInicial;
+  final String? mensajeInicial;
 
   @override
   ConsumerState<PantallaLogin> createState() => _PantallaLoginState();
@@ -22,9 +29,28 @@ class _PantallaLoginState extends ConsumerState<PantallaLogin> {
   final formKeyIngreso = GlobalKey<FormState>();
   final correoController = TextEditingController();
   final contrasenaController = TextEditingController();
-  final autenticacionApi = AutenticacionApi();
   bool cargando = false;
   bool mostrarContrasena = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final correo = widget.correoInicial?.trim();
+    if (correo != null && correo.isNotEmpty) {
+      correoController.text = correo;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant PantallaLogin oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nuevoCorreo = widget.correoInicial?.trim();
+    if (nuevoCorreo != null &&
+        nuevoCorreo.isNotEmpty &&
+        nuevoCorreo != oldWidget.correoInicial) {
+      correoController.text = nuevoCorreo;
+    }
+  }
 
   @override
   void dispose() {
@@ -72,30 +98,33 @@ class _PantallaLoginState extends ConsumerState<PantallaLogin> {
                                 20,
                                 24,
                               ),
-                              child: Form(
-                                key: formKeyIngreso,
-                                child: _FormularioIngreso(
-                                  correoController: correoController,
-                                  contrasenaController: contrasenaController,
-                                  cargando: cargando,
-                                  mostrarContrasena: mostrarContrasena,
-                                  onAlternarContrasena: () {
-                                    setState(
-                                      () => mostrarContrasena =
-                                          !mostrarContrasena,
-                                    );
-                                  },
-                                  onIngresar: _iniciarSesion,
-                                  onRegistro: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const PantallaRegistro(),
-                                      ),
-                                    );
-                                  },
-                                  onRecuperar: () =>
-                                      _mostrarRecuperacion(context),
+                              child: AutofillGroup(
+                                child: Form(
+                                  key: formKeyIngreso,
+                                  child: _FormularioIngreso(
+                                    correoController: correoController,
+                                    contrasenaController: contrasenaController,
+                                    cargando: cargando,
+                                    mostrarContrasena: mostrarContrasena,
+                                    mensajeInicial: widget.mensajeInicial,
+                                    onAlternarContrasena: () {
+                                      setState(
+                                        () => mostrarContrasena =
+                                            !mostrarContrasena,
+                                      );
+                                    },
+                                    onIngresar: _iniciarSesion,
+                                    onRegistro: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const PantallaRegistro(),
+                                        ),
+                                      );
+                                    },
+                                    onRecuperar: () =>
+                                        _mostrarRecuperacion(context),
+                                  ),
                                 ),
                               ),
                             ),
@@ -136,10 +165,11 @@ class _PantallaLoginState extends ConsumerState<PantallaLogin> {
     setState(() => cargando = true);
 
     try {
-      final resultado = await autenticacionApi.iniciarSesion(
-        correo: correo,
-        contrasena: contrasena,
-      );
+      final resultado =
+          await ref.read(autenticacionRepositoryProvider).iniciarSesion(
+                correo: correo,
+                contrasena: contrasena,
+              );
 
       await ref.read(sesionProvider.notifier).iniciar(
             token: resultado.token,
@@ -176,7 +206,9 @@ class _PantallaLoginState extends ConsumerState<PantallaLogin> {
 
   Future<void> _enviarRecuperacion(String correo) async {
     try {
-      final mensaje = await autenticacionApi.solicitarCambioContrasena(correo);
+      final mensaje = await ref
+          .read(autenticacionRepositoryProvider)
+          .solicitarCambioContrasena(correo);
       if (mounted) {
         context.mostrarExito(mensaje);
       }
@@ -232,48 +264,53 @@ class _SheetRecuperacionState extends State<_SheetRecuperacion> {
         20 + MediaQuery.of(context).viewInsets.bottom,
       ),
       child: SingleChildScrollView(
-        child: Form(
-          key: formKeyRecuperacion,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Recuperar contraseña',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Enviaremos un enlace seguro al correo institucional registrado.',
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: correoRecuperacionController,
-                keyboardType: TextInputType.emailAddress,
-                autocorrect: false,
-                decoration: decoracionCampoAuth(
-                  labelText: 'Correo institucional',
-                  icono: Icons.mail_outline,
+        child: AutofillGroup(
+          child: Form(
+            key: formKeyRecuperacion,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Recuperar contraseña',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
                 ),
-                validator: _validarCorreoAuthFrontend,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                style: estiloBotonAuth(),
-                onPressed: () {
-                  if (formKeyRecuperacion.currentState?.validate() != true) {
-                    return;
-                  }
-                  final correo = correoRecuperacionController.text.trim();
-                  Navigator.pop(context);
-                  widget.onEnviar(correo);
-                },
-                icon: const Icon(Icons.send_outlined),
-                label: const Text('Enviar correo'),
-              ),
-            ],
+                const SizedBox(height: 8),
+                const Text(
+                  'Enviaremos un enlace seguro al correo institucional registrado.',
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: correoRecuperacionController,
+                  keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textCapitalization: TextCapitalization.none,
+                  autofillHints: const [AutofillHints.email],
+                  decoration: decoracionCampoAuth(
+                    labelText: 'Correo institucional',
+                    icono: Icons.mail_outline,
+                  ),
+                  validator: _validarCorreoAuthFrontend,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  style: estiloBotonAuth(),
+                  onPressed: () {
+                    if (formKeyRecuperacion.currentState?.validate() != true) {
+                      return;
+                    }
+                    final correo = correoRecuperacionController.text.trim();
+                    Navigator.pop(context);
+                    widget.onEnviar(correo);
+                  },
+                  icon: const Icon(Icons.send_outlined),
+                  label: const Text('Enviar correo'),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -347,6 +384,7 @@ class _FormularioIngreso extends StatelessWidget {
     required this.contrasenaController,
     required this.cargando,
     required this.mostrarContrasena,
+    required this.mensajeInicial,
     required this.onAlternarContrasena,
     required this.onIngresar,
     required this.onRegistro,
@@ -357,6 +395,7 @@ class _FormularioIngreso extends StatelessWidget {
   final TextEditingController contrasenaController;
   final bool cargando;
   final bool mostrarContrasena;
+  final String? mensajeInicial;
   final VoidCallback onAlternarContrasena;
   final VoidCallback onIngresar;
   final VoidCallback onRegistro;
@@ -383,6 +422,10 @@ class _FormularioIngreso extends StatelessWidget {
                 fontWeight: FontWeight.w900,
               ),
         ),
+        if (mensajeInicial?.trim().isNotEmpty == true) ...[
+          const SizedBox(height: 14),
+          _AvisoIngreso(mensaje: mensajeInicial!.trim()),
+        ],
         const SizedBox(height: 22),
         TextFormField(
           controller: correoController,
@@ -393,7 +436,12 @@ class _FormularioIngreso extends StatelessWidget {
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.next,
           autocorrect: false,
+          enableSuggestions: false,
           textCapitalization: TextCapitalization.none,
+          autofillHints: const [
+            AutofillHints.username,
+            AutofillHints.email,
+          ],
           validator: _validarCorreoAuthFrontend,
         ),
         const SizedBox(height: 24),
@@ -415,6 +463,9 @@ class _FormularioIngreso extends StatelessWidget {
             ),
           ),
           obscureText: !mostrarContrasena,
+          autocorrect: false,
+          enableSuggestions: false,
+          autofillHints: const [AutofillHints.password],
           textInputAction: TextInputAction.done,
           onFieldSubmitted: (_) => onIngresar(),
           validator: _validarContrasenaLoginFrontend,
@@ -465,6 +516,46 @@ class _FormularioIngreso extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AvisoIngreso extends StatelessWidget {
+  const _AvisoIngreso({required this.mensaje});
+
+  final String mensaje;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: ColoresUbb.exito.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ColoresUbb.exito.withValues(alpha: 0.22)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(
+              Icons.check_circle_outline,
+              color: ColoresUbb.exito,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                mensaje,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: ColoresUbb.azulOscuro,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
