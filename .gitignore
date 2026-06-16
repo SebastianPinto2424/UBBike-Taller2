@@ -5,6 +5,7 @@ backend/node_modules/
 
 .env
 .env.*
+!.env.ubb-prod.example
 backend/.env
 backend/.env.*
 *.pem

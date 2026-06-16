@@ -93,13 +93,11 @@ Desde la carpeta principal del proyecto, si desea reconstruir y dejar los servic
 docker compose up -d --build
 ```
 
-Para el servidor UBB entregado por laboratorio, complete `.env` con los datos reales y use el compose especifico:
+Para el servidor de produccion, copie `.env.ubb-prod.example` a `.env`, complete los datos reales y use el compose especifico:
 
 ```bash
 docker compose -f docker-compose.ubb-prod.yml up -d --build
 ```
-
-La guia paso a paso esta en `docs/despliegue-produccion.md`.
 
 ## Prueba con la app móvil nativa
 
@@ -208,4 +206,3 @@ La documentación técnica adicional se encuentra en:
 
 - `docs/desarrollo-y-api.md`: flujo funcional, endpoints principales, arranque sin Docker y validaciones.
 - `docs/modelo-relacional.md`: modelo relacional del proyecto.
-- `docs/despliegue-produccion.md`: pasos para montar UBBike en un servidor Linux con Docker Compose.

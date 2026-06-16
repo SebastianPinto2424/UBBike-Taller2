@@ -4,15 +4,13 @@ services:
     container_name: ubbike_taller_db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-ubbike}
-      POSTGRES_USER: ${POSTGRES_USER:-ubbike}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ubbike_local_dev_password_segura_2026}
-    ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB es obligatorio}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER es obligatorio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatorio}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ubbike} -d ${POSTGRES_DB:-ubbike}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,8 +27,6 @@ services:
     user: "999:1000"
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     read_only: true
-    ports:
-      - "127.0.0.1:${REDIS_PORT:-6380}:6379"
     tmpfs:
       - /data:uid=999,gid=1000,mode=700
     cap_drop:
@@ -57,32 +53,32 @@ services:
       PORT: 3000
       DB_HOST: db
       DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER:-ubbike}
-      DB_NAME: ${POSTGRES_DB:-ubbike}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-ubbike_local_dev_password_segura_2026}
-      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
-      JWT_SECRET: ${JWT_SECRET:-ubbike_jwt_secret_demo_para_entrega_2026}
+      DB_USER: ${POSTGRES_USER}
+      DB_NAME: ${POSTGRES_DB}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET es obligatorio}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-2h}
       JWT_ISSUER: ${JWT_ISSUER:-ubbike-api}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-ubbike-app}
       REFRESH_TOKEN_EXPIRES_DAYS: ${REFRESH_TOKEN_EXPIRES_DAYS:-30}
       QR_DURATION_SECONDS: ${QR_DURATION_SECONDS:-15}
-      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
       REDIS_URL: redis://redis:6379
       REQUIRE_REDIS_RATE_LIMIT: "true"
-      TRUST_PROXY: "false"
+      TRUST_PROXY: "1"
+      FRONTEND_URL: ${PUBLIC_API_BASE_URL:?PUBLIC_API_BASE_URL es obligatorio}
+      CORS_ORIGINS: ${PUBLIC_API_BASE_URL}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      MAIL_FROM: ${MAIL_FROM:-UBBike <no-reply@ubbike.local>}
-      FRONTEND_URL: ${DOCKER_FRONTEND_URL:-http://localhost:8082}
-      CORS_ORIGINS: ${DOCKER_CORS_ORIGINS:-http://localhost:8082,http://127.0.0.1:8082}
+      MAIL_FROM: ${MAIL_FROM:-UBBike <no-reply@ubbike.cl>}
       UPLOADS_DIR: /app/uploads
       UPLOADS_PUBLIC_PATH: /uploads
     ports:
-      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-3001}:3000"
+      - "127.0.0.1:3001:3000"
     volumes:
       - uploads_data:/app/uploads
     tmpfs:
@@ -117,13 +113,13 @@ services:
       context: ./mobile
       dockerfile: Dockerfile
       args:
-        API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:3001}
-        CSP_CONNECT_SRC: "'self' ${PUBLIC_API_BASE_URL:-http://localhost:3001} ${PUBLIC_WS_BASE_URL:-ws://localhost:3001} http://127.0.0.1:${BACKEND_PORT:-3001} ws://127.0.0.1:${BACKEND_PORT:-3001}"
-        CSP_IMG_SRC: "'self' data: blob: ${PUBLIC_API_BASE_URL:-http://localhost:3001} http://127.0.0.1:${BACKEND_PORT:-3001}"
+        API_BASE_URL: ${PUBLIC_API_BASE_URL:?PUBLIC_API_BASE_URL es obligatorio}
+        CSP_CONNECT_SRC: "'self' ${PUBLIC_API_BASE_URL} ${PUBLIC_WS_BASE_URL:-}"
+        CSP_IMG_SRC: "'self' data: blob: ${PUBLIC_API_BASE_URL}"
     container_name: ubbike_taller_frontend
     restart: unless-stopped
     ports:
-      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-8082}:8080"
+      - "127.0.0.1:8082:8080"
     read_only: true
     tmpfs:
       - /tmp
