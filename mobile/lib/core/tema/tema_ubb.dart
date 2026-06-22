@@ -124,7 +124,9 @@ ThemeData crearTemaUbb() {
           fontWeight: states.contains(WidgetState.selected)
               ? FontWeight.w800
               : FontWeight.w600,
-          letterSpacing: 0,
+          fontSize: 11,
+          letterSpacing: -0.2,
+          height: 1.1,
         );
       }),
       iconTheme: WidgetStateProperty.resolveWith((states) {
