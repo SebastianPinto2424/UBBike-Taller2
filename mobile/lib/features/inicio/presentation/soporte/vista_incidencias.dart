@@ -1,4 +1,23 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/servicios/excepcion_api.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_repository.dart';
+import 'package:ubbike/features/bicicletas/data/bicicleta_repository.dart';
+import 'package:ubbike/features/incidencias/data/incidencia_modelos.dart';
+import 'package:ubbike/features/incidencias/data/incidencia_repository.dart';
+import 'package:ubbike/shared/modelos/bicicleta_app.dart';
+import 'package:ubbike/shared/modelos/bicicletero_app.dart';
+import 'package:ubbike/shared/utils/auto_refresco.dart';
+import 'package:ubbike/shared/widgets/chip_estado.dart';
+import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
+import 'package:ubbike/shared/widgets/tarjeta_accion.dart';
+import 'package:ubbike/features/inicio/presentation/comun/widgets_comun.dart';
+import 'package:ubbike/features/inicio/presentation/usuario/vista_bicicletas_usuario.dart';
 
 class VistaIncidencias extends StatefulWidget {
   const VistaIncidencias({
@@ -38,12 +57,12 @@ class _VistaIncidenciasState extends State<VistaIncidencias>
   @override
   void initState() {
     super.initState();
-    incidenciaRepository = _leerProvider(context, incidenciaRepositoryProvider);
-    solicitudGuardiaRepository = _leerProvider(
+    incidenciaRepository = leerProvider(context, incidenciaRepositoryProvider);
+    solicitudGuardiaRepository = leerProvider(
       context,
       solicitudGuardiaRepositoryProvider,
     );
-    bicicletaRepository = _leerProvider(context, bicicletaRepositoryProvider);
+    bicicletaRepository = leerProvider(context, bicicletaRepositoryProvider);
     futuroIncidencias = _cargarIncidencias();
     _cargarFormulario();
     iniciarAutoRefresco();
@@ -52,7 +71,9 @@ class _VistaIncidenciasState extends State<VistaIncidencias>
   @override
   Future<void> refrescar() async {
     if (mounted) {
-      setState(() => futuroIncidencias = _cargarIncidencias());
+      setState(() {
+        futuroIncidencias = _cargarIncidencias();
+      });
     }
   }
 
@@ -263,9 +284,9 @@ class _VistaIncidenciasState extends State<VistaIncidencias>
                   if (snapshot.hasData) {
                     _ultimoDato = snapshot.data;
                   }
-                  final cargandoInicial = snapshot.connectionState ==
-                          ConnectionState.waiting &&
-                      _ultimoDato == null;
+                  final cargandoInicial =
+                      snapshot.connectionState == ConnectionState.waiting &&
+                          _ultimoDato == null;
                   if (cargandoInicial) {
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -849,7 +870,7 @@ class _FiltrosIncidencias extends StatelessWidget {
             ),
             if (onRegistrar != null) ...[
               const SizedBox(width: 12),
-              _BotonRegistrarCompacto(
+              BotonRegistrarCompacto(
                 texto: 'Registrar',
                 onPressed: onRegistrar!,
               ),
@@ -878,12 +899,12 @@ class _FiltrosIncidencias extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        _PanelFiltros(
+        PanelFiltros(
           titulo: 'Filtros',
           detalle: _resumenFiltros(),
           onLimpiar: onLimpiar,
           children: [
-            _EtiquetaFiltro(
+            EtiquetaFiltro(
               texto: 'Estado',
               child: Wrap(
                 spacing: 8,
@@ -895,7 +916,7 @@ class _FiltrosIncidencias extends StatelessWidget {
                     'EN_REVISION',
                     'RESUELTA'
                   ])
-                    _FiltroChip(
+                    FiltroChip(
                       label: _etiquetaEstadoIncidencia(item),
                       value: item,
                       selectedValue: estado,
@@ -905,20 +926,20 @@ class _FiltrosIncidencias extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            _EtiquetaFiltro(
+            EtiquetaFiltro(
               texto: 'Tipo',
               child: Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _FiltroChip(
+                  FiltroChip(
                     label: 'Todos los tipos',
                     value: 'TODOS',
                     selectedValue: tipo,
                     onTap: onTipo,
                   ),
                   for (final item in _tiposIncidencia)
-                    _FiltroChip(
+                    FiltroChip(
                       label: _etiquetaTipoIncidencia(item),
                       value: item,
                       selectedValue: tipo,
@@ -980,14 +1001,12 @@ class _TarjetaIncidencia extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              incidencia.descripcion,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+            const SizedBox(height: 10),
+            BloqueMensajeSolicitud(
+              titulo: 'Descripción',
+              mensaje: incidencia.descripcion,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             FilaDato(
               etiqueta: 'Bicicletero',
               valor: incidencia.bicicletero.nombre,
