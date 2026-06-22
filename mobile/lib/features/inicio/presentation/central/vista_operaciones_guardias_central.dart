@@ -1,4 +1,16 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_repository.dart';
+import 'package:ubbike/features/historial/data/historial_repository.dart';
+import 'package:ubbike/shared/modelos/bicicletero_app.dart';
+import 'package:ubbike/shared/modelos/movimiento_app.dart';
+import 'package:ubbike/shared/widgets/tarjeta_accion.dart';
+import 'package:ubbike/features/inicio/presentation/comun/widgets_comun.dart';
 
 class _ResumenGuardia {
   int total = 0;
@@ -62,8 +74,8 @@ class _VistaOperacionesGuardiasCentralState
   @override
   void initState() {
     super.initState();
-    historialRepository = _leerProvider(context, historialRepositoryProvider);
-    solicitudGuardiaRepository = _leerProvider(
+    historialRepository = leerProvider(context, historialRepositoryProvider);
+    solicitudGuardiaRepository = leerProvider(
       context,
       solicitudGuardiaRepositoryProvider,
     );
@@ -94,14 +106,16 @@ class _VistaOperacionesGuardiasCentralState
   }
 
   void _recargar() {
-    setState(() => futuroMovimientos = _obtenerMovimientos());
+    setState(() {
+      futuroMovimientos = _obtenerMovimientos();
+    });
   }
 
   String _resumenFiltros() {
     return [
-      _etiquetaPeriodoFiltro(periodo),
+      etiquetaPeriodoFiltro(periodo),
       bicicleteroSeleccionado?.nombre ?? 'Todos los bicicleteros',
-      _etiquetaEstadoMovimientoFiltro(estadoMovimiento),
+      etiquetaEstadoMovimientoFiltro(estadoMovimiento),
     ].join(' | ');
   }
 
@@ -156,7 +170,7 @@ class _VistaOperacionesGuardiasCentralState
             ...ordenados.map(
               (movimiento) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: _TarjetaMovimientoCentral(
+                child: TarjetaMovimientoCentral(
                   movimiento: movimiento,
                   mostrarIdentidad: true,
                   mostrarGuardia: false,
@@ -176,14 +190,14 @@ class _VistaOperacionesGuardiasCentralState
         const SizedBox(height: 8),
         const TituloApartado(titulo: 'Operaciones por guardia'),
         const SizedBox(height: 10),
-        _PanelFiltros(
+        PanelFiltros(
           titulo: 'Filtros de operaciones',
           detalle: _resumenFiltros(),
           onLimpiar: _limpiarFiltros,
           children: [
-            _EtiquetaFiltro(
+            EtiquetaFiltro(
               texto: 'Periodo',
-              child: _SegmentadoEnLinea<String>(
+              child: SegmentadoEnLinea<String>(
                 segments: const [
                   ButtonSegment(value: 'DIA', label: Text('Día')),
                   ButtonSegment(value: 'SEMANA', label: Text('Semana')),
@@ -236,9 +250,9 @@ class _VistaOperacionesGuardiasCentralState
               },
             ),
             const SizedBox(height: 12),
-            _EtiquetaFiltro(
+            EtiquetaFiltro(
               texto: 'Resultado',
-              child: _SegmentadoEnLinea<String>(
+              child: SegmentadoEnLinea<String>(
                 segments: const [
                   ButtonSegment(value: 'TODOS', label: Text('Todos')),
                   ButtonSegment(
