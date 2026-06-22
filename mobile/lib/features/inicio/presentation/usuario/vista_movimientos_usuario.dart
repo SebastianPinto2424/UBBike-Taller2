@@ -1,4 +1,15 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/historial/data/historial_repository.dart';
+import 'package:ubbike/shared/modelos/movimiento_app.dart';
+import 'package:ubbike/shared/utils/auto_refresco.dart';
+import 'package:ubbike/shared/widgets/tarjeta_accion.dart';
+import 'package:ubbike/features/inicio/presentation/comun/widgets_comun.dart';
 
 class VistaMovimientosUsuario extends StatefulWidget {
   const VistaMovimientosUsuario({super.key});
@@ -23,7 +34,7 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario>
   @override
   void initState() {
     super.initState();
-    historialRepository = _leerProvider(context, historialRepositoryProvider);
+    historialRepository = leerProvider(context, historialRepositoryProvider);
     futuroMovimientos = _obtenerMovimientos();
     iniciarAutoRefresco();
   }
@@ -33,7 +44,9 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario>
     if (!mounted) {
       return;
     }
-    setState(() => futuroMovimientos = _obtenerMovimientos());
+    setState(() {
+      futuroMovimientos = _obtenerMovimientos();
+    });
   }
 
   @override
@@ -55,7 +68,9 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario>
 
   void _recargar() {
     temporizadorBusqueda?.cancel();
-    setState(() => futuroMovimientos = _obtenerMovimientos());
+    setState(() {
+      futuroMovimientos = _obtenerMovimientos();
+    });
   }
 
   void _programarBusqueda() {
@@ -87,10 +102,10 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario>
 
   String _resumenFiltros() {
     return [
-      _etiquetaPeriodoFiltro(periodo),
-      _etiquetaTipoMovimientoFiltro(tipoMovimiento),
-      _etiquetaEstadoMovimientoFiltro(estadoMovimiento),
-      _etiquetaOrigenMovimientoFiltro(origenMovimiento),
+      etiquetaPeriodoFiltro(periodo),
+      etiquetaTipoMovimientoFiltro(tipoMovimiento),
+      etiquetaEstadoMovimientoFiltro(estadoMovimiento),
+      etiquetaOrigenMovimientoFiltro(origenMovimiento),
     ].join(' | ');
   }
 
@@ -121,14 +136,14 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario>
           onChanged: (_) => _programarBusqueda(),
         ),
         const SizedBox(height: 10),
-        _PanelFiltros(
+        PanelFiltros(
           titulo: 'Filtros',
           detalle: _resumenFiltros(),
           onLimpiar: _limpiarFiltros,
           children: [
-            _EtiquetaFiltro(
+            EtiquetaFiltro(
               texto: 'Período',
-              child: _SegmentadoEnLinea<String>(
+              child: SegmentadoEnLinea<String>(
                 segments: const [
                   ButtonSegment(value: 'DIA', label: Text('Día')),
                   ButtonSegment(value: 'SEMANA', label: Text('Semana')),
@@ -140,9 +155,9 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario>
               ),
             ),
             const SizedBox(height: 12),
-            _EtiquetaFiltro(
+            EtiquetaFiltro(
               texto: 'Tipo',
-              child: _SegmentadoEnLinea<String>(
+              child: SegmentadoEnLinea<String>(
                 segments: const [
                   ButtonSegment(value: 'TODOS', label: Text('Todos')),
                   ButtonSegment(value: 'INGRESO', label: Text('Ingresos')),
@@ -156,9 +171,9 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario>
               ),
             ),
             const SizedBox(height: 12),
-            _EtiquetaFiltro(
+            EtiquetaFiltro(
               texto: 'Resultado',
-              child: _SegmentadoEnLinea<String>(
+              child: SegmentadoEnLinea<String>(
                 segments: const [
                   ButtonSegment(value: 'TODOS', label: Text('Todos')),
                   ButtonSegment(
@@ -173,9 +188,9 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario>
               ),
             ),
             const SizedBox(height: 12),
-            _EtiquetaFiltro(
+            EtiquetaFiltro(
               texto: 'Origen',
-              child: _SegmentadoEnLinea<String>(
+              child: SegmentadoEnLinea<String>(
                 segments: const [
                   ButtonSegment(value: 'TODOS', label: Text('Todos')),
                   ButtonSegment(value: 'QR', label: Text('QR')),
@@ -251,7 +266,7 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario>
                     ...movimientos.map(
                       (movimiento) => Padding(
                         padding: const EdgeInsets.only(bottom: 10),
-                        child: _TarjetaMovimientoCentral(
+                        child: TarjetaMovimientoCentral(
                           movimiento: movimiento,
                           mostrarIdentidad: false,
                         ),
@@ -264,49 +279,6 @@ class _VistaMovimientosUsuarioState extends State<VistaMovimientosUsuario>
           ),
         ),
       ],
-    );
-  }
-}
-
-class _FiltroChip extends StatelessWidget {
-  const _FiltroChip({
-    required this.label,
-    required this.value,
-    required this.selectedValue,
-    required this.onTap,
-  });
-
-  final String label;
-  final String value;
-  final String selectedValue;
-  final ValueChanged<String> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool seleccionado = value == selectedValue;
-    return GestureDetector(
-      onTap: () => onTap(value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: seleccionado
-              ? ColoresUbb.azulApp
-              : ColoresUbb.azulApp.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: seleccionado ? Colors.white : ColoresUbb.azulApp,
-                fontWeight: seleccionado ? FontWeight.w800 : FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
