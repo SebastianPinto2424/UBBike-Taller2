@@ -1,4 +1,15 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_modelos.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_repository.dart';
+import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
+import 'package:ubbike/shared/widgets/tarjeta_accion.dart';
+import 'package:ubbike/features/inicio/presentation/comun/widgets_comun.dart';
 
 class VistaAlertasGuardia extends StatefulWidget {
   const VistaAlertasGuardia({super.key});
@@ -19,7 +30,7 @@ class _VistaAlertasGuardiaState extends State<VistaAlertasGuardia> {
   @override
   void initState() {
     super.initState();
-    solicitudGuardiaRepository = _leerProvider(
+    solicitudGuardiaRepository = leerProvider(
       context,
       solicitudGuardiaRepositoryProvider,
     );
@@ -134,7 +145,7 @@ class _VistaAlertasGuardiaState extends State<VistaAlertasGuardia> {
             ),
           ),
           const SizedBox(height: 10),
-          _PanelFiltros(
+          PanelFiltros(
             titulo: 'Filtros',
             detalle: estadoFiltro == 'TODOS'
                 ? 'Todas'
@@ -144,7 +155,7 @@ class _VistaAlertasGuardiaState extends State<VistaAlertasGuardia> {
               busquedaController.clear();
             }),
             children: [
-              _EtiquetaFiltro(
+              EtiquetaFiltro(
                 texto: 'Estado',
                 child: Wrap(
                   spacing: 8,
@@ -158,7 +169,7 @@ class _VistaAlertasGuardiaState extends State<VistaAlertasGuardia> {
                       'RESUELTA',
                       'CANCELADA',
                     ])
-                      _FiltroChip(
+                      FiltroChip(
                         label: item == 'TODOS'
                             ? 'Todas'
                             : etiquetaEstadoSolicitud(item),
