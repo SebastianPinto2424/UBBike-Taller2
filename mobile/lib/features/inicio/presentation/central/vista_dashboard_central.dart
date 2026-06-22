@@ -1,4 +1,23 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_modelos.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_repository.dart';
+import 'package:ubbike/features/historial/data/historial_modelos.dart';
+import 'package:ubbike/features/historial/data/historial_repository.dart';
+import 'package:ubbike/features/incidencias/data/incidencia_modelos.dart';
+import 'package:ubbike/features/incidencias/data/incidencia_repository.dart';
+import 'package:ubbike/shared/modelos/bicicletero_app.dart';
+import 'package:ubbike/shared/modelos/movimiento_app.dart';
+import 'package:ubbike/shared/utils/auto_refresco.dart';
+import 'package:ubbike/shared/utils/sesion_ui_utils.dart';
+import 'package:ubbike/shared/widgets/chip_estado.dart';
+import 'package:ubbike/shared/widgets/tarjeta_accion.dart';
+import 'package:ubbike/features/inicio/presentation/comun/widgets_comun.dart';
 
 class VistaDashboardCentral extends StatefulWidget {
   const VistaDashboardCentral({
@@ -28,12 +47,12 @@ class _VistaDashboardCentralState extends State<VistaDashboardCentral>
   @override
   void initState() {
     super.initState();
-    historialRepository = _leerProvider(context, historialRepositoryProvider);
-    solicitudGuardiaRepository = _leerProvider(
+    historialRepository = leerProvider(context, historialRepositoryProvider);
+    solicitudGuardiaRepository = leerProvider(
       context,
       solicitudGuardiaRepositoryProvider,
     );
-    incidenciaRepository = _leerProvider(context, incidenciaRepositoryProvider);
+    incidenciaRepository = leerProvider(context, incidenciaRepositoryProvider);
     futuroDashboard = _cargarDashboard();
     iniciarAutoRefresco();
   }
@@ -41,7 +60,9 @@ class _VistaDashboardCentralState extends State<VistaDashboardCentral>
   @override
   Future<void> refrescar() async {
     if (mounted) {
-      setState(() => futuroDashboard = _cargarDashboard());
+      setState(() {
+        futuroDashboard = _cargarDashboard();
+      });
     }
   }
 
@@ -93,7 +114,7 @@ class _VistaDashboardCentralState extends State<VistaDashboardCentral>
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           EncabezadoSeccion(
-            titulo: '${_saludoActual()}, ${_nombreSesion(context, 'Central')}',
+            titulo: '${saludoActual()}, ${nombreSesion(context, 'Central')}',
             detalle: 'Alertas, ocupación y actividad reciente.',
             icono: Icons.dashboard_outlined,
           ),
