@@ -5,6 +5,7 @@ import { listar, opciones, resumen, exportarExcel } from './historial.controlado
 const rutasHistorial = Router();
 
 rutasHistorial.use(middlewareAutenticacion);
+
 rutasHistorial.get('/exportar-excel', exportarExcel);
 rutasHistorial.get('/opciones', opciones);
 rutasHistorial.get('/resumen', resumen);
