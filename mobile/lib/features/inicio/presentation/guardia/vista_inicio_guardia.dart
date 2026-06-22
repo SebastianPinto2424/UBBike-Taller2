@@ -1,4 +1,17 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_repository.dart';
+import 'package:ubbike/shared/modelos/bicicletero_app.dart';
+import 'package:ubbike/shared/utils/sesion_ui_utils.dart';
+import 'package:ubbike/shared/widgets/tarjeta_accion.dart';
+import 'package:ubbike/features/inicio/presentation/comun/widgets_comun.dart';
+import 'package:ubbike/features/inicio/presentation/guardia/vista_ingreso_guardia.dart';
+import 'package:ubbike/features/inicio/presentation/perfil/pantalla_principal_perfil.dart';
 
 class VistaInicioGuardia extends StatefulWidget {
   const VistaInicioGuardia({
@@ -19,7 +32,7 @@ class _VistaInicioGuardiaState extends State<VistaInicioGuardia> {
   @override
   void initState() {
     super.initState();
-    solicitudGuardiaRepository = _leerProvider(
+    solicitudGuardiaRepository = leerProvider(
       context,
       solicitudGuardiaRepositoryProvider,
     );
@@ -42,7 +55,7 @@ class _VistaInicioGuardiaState extends State<VistaInicioGuardia> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           EncabezadoSeccion(
-            titulo: '${_saludoActual()}, ${_nombreSesion(context, 'Guardia')}',
+            titulo: '${saludoActual()}, ${nombreSesion(context, 'Guardia')}',
             detalle: 'Turno activo, bicicletero asignado y accesos recientes.',
             icono: Icons.verified_user_outlined,
           ),
@@ -64,7 +77,7 @@ class _VistaInicioGuardiaState extends State<VistaInicioGuardia> {
                       color: ColoresUbb.amarilloInstitucional,
                     ),
                     const SizedBox(height: 12),
-                    _SelectorBicicleteroGuardiaPerfil(onCambiado: _recargar),
+                    SelectorBicicleteroGuardiaPerfil(onCambiado: _recargar),
                   ],
                 );
               }
@@ -72,7 +85,7 @@ class _VistaInicioGuardiaState extends State<VistaInicioGuardia> {
                 children: [
                   TarjetaBicicleteroApp(bicicletero: snapshot.data!),
                   const SizedBox(height: 12),
-                  _SelectorBicicleteroGuardiaPerfil(onCambiado: _recargar),
+                  SelectorBicicleteroGuardiaPerfil(onCambiado: _recargar),
                 ],
               );
             },
