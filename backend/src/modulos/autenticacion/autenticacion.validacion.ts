@@ -45,6 +45,8 @@ const esquemaCorreoInstitucional = Joi.string()
   .custom(validarCorreoInstitucional)
   .messages(mensajeCorreoInstitucional);
 
+const esquemaCorreoRegistrado = Joi.string().trim().lowercase().email().max(160);
+
 export const esquemaRegistro = Joi.object({
   nombre: esquemaNombre.required(),
   rut: Joi.string().trim().max(20).custom(validarRutChileno).optional().messages(mensajeRut),
@@ -58,7 +60,7 @@ export const esquemaLogin = Joi.object({
 });
 
 export const esquemaSolicitudCambioContrasena = Joi.object({
-  correo: esquemaCorreoInstitucional.required()
+  correo: esquemaCorreoRegistrado.required()
 });
 
 export const esquemaVerificarCorreo = Joi.object({
@@ -74,6 +76,11 @@ export const esquemaCompletarRegistro = Joi.object({
 export const esquemaCambioContrasena = Joi.object({
   token: Joi.string().trim().required(),
   contrasena: esquemaContrasena
+});
+
+export const esquemaCambioContrasenaSesion = Joi.object({
+  contrasenaActual: Joi.string().required(),
+  contrasenaNueva: esquemaContrasena
 });
 
 export const esquemaRefreshToken = Joi.object({
