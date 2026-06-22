@@ -1,6 +1,7 @@
 import { Prisma } from '../../generated/prisma/client';
 import { prisma, type ClientePrisma } from '../../configuracion/prisma';
 import { RolUsuario } from '../usuarios/rol-usuario';
+import type { TipoNotificacion } from './tipo-notificacion';
 
 export const crear = (
   data: Prisma.NotificacionUncheckedCreateInput,
@@ -14,12 +15,19 @@ export const buscarIdsPorRoles = (roles: RolUsuario[], client: ClientePrisma = p
   });
 
 export const listarDeUsuario = (
-  params: { usuarioId: string; soloNoLeidas: boolean; take: number; cursor?: string },
+  params: {
+    usuarioId: string;
+    soloNoLeidas: boolean;
+    take: number;
+    cursor?: string;
+    tipos?: TipoNotificacion[];
+  },
   client: ClientePrisma = prisma
 ) =>
   client.notificacion.findMany({
     where: {
       usuarioId: params.usuarioId,
+      ...(params.tipos?.length ? { tipo: { in: params.tipos } } : {}),
       ...(params.soloNoLeidas ? { leida: false } : {})
     },
     orderBy: { creadaEn: 'desc' },
@@ -32,8 +40,18 @@ export const listarDeUsuario = (
       : {})
   });
 
-export const contarNoLeidas = (usuarioId: string, client: ClientePrisma = prisma) =>
-  client.notificacion.count({ where: { usuarioId, leida: false } });
+export const contarNoLeidas = (
+  usuarioId: string,
+  tipos?: TipoNotificacion[],
+  client: ClientePrisma = prisma
+) =>
+  client.notificacion.count({
+    where: {
+      usuarioId,
+      leida: false,
+      ...(tipos?.length ? { tipo: { in: tipos } } : {})
+    }
+  });
 
 export const buscarDeUsuario = (usuarioId: string, id: string, client: ClientePrisma = prisma) =>
   client.notificacion.findFirst({ where: { id, usuarioId } });
@@ -41,8 +59,16 @@ export const buscarDeUsuario = (usuarioId: string, id: string, client: ClientePr
 export const marcarLeida = (id: string, client: ClientePrisma = prisma) =>
   client.notificacion.update({ where: { id }, data: { leida: true } });
 
-export const marcarTodasLeidas = (usuarioId: string, client: ClientePrisma = prisma) =>
+export const marcarTodasLeidas = (
+  usuarioId: string,
+  tipos?: TipoNotificacion[],
+  client: ClientePrisma = prisma
+) =>
   client.notificacion.updateMany({
-    where: { usuarioId, leida: false },
+    where: {
+      usuarioId,
+      leida: false,
+      ...(tipos?.length ? { tipo: { in: tipos } } : {})
+    },
     data: { leida: true }
   });
