@@ -83,7 +83,7 @@ class _PantallaNotificacionesState
               return const _EstadoNotificaciones(
                 icono: Icons.notifications_none_outlined,
                 titulo: 'Sin notificaciones',
-                mensaje: 'Aquí verás solicitudes, alertas y cambios de cuenta.',
+                mensaje: 'Aquí verás solicitudes, alertas e incidencias.',
               );
             }
 
@@ -101,6 +101,7 @@ class _PantallaNotificacionesState
                 itemBuilder: (context, index) {
                   return _TarjetaNotificacion(
                     notificacion: ordenadas[index],
+                    onTap: () => _abrirNotificacion(ordenadas[index]),
                   );
                 },
               ),
@@ -110,98 +111,125 @@ class _PantallaNotificacionesState
       ),
     );
   }
+
+  Future<void> _abrirNotificacion(NotificacionApp notificacion) async {
+    try {
+      if (!notificacion.leida) {
+        await notificacionRepository.marcarLeida(notificacion.id);
+      }
+    } catch (_) {}
+
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop(notificacion);
+  }
 }
 
 class _TarjetaNotificacion extends StatelessWidget {
   const _TarjetaNotificacion({
     required this.notificacion,
+    required this.onTap,
   });
 
   final NotificacionApp notificacion;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final color = _colorPorTipo(notificacion.tipo);
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: notificacion.leida
-              ? ColoresUbb.borde
-              : color.withValues(alpha: 0.34),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _iconoPorTipo(notificacion.tipo),
-                  color: color,
-                  size: 22,
-                ),
-              ),
-              if (!notificacion.leida)
-                Positioned(
-                  right: -1,
-                  top: -1,
-                  child: Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1.5),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  notificacion.tituloVisible,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: ColoresUbb.textoPrincipal,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  notificacion.mensajeVisible,
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: ColoresUbb.textoPrincipal,
-                        height: 1.25,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _tiempoRelativo(notificacion.creadaEn),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: ColoresUbb.textoSecundario,
-                      ),
-                ),
-              ],
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: notificacion.leida
+                  ? ColoresUbb.borde
+                  : color.withValues(alpha: 0.34),
             ),
           ),
-        ],
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      _iconoPorTipo(notificacion.tipo),
+                      color: color,
+                      size: 22,
+                    ),
+                  ),
+                  if (!notificacion.leida)
+                    Positioned(
+                      right: -1,
+                      top: -1,
+                      child: Container(
+                        width: 9,
+                        height: 9,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      notificacion.tituloVisible,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: ColoresUbb.textoPrincipal,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      notificacion.mensajeVisible,
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: ColoresUbb.textoPrincipal,
+                            height: 1.25,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _tiempoRelativo(notificacion.creadaEn),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: ColoresUbb.textoSecundario,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right,
+                color: ColoresUbb.textoSecundario.withValues(alpha: 0.75),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
