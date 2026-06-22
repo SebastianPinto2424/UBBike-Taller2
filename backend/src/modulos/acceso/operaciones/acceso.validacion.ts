@@ -23,6 +23,7 @@ export const esquemaDenegarQr = Joi.object({
 });
 
 export const esquemaGestionManual = Joi.object({
+  nombre: Joi.string().trim().min(3).max(120).optional(),
   correo: Joi.string().trim().email().optional(),
   rut: Joi.string().trim().max(20).optional(),
   bicicletaId: Joi.string().uuid().optional(),
