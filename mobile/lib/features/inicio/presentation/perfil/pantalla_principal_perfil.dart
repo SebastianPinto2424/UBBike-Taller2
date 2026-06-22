@@ -1,4 +1,19 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/providers/sesion_provider.dart';
+import 'package:ubbike/core/servicios/excepcion_api.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_repository.dart';
+import 'package:ubbike/shared/modelos/bicicletero_app.dart';
+import 'package:ubbike/shared/modelos/rol_usuario.dart';
+import 'package:ubbike/shared/utils/sesion_ui_utils.dart';
+import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
+import 'package:ubbike/features/inicio/presentation/comun/widgets_comun.dart';
 
 class VistaPerfil extends ConsumerWidget {
   const VistaPerfil({super.key, required this.rol});
@@ -9,9 +24,9 @@ class VistaPerfil extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sesion = ref.watch(sesionProvider).value;
     final usuarioSesion = sesion is SesionActiva ? sesion.usuario : null;
-    final nombrePerfil = _textoNoVacio(usuarioSesion?.nombre, rol.etiqueta);
-    final correoPerfil = _textoNoVacio(usuarioSesion?.correo, '—');
-    final rutPerfil = _textoNoVacio(usuarioSesion?.rut, 'Sin RUT registrado');
+    final nombrePerfil = textoNoVacio(usuarioSesion?.nombre, rol.etiqueta);
+    final correoPerfil = textoNoVacio(usuarioSesion?.correo, '—');
+    final rutPerfil = textoNoVacio(usuarioSesion?.rut, 'Sin RUT registrado');
 
     final tarjetaPerfil = Card(
       elevation: 4,
@@ -204,18 +219,18 @@ class _DatoPerfilBox extends StatelessWidget {
   }
 }
 
-class _SelectorBicicleteroGuardiaPerfil extends StatefulWidget {
-  const _SelectorBicicleteroGuardiaPerfil({this.onCambiado});
+class SelectorBicicleteroGuardiaPerfil extends StatefulWidget {
+  const SelectorBicicleteroGuardiaPerfil({super.key, this.onCambiado});
 
   final VoidCallback? onCambiado;
 
   @override
-  State<_SelectorBicicleteroGuardiaPerfil> createState() =>
+  State<SelectorBicicleteroGuardiaPerfil> createState() =>
       _SelectorBicicleteroGuardiaPerfilState();
 }
 
 class _SelectorBicicleteroGuardiaPerfilState
-    extends State<_SelectorBicicleteroGuardiaPerfil> {
+    extends State<SelectorBicicleteroGuardiaPerfil> {
   late final SolicitudGuardiaRepository solicitudGuardiaRepository;
   List<BicicleteroApp> bicicleteros = [];
   BicicleteroApp? bicicleteroSeleccionado;
@@ -226,7 +241,7 @@ class _SelectorBicicleteroGuardiaPerfilState
   @override
   void initState() {
     super.initState();
-    solicitudGuardiaRepository = _leerProvider(
+    solicitudGuardiaRepository = leerProvider(
       context,
       solicitudGuardiaRepositoryProvider,
     );
