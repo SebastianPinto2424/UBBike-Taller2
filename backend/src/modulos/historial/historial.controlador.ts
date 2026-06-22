@@ -1,5 +1,7 @@
+import { ErrorHttp } from '../../comun/errors/error-http';
 import { SolicitudAutenticada } from '../../comun/middlewares/autenticacion.middleware';
 import { controladorAsync } from '../../comun/utils/controlador-async';
+import { RolUsuario } from '../usuarios/rol-usuario';
 import { listarMovimientos, opcionesHistorial, resumenHistorial } from './historial.servicio';
 
 const crearFiltrosHistorial = (req: SolicitudAutenticada, limite: number, pagina: number) => ({
@@ -40,6 +42,10 @@ const escaparExcel = (valor: string) =>
   valor.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export const exportarExcel = controladorAsync<SolicitudAutenticada>(async (req, res) => {
+  if (req.usuario!.rol !== RolUsuario.ADMIN_CENTRAL) {
+    throw new ErrorHttp(403, 'Solo administracion central puede exportar el historial');
+  }
+
   const resultado = await listarMovimientos(crearFiltrosHistorial(req, 100000, 1));
 
   const encabezados = [
