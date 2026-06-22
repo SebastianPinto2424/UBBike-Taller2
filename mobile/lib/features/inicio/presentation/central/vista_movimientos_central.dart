@@ -1,4 +1,22 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/providers/sesion_provider.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/historial/data/historial_modelos.dart';
+import 'package:ubbike/features/historial/data/historial_repository.dart';
+import 'package:ubbike/shared/modelos/movimiento_app.dart';
+import 'package:ubbike/shared/modelos/rol_usuario.dart';
+import 'package:ubbike/shared/servicios/descarga_reporte.dart';
+import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
+import 'package:ubbike/shared/widgets/tarjeta_accion.dart';
+import 'package:ubbike/features/inicio/presentation/comun/widgets_comun.dart';
 
 class VistaMovimientosCentral extends StatefulWidget {
   const VistaMovimientosCentral({super.key});
@@ -30,15 +48,21 @@ class _VistaMovimientosCentralState extends State<VistaMovimientosCentral> {
   Future<OpcionesHistorialApp>? futuroOpciones;
 
   bool get _esCentral {
-    final sesion = _leerProvider(context, sesionProvider).value;
+    final sesion = leerProvider(context, sesionProvider).value;
     final rol = sesion is SesionActiva ? sesion.usuario.rol : null;
     return rol == RolUsuario.adminCentral || rol == RolUsuario.administrador;
+  }
+
+  bool get _puedeExportar {
+    final sesion = leerProvider(context, sesionProvider).value;
+    final rol = sesion is SesionActiva ? sesion.usuario.rol : null;
+    return rol == RolUsuario.adminCentral;
   }
 
   @override
   void initState() {
     super.initState();
-    historialRepository = _leerProvider(context, historialRepositoryProvider);
+    historialRepository = leerProvider(context, historialRepositoryProvider);
     futuroMovimientos = _obtenerMovimientos();
     if (_esCentral) {
       futuroOpciones = historialRepository.opciones();
@@ -71,7 +95,9 @@ class _VistaMovimientosCentralState extends State<VistaMovimientosCentral> {
 
   void _recargar() {
     temporizadorBusqueda?.cancel();
-    setState(() => futuroMovimientos = _obtenerMovimientos());
+    setState(() {
+      futuroMovimientos = _obtenerMovimientos();
+    });
   }
 
   void _programarBusqueda() {
@@ -86,11 +112,11 @@ class _VistaMovimientosCentralState extends State<VistaMovimientosCentral> {
   String _resumenFiltros() {
     final busqueda = filtroController.text.trim();
     final partes = [
-      _etiquetaPeriodoFiltro(periodo),
+      etiquetaPeriodoFiltro(periodo),
       if (fechaDesde != null || fechaHasta != null) _textoRangoFechas(),
-      _etiquetaTipoMovimientoFiltro(tipoMovimiento),
-      _etiquetaEstadoMovimientoFiltro(estadoMovimiento),
-      _etiquetaOrigenMovimientoFiltro(origenMovimiento),
+      etiquetaTipoMovimientoFiltro(tipoMovimiento),
+      etiquetaEstadoMovimientoFiltro(estadoMovimiento),
+      etiquetaOrigenMovimientoFiltro(origenMovimiento),
       if (bicicleteroId != null) 'Bicicletero seleccionado',
       if (guardiaId != null) 'Guardia seleccionado',
       if (busqueda.isNotEmpty) 'Búsqueda activa',
@@ -236,7 +262,7 @@ class _VistaMovimientosCentralState extends State<VistaMovimientosCentral> {
                       m.bicicletaDescripcion,
                       m.bicicleteroNombre,
                       m.guardiaNombre,
-                      _etiquetaOrigenMovimientoFiltro(m.origen),
+                      etiquetaOrigenMovimientoFiltro(m.origen),
                     ]),
               ],
             ),
@@ -271,9 +297,9 @@ class _VistaMovimientosCentralState extends State<VistaMovimientosCentral> {
 
   List<Widget> _controlesFiltros() {
     return [
-      _EtiquetaFiltro(
+      EtiquetaFiltro(
         texto: 'Período',
-        child: _SegmentadoEnLinea<String>(
+        child: SegmentadoEnLinea<String>(
           segments: const [
             ButtonSegment(value: 'DIA', label: Text('Día')),
             ButtonSegment(value: 'SEMANA', label: Text('Semana')),
@@ -288,7 +314,7 @@ class _VistaMovimientosCentralState extends State<VistaMovimientosCentral> {
         ),
       ),
       const SizedBox(height: 12),
-      _EtiquetaFiltro(
+      EtiquetaFiltro(
         texto: 'Rango exacto',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -340,9 +366,9 @@ class _VistaMovimientosCentralState extends State<VistaMovimientosCentral> {
         ),
       ),
       const SizedBox(height: 12),
-      _EtiquetaFiltro(
+      EtiquetaFiltro(
         texto: 'Tipo de movimiento',
-        child: _SegmentadoEnLinea<String>(
+        child: SegmentadoEnLinea<String>(
           segments: const [
             ButtonSegment(value: 'TODOS', label: Text('Todos')),
             ButtonSegment(value: 'INGRESO', label: Text('Ingresos')),
@@ -356,9 +382,9 @@ class _VistaMovimientosCentralState extends State<VistaMovimientosCentral> {
         ),
       ),
       const SizedBox(height: 12),
-      _EtiquetaFiltro(
+      EtiquetaFiltro(
         texto: 'Resultado',
-        child: _SegmentadoEnLinea<String>(
+        child: SegmentadoEnLinea<String>(
           segments: const [
             ButtonSegment(value: 'TODOS', label: Text('Todos')),
             ButtonSegment(value: 'CONFIRMADO', label: Text('Confirmados')),
@@ -372,9 +398,9 @@ class _VistaMovimientosCentralState extends State<VistaMovimientosCentral> {
         ),
       ),
       const SizedBox(height: 12),
-      _EtiquetaFiltro(
+      EtiquetaFiltro(
         texto: 'Origen',
-        child: _SegmentadoEnLinea<String>(
+        child: SegmentadoEnLinea<String>(
           segments: const [
             ButtonSegment(value: 'TODOS', label: Text('Todos')),
             ButtonSegment(value: 'QR', label: Text('QR')),
@@ -492,190 +518,85 @@ class _VistaMovimientosCentralState extends State<VistaMovimientosCentral> {
           ),
         ),
         const SizedBox(height: 10),
+
+        PanelFiltros(
+          titulo: 'Filtros',
+          detalle: _resumenFiltros(),
+          onLimpiar: _limpiarFiltros,
+          children: _controlesFiltros(),
+        ),
+
+        if (_puedeExportar) ...[
+          const SizedBox(height: 10),
+          _PanelExportarHistorial(
+            exportando: exportando,
+            expandido: exportarAbierto,
+            formatoSeleccionado: formatoExportacion,
+            onToggle: () {
+              setState(() => exportarAbierto = !exportarAbierto);
+            },
+            onFormato: (formato) {
+              setState(() => formatoExportacion = formato);
+            },
+            onDescargar: () => _exportarSeleccionado(formatoExportacion),
+          ),
+        ],
+        const SizedBox(height: 16),
+
         Expanded(
           child: RefreshIndicator(
             onRefresh: () async => _recargar(),
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 24),
-              children: [
-                _PanelFiltros(
-                  titulo: 'Filtros',
-                  detalle: _resumenFiltros(),
-                  onLimpiar: _limpiarFiltros,
-                  children: _controlesFiltros(),
-                ),
-                const SizedBox(height: 10),
-                _PanelExportarHistorial(
-                  exportando: exportando,
-                  expandido: exportarAbierto,
-                  formatoSeleccionado: formatoExportacion,
-                  onToggle: () {
-                    setState(() => exportarAbierto = !exportarAbierto);
-                  },
-                  onFormato: (formato) {
-                    setState(() => formatoExportacion = formato);
-                  },
-                  onDescargar: () => _exportarSeleccionado(formatoExportacion),
-                ),
-                const SizedBox(height: 16),
-                FutureBuilder<List<MovimientoApp>>(
-                  future: futuroMovimientos,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const SizedBox(
-                        height: 180,
-                        child: Center(child: CircularProgressIndicator()),
-                      );
-                    }
-                    if (snapshot.hasError) {
-                      return TarjetaAccion(
+            child: FutureBuilder<List<MovimientoApp>>(
+              future: futuroMovimientos,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      TarjetaAccion(
                         icono: Icons.error_outline,
                         titulo: 'No se pudieron cargar movimientos',
                         detalle: 'Toca para reintentar.',
                         color: ColoresUbb.rojoInstitucional,
                         onTap: _recargar,
-                      );
-                    }
-                    final movimientos = snapshot.data ?? [];
-                    if (movimientos.isEmpty) {
-                      return const EstadoLista(
+                      ),
+                    ],
+                  );
+                }
+                final movimientos = snapshot.data ?? [];
+                if (movimientos.isEmpty) {
+                  return ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const [
+                      EstadoLista(
                         icono: Icons.history,
                         titulo: 'Sin movimientos',
                         detalle:
                             'Los ingresos y retiros que coincidan aparecerán aquí.',
-                      );
-                    }
-                    return Column(
-                      children: [
-                        ...movimientos.map(
-                          (movimiento) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: _TarjetaMovimientoCentral(
-                              movimiento: movimiento,
-                              mostrarIdentidad: true,
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
+                      ),
+                    ],
+                  );
+                }
+                return ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: 24),
+                  itemCount: movimientos.length,
+                  itemBuilder: (context, index) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: TarjetaMovimientoCentral(
+                      movimiento: movimientos[index],
+                      mostrarIdentidad: true,
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ),
       ],
-    );
-  }
-}
-
-class _TarjetaMovimientoCentral extends StatelessWidget {
-  const _TarjetaMovimientoCentral({
-    required this.movimiento,
-    this.mostrarIdentidad = true,
-    this.mostrarGuardia = true,
-  });
-
-  final MovimientoApp movimiento;
-  final bool mostrarIdentidad;
-  final bool mostrarGuardia;
-
-  @override
-  Widget build(BuildContext context) {
-    final esIngreso = movimiento.tipo == 'INGRESO';
-    final confirmado = movimiento.estado == 'CONFIRMADO';
-    final tipoTexto = esIngreso ? 'Ingreso' : 'Retiro';
-    final motivo = movimiento.motivoDenegacion?.trim();
-    final comentario = movimiento.comentarioGuardia?.trim();
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  esIngreso ? Icons.login : Icons.logout,
-                  color: confirmado
-                      ? ColoresUbb.exito
-                      : ColoresUbb.rojoInstitucional,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    mostrarIdentidad
-                        ? '$tipoTexto | ${movimiento.usuarioNombre}'
-                        : tipoTexto,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                  ),
-                ),
-                ChipEstado(
-                  texto: confirmado ? 'Confirmado' : 'Denegado',
-                  color: confirmado
-                      ? ColoresUbb.exito
-                      : ColoresUbb.rojoInstitucional,
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            if (mostrarIdentidad) ...[
-              FilaDato(
-                etiqueta: 'Correo',
-                valor: movimiento.usuarioCorreo,
-                anchoCompleto: true,
-              ),
-              FilaDato(
-                etiqueta: 'RUT',
-                valor: movimiento.usuarioRut ?? 'Sin RUT',
-              ),
-            ],
-            FilaDato(
-              etiqueta: 'Bicicleta',
-              valor: movimiento.bicicletaDescripcion,
-            ),
-            FilaDato(
-              etiqueta: 'Bicicletero',
-              valor: movimiento.bicicleteroNombre,
-              anchoCompleto: true,
-            ),
-            if (mostrarGuardia)
-              FilaDato(etiqueta: 'Guardia', valor: movimiento.guardiaNombre),
-            FilaDato(
-              etiqueta: 'Fecha',
-              valor: formatearFecha(movimiento.creadoEn),
-            ),
-            FilaDato(
-              etiqueta: 'Hora',
-              valor: formatearHora(movimiento.creadoEn),
-            ),
-            FilaDato(
-              etiqueta: 'Método',
-              valor: _etiquetaOrigenMovimientoFiltro(movimiento.origen),
-            ),
-            if (motivo != null && motivo.isNotEmpty)
-              FilaDato(
-                etiqueta: 'Motivo de rechazo',
-                valor: motivo,
-                anchoCompleto: true,
-                valorColor: ColoresUbb.rojoInstitucional,
-                valorPeso: FontWeight.w700,
-              ),
-            if (comentario != null && comentario.isNotEmpty)
-              FilaDato(
-                etiqueta: 'Comentario guardia',
-                valor: comentario,
-                anchoCompleto: true,
-                valorColor: ColoresUbb.textoSecundario,
-                valorPeso: FontWeight.w700,
-              ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -882,143 +803,6 @@ class _OpcionExportacion extends StatelessWidget {
       ),
     );
   }
-}
-
-class _PanelFiltros extends StatelessWidget {
-  const _PanelFiltros({
-    required this.titulo,
-    required this.detalle,
-    required this.children,
-    this.onLimpiar,
-  });
-
-  final String titulo;
-  final String detalle;
-  final List<Widget> children;
-  final VoidCallback? onLimpiar;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: ExpansionTile(
-        leading: const Icon(Icons.tune, color: ColoresUbb.azulApp),
-        title: Text(
-          titulo,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
-        ),
-        subtitle: Text(
-          detalle,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        children: [
-          const SizedBox(height: 6),
-          ...children,
-          if (onLimpiar != null) ...[
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: onLimpiar,
-                icon: const Icon(Icons.filter_alt_off_outlined),
-                label: const Text('Restablecer filtros'),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _EtiquetaFiltro extends StatelessWidget {
-  const _EtiquetaFiltro({required this.texto, required this.child});
-
-  final String texto;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          texto,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: ColoresUbb.textoSecundario,
-                fontWeight: FontWeight.w800,
-              ),
-        ),
-        const SizedBox(height: 6),
-        child,
-      ],
-    );
-  }
-}
-
-class _SegmentadoEnLinea<T extends Object> extends StatelessWidget {
-  const _SegmentadoEnLinea({
-    required this.segments,
-    required this.selected,
-    required this.onSelectionChanged,
-  });
-
-  final List<ButtonSegment<T>> segments;
-  final Set<T> selected;
-  final ValueChanged<Set<T>> onSelectionChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: SegmentedButton<T>(
-        showSelectedIcon: false,
-        segments: segments,
-        selected: selected,
-        onSelectionChanged: onSelectionChanged,
-      ),
-    );
-  }
-}
-
-String _etiquetaPeriodoFiltro(String periodo) {
-  return switch (periodo) {
-    'DIA' => 'Día',
-    'SEMANA' => 'Semana',
-    'MES' => 'Mes',
-    'ANIO' => 'Año',
-    _ => periodo,
-  };
-}
-
-String _etiquetaTipoMovimientoFiltro(String tipo) {
-  return switch (tipo) {
-    'TODOS' => 'Todos los movimientos',
-    'INGRESO' => 'Ingresos',
-    'RETIRO' => 'Retiros',
-    _ => tipo,
-  };
-}
-
-String _etiquetaEstadoMovimientoFiltro(String estado) {
-  return switch (estado) {
-    'TODOS' => 'Todos los resultados',
-    'CONFIRMADO' => 'Confirmados',
-    'DENEGADO' => 'Denegados',
-    _ => estado,
-  };
-}
-
-String _etiquetaOrigenMovimientoFiltro(String origen) {
-  return switch (origen) {
-    'TODOS' => 'Todos los orígenes',
-    'QR' => 'QR',
-    'MANUAL' => 'Manual',
-    _ => origen,
-  };
 }
 
 String _formatearFechaCorta(DateTime fecha) {
