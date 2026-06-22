@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { middlewareAutenticacion } from '../../comun/middlewares/autenticacion.middleware';
+import { middlewareAutenticacionSinExigirCambio } from '../../comun/middlewares/autenticacion.middleware';
 import { limitarIntentos } from '../../comun/middlewares/limitador-intentos.middleware';
 import { validarCuerpo } from '../../comun/middlewares/validar-cuerpo.middleware';
 import {
   cambiarContrasena,
+  cambiarContrasenaSesion,
   cerrarSesion,
   completarRegistro,
   iniciarSesion,
@@ -15,6 +16,7 @@ import {
 } from './autenticacion.controlador';
 import {
   esquemaCambioContrasena,
+  esquemaCambioContrasenaSesion,
   esquemaCompletarRegistro,
   esquemaLogin,
   esquemaRefreshToken,
@@ -47,7 +49,11 @@ rutasAutenticacion.post(
   iniciarSesion
 );
 
-rutasAutenticacion.get(['/perfil', '/me', '/yo'], middlewareAutenticacion, obtenerPerfil);
+rutasAutenticacion.get(
+  ['/perfil', '/me', '/yo'],
+  middlewareAutenticacionSinExigirCambio,
+  obtenerPerfil
+);
 
 rutasAutenticacion.get('/verificar-correo', verificarCorreo);
 rutasAutenticacion.post(
@@ -95,6 +101,18 @@ rutasAutenticacion.post(
   refrescarToken
 );
 
-rutasAutenticacion.post('/logout', middlewareAutenticacion, cerrarSesion);
+rutasAutenticacion.post(
+  '/cambiar-contrasena-sesion',
+  middlewareAutenticacionSinExigirCambio,
+  limitarIntentos({
+    ventanaMs: 15 * 60 * 1000,
+    maximo: 10,
+    mensaje: 'Demasiados intentos de cambio de contraseña. Intenta más tarde.'
+  }),
+  validarCuerpo(esquemaCambioContrasenaSesion),
+  cambiarContrasenaSesion
+);
+
+rutasAutenticacion.post('/logout', middlewareAutenticacionSinExigirCambio, cerrarSesion);
 
 export { rutasAutenticacion };
