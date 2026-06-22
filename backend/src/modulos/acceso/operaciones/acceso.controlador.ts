@@ -35,6 +35,7 @@ export const registrarManual = controladorAsync<SolicitudAutenticada>(async (req
   const movimiento = await registrarGestionManual({
     guardiaId: req.usuario!.usuarioId,
     rol: req.usuario!.rol,
+    nombre: req.body.nombre,
     correo: req.body.correo,
     rut: req.body.rut,
     bicicletaId: req.body.bicicletaId,
