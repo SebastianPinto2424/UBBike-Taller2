@@ -9,6 +9,7 @@ class UsuarioApp {
     required this.correoVerificado,
     required this.registroParcial,
     required this.cuentaActiva,
+    this.debeCambiarContrasena = false,
     this.rut,
     this.eliminadoEn,
   });
@@ -21,6 +22,7 @@ class UsuarioApp {
   final bool correoVerificado;
   final bool registroParcial;
   final bool cuentaActiva;
+  final bool debeCambiarContrasena;
   final DateTime? eliminadoEn;
 
   factory UsuarioApp.fromJson(Map<String, dynamic> json) {
@@ -33,6 +35,7 @@ class UsuarioApp {
       correoVerificado: json['correoVerificado'] as bool? ?? false,
       registroParcial: json['registroParcial'] as bool? ?? false,
       cuentaActiva: json['cuentaActiva'] as bool? ?? true,
+      debeCambiarContrasena: json['debeCambiarContrasena'] as bool? ?? false,
       eliminadoEn: json['eliminadoEn'] == null
           ? null
           : DateTime.parse(json['eliminadoEn'] as String),
