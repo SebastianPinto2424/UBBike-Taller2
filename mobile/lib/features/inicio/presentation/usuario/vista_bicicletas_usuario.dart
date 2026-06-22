@@ -1,7 +1,25 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/servicios/excepcion_api.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/bicicletas/data/bicicleta_repository.dart';
+import 'package:ubbike/shared/modelos/bicicleta_app.dart';
+import 'package:ubbike/shared/utils/auto_refresco.dart';
+import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
+import 'package:ubbike/shared/widgets/tarjeta_accion.dart';
+import 'package:ubbike/shared/widgets/vista_con_tabs.dart';
+import 'package:ubbike/features/inicio/presentation/comun/widgets_comun.dart';
+import 'package:ubbike/features/inicio/presentation/usuario/formulario_bicicleta_usuario.dart';
+import 'package:ubbike/features/inicio/presentation/usuario/vista_movimientos_usuario.dart';
 
 class VistaBicicletas extends StatefulWidget {
-  const VistaBicicletas({super.key});
+  const VistaBicicletas({super.key, this.initialIndex = 0});
+
+  final int initialIndex;
 
   @override
   State<VistaBicicletas> createState() => _VistaBicicletasState();
@@ -16,7 +34,7 @@ class _VistaBicicletasState extends State<VistaBicicletas>
   @override
   void initState() {
     super.initState();
-    bicicletaRepository = _leerProvider(context, bicicletaRepositoryProvider);
+    bicicletaRepository = leerProvider(context, bicicletaRepositoryProvider);
     futuroBicicletas = bicicletaRepository.listar();
     iniciarAutoRefresco();
   }
@@ -36,10 +54,11 @@ class _VistaBicicletasState extends State<VistaBicicletas>
 
   @override
   Widget build(BuildContext context) {
-    return _VistaConTabs(
+    return VistaConTabs(
+      initialIndex: widget.initialIndex,
       tabs: [
-        _tabCompacto(Icons.pedal_bike_outlined, 'Bicicletas'),
-        _tabCompacto(Icons.manage_search_outlined, 'Movimientos'),
+        tabCompacto(Icons.pedal_bike_outlined, 'Bicicletas'),
+        tabCompacto(Icons.manage_search_outlined, 'Movimientos'),
       ],
       vistas: [
         _vistaMisBicicletas(),
@@ -55,12 +74,12 @@ class _VistaBicicletasState extends State<VistaBicicletas>
         if (snapshot.hasData) {
           _ultimoDato = snapshot.data;
         }
-        final snapshotEfectivo = snapshot.connectionState ==
-                    ConnectionState.waiting &&
-                _ultimoDato != null
-            ? AsyncSnapshot<List<BicicletaApp>>.withData(
-                ConnectionState.done, _ultimoDato!)
-            : snapshot;
+        final snapshotEfectivo =
+            snapshot.connectionState == ConnectionState.waiting &&
+                    _ultimoDato != null
+                ? AsyncSnapshot<List<BicicletaApp>>.withData(
+                    ConnectionState.done, _ultimoDato!)
+                : snapshot;
         final bicicletas = snapshotEfectivo.data ?? [];
         final mostrarBotonEncabezado =
             snapshotEfectivo.hasData && bicicletas.isNotEmpty;
@@ -178,7 +197,7 @@ class _VistaBicicletasState extends State<VistaBicicletas>
       isScrollControlled: true,
       useRootNavigator: true,
       useSafeArea: true,
-      builder: (_) => _FormularioBicicletaSheet(
+      builder: (_) => FormularioBicicletaSheet(
         bicicleta: bicicleta,
         bicicletaRepository: bicicletaRepository,
       ),
@@ -211,7 +230,7 @@ class _EncabezadoBicicletas extends StatelessWidget {
         const Expanded(child: TituloApartado(titulo: 'Mis bicicletas')),
         if (mostrarBoton) ...[
           const SizedBox(width: 12),
-          _BotonRegistrarCompacto(
+          BotonRegistrarCompacto(
             texto: 'Registrar',
             onPressed: onRegistrar,
           ),
@@ -361,8 +380,9 @@ class _EstadoVacioBicicletas extends StatelessWidget {
   }
 }
 
-class _BotonRegistrarCompacto extends StatelessWidget {
-  const _BotonRegistrarCompacto({
+class BotonRegistrarCompacto extends StatelessWidget {
+  const BotonRegistrarCompacto({
+    super.key,
     required this.texto,
     required this.onPressed,
   });
