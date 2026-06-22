@@ -2,11 +2,11 @@ import path from 'path';
 import dotenv from 'dotenv';
 
 const cargarVariablesEntorno = () => {
-  const cwd = process.cwd();
-  const rutas =
-    path.basename(cwd).toLowerCase() === 'backend'
-      ? [path.resolve(cwd, '..', '.env')]
-      : [path.resolve(cwd, '.env')];
+  const rutas = [
+    path.resolve(process.cwd(), '..', '.env'),
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(process.cwd(), 'backend', '.env')
+  ];
 
   for (const ruta of rutas) {
     dotenv.config({ path: ruta });
@@ -119,10 +119,10 @@ export const entorno = {
     origenes: separarLista(process.env.CORS_ORIGINS, [
       'http://localhost:8080',
       'http://localhost:8081',
-      'http://localhost:8082',
+      'http://localhost:8083',
       'http://127.0.0.1:8080',
       'http://127.0.0.1:8081',
-      'http://127.0.0.1:8082'
+      'http://127.0.0.1:8083'
     ])
   },
   servidor: {
@@ -142,6 +142,10 @@ export const entorno = {
   },
   app: {
     urlFrontend: process.env.FRONTEND_URL ?? 'http://localhost:8081'
+  },
+  firebase: {
+
+    credencialesPath: process.env.FIREBASE_CREDENTIALS_PATH
   },
   archivos: {
     directorioUploads: process.env.UPLOADS_DIR ?? path.resolve(process.cwd(), 'uploads'),
