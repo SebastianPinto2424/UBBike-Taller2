@@ -1,7 +1,22 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/servicios/excepcion_api.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/acceso/data/acceso_modelos.dart';
+import 'package:ubbike/features/acceso/data/acceso_repository.dart';
+import 'package:ubbike/shared/widgets/chip_estado.dart';
+import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
+import 'package:ubbike/features/inicio/presentation/usuario/formulario_bicicleta_usuario.dart';
 
 class VistaEscanerQrGuardia extends StatefulWidget {
-  const VistaEscanerQrGuardia({super.key});
+  const VistaEscanerQrGuardia({super.key, this.onMovimientoRegistrado});
+
+  final VoidCallback? onMovimientoRegistrado;
 
   @override
   State<VistaEscanerQrGuardia> createState() => _VistaEscanerQrGuardiaState();
@@ -11,61 +26,185 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
   final formKeyQrValidado = GlobalKey<FormState>();
   late final AccesoRepository accesoRepository;
   final comentarioController = TextEditingController();
-  final MobileScannerController _scannerController = MobileScannerController();
+  late MobileScannerController _scannerController;
+  int _sesionEscaner = 0;
   String? codigoDetectado;
   QrValidadoApp? qrLeido;
   bool cargando = false;
   bool escaneando = false;
+  bool preparandoEscaner = false;
 
   @override
   void initState() {
     super.initState();
-    accesoRepository = _leerProvider(context, accesoRepositoryProvider);
+    accesoRepository = leerProvider(context, accesoRepositoryProvider);
+    _scannerController = _crearScannerController();
   }
 
   @override
   void dispose() {
     comentarioController.dispose();
-    _scannerController.dispose();
+    unawaited(
+        _scannerController.stop().whenComplete(_scannerController.dispose));
     super.dispose();
   }
 
+  MobileScannerController _crearScannerController() {
+    return MobileScannerController(
+      autoStart: false,
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      formats: const [BarcodeFormat.qrCode],
+    );
+  }
+
   void _onDeteccion(BarcodeCapture captura) {
-    if (cargando || !escaneando || codigoDetectado != null) return;
+    if (cargando ||
+        preparandoEscaner ||
+        !escaneando ||
+        codigoDetectado != null) {
+      return;
+    }
     final codigo = captura.barcodes.firstOrNull?.rawValue;
     if (codigo == null || codigo.isEmpty) return;
-    _scannerController.stop();
     setState(() {
       codigoDetectado = codigo;
       escaneando = false;
+      cargando = true;
     });
-    unawaited(_validarQr(codigo));
+    unawaited(_procesarQrDetectado(codigo));
   }
 
   void _toggleEscanear() {
+    unawaited(_cambiarEstadoEscaner());
+  }
+
+  Future<void> _cambiarEstadoEscaner() async {
+    if (preparandoEscaner || cargando) {
+      return;
+    }
+
     if (escaneando) {
-      setState(() => escaneando = false);
-      _scannerController.stop();
+      await _detenerEscaner();
+      return;
+    }
+
+    await _iniciarEscaner();
+  }
+
+  Future<void> _iniciarEscaner() async {
+    setState(() {
+      codigoDetectado = null;
+      qrLeido = null;
+      comentarioController.clear();
+      escaneando = true;
+      preparandoEscaner = true;
+      _sesionEscaner += 1;
+    });
+
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || !escaneando) {
+      return;
+    }
+
+    try {
+      await _scannerController.start();
+      final error = _scannerController.value.error;
+      if (error != null) {
+        await _manejarErrorEscaner(error);
+        return;
+      }
+
+      if (mounted) {
+        setState(() => preparandoEscaner = false);
+      }
+    } catch (_) {
+      if (mounted) {
+        await _manejarErrorEscaner(null);
+      }
+    }
+  }
+
+  void _limpiarLectura() {
+    unawaited(_limpiarLecturaAsync());
+  }
+
+  Future<void> _limpiarLecturaAsync() async {
+    await _detenerCamaraSilencioso();
+    if (!mounted) {
       return;
     }
 
     setState(() {
       codigoDetectado = null;
       qrLeido = null;
+      escaneando = false;
+      preparandoEscaner = false;
       comentarioController.clear();
-      escaneando = true;
     });
-    _scannerController.start();
   }
 
-  void _limpiarLectura() {
-    _scannerController.stop();
+  Future<void> _detenerEscaner() async {
+    setState(() => preparandoEscaner = true);
+    await _detenerCamaraSilencioso();
+    if (!mounted) {
+      return;
+    }
+
     setState(() {
-      codigoDetectado = null;
-      qrLeido = null;
       escaneando = false;
-      comentarioController.clear();
+      preparandoEscaner = false;
     });
+  }
+
+  Future<void> _detenerCamaraSilencioso() async {
+    try {
+      await _scannerController.stop();
+    } catch (_) {
+
+    }
+  }
+
+  Future<void> _procesarQrDetectado(String codigo) async {
+    await _detenerCamaraSilencioso();
+    await _validarQr(codigo, cargandoActivo: true);
+  }
+
+  Future<void> _manejarErrorEscaner(MobileScannerException? error) async {
+    final mensaje = _mensajeErrorEscaner(error);
+    await _detenerCamaraSilencioso();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      escaneando = false;
+      preparandoEscaner = false;
+    });
+    context.mostrarError(mensaje);
+  }
+
+  void _reintentarEscaner() {
+    unawaited(_reintentarEscanerAsync());
+  }
+
+  Future<void> _reintentarEscanerAsync() async {
+    if (preparandoEscaner || cargando) {
+      return;
+    }
+
+    await _detenerCamaraSilencioso();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      escaneando = false;
+      preparandoEscaner = false;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    if (mounted) {
+      await _iniciarEscaner();
+    }
   }
 
   @override
@@ -113,7 +252,9 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
                     codigoDetectado!.trim().isNotEmpty,
                 qrValidado: false,
                 controller: _scannerController,
+                sesionEscaner: _sesionEscaner,
                 onDetect: _onDeteccion,
+                onReintentar: _reintentarEscaner,
               ),
             ),
           ),
@@ -127,9 +268,13 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
               borderRadius: BorderRadius.circular(16),
             ),
           ),
-          onPressed: cargando ? null : _toggleEscanear,
+          onPressed: cargando || preparandoEscaner ? null : _toggleEscanear,
           child: Text(
-            escaneando ? 'Detener escaneo' : 'Escanear QR',
+            preparandoEscaner
+                ? 'Preparando cámara'
+                : escaneando
+                    ? 'Detener escaneo'
+                    : 'Escanear QR',
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -141,13 +286,15 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
     );
   }
 
-  Future<void> _validarQr([String? codigo]) async {
+  Future<void> _validarQr(String? codigo, {bool cargandoActivo = false}) async {
     final token = (codigo ?? codigoDetectado)?.trim();
     if (token == null || token.isEmpty) {
       return;
     }
 
-    setState(() => cargando = true);
+    if (!cargandoActivo) {
+      setState(() => cargando = true);
+    }
 
     try {
       final qr = await accesoRepository.validarQr(token);
@@ -162,6 +309,7 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
         setState(() {
           qrLeido = null;
           codigoDetectado = null;
+          escaneando = false;
         });
         context.mostrarError(error.mensaje);
       }
@@ -187,6 +335,7 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
         context.mostrarExito(
           '${movimiento.tipo == 'INGRESO' ? 'Ingreso' : 'Retiro'} confirmado',
         );
+        widget.onMovimientoRegistrado?.call();
       }
     } on ExcepcionApi catch (error) {
       if (mounted) {
@@ -201,7 +350,7 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
       showDragHandle: true,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => _SheetDenegacion(
+      builder: (_) => SheetDenegacion(
         onConfirmar: (motivo) => _confirmarDenegacion(qr, motivo),
       ),
     );
@@ -215,6 +364,7 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
         if (context.mounted) {
           context.mostrarInfo('Operación denegada');
         }
+        widget.onMovimientoRegistrado?.call();
       }
       return true;
     } on ExcepcionApi catch (error) {
@@ -231,16 +381,32 @@ class _VistaEscanerQrGuardiaState extends State<VistaEscanerQrGuardia> {
   }
 }
 
-class _SheetDenegacion extends StatefulWidget {
-  const _SheetDenegacion({required this.onConfirmar});
+String _mensajeErrorEscaner(MobileScannerException? error) {
+  return switch (error?.errorCode) {
+    MobileScannerErrorCode.permissionDenied =>
+      'Permite el uso de la cámara para escanear QR.',
+    MobileScannerErrorCode.unsupported =>
+      'Este dispositivo no permite escanear QR desde la cámara.',
+    MobileScannerErrorCode.controllerAlreadyInitialized =>
+      'La cámara todavía se está liberando. Intenta nuevamente en unos segundos.',
+    MobileScannerErrorCode.controllerDisposed ||
+    MobileScannerErrorCode.controllerUninitialized =>
+      'No se pudo preparar la cámara. Intenta abrir el escáner nuevamente.',
+    _ =>
+      'No se pudo iniciar la cámara. Cierra el escáner e intenta nuevamente.',
+  };
+}
+
+class SheetDenegacion extends StatefulWidget {
+  const SheetDenegacion({super.key, required this.onConfirmar});
 
   final Future<bool> Function(String motivo) onConfirmar;
 
   @override
-  State<_SheetDenegacion> createState() => _SheetDenegacionState();
+  State<SheetDenegacion> createState() => _SheetDenegacionState();
 }
 
-class _SheetDenegacionState extends State<_SheetDenegacion> {
+class _SheetDenegacionState extends State<SheetDenegacion> {
   final formKeyDenegacion = GlobalKey<FormState>();
   final motivoController = TextEditingController();
   bool enviando = false;
@@ -463,14 +629,14 @@ class _FormularioQrValidado extends StatelessWidget {
                   Expanded(
                     child: _CampoLecturaQr(
                       label: 'Marca',
-                      valor: _textoNoVacio(qr.bicicletaMarca, 'Sin marca'),
+                      valor: textoNoVacio(qr.bicicletaMarca, 'Sin marca'),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: _CampoLecturaQr(
                       label: 'Modelo',
-                      valor: _textoNoVacio(qr.bicicletaModelo, 'Sin modelo'),
+                      valor: textoNoVacio(qr.bicicletaModelo, 'Sin modelo'),
                     ),
                   ),
                 ],
@@ -481,14 +647,14 @@ class _FormularioQrValidado extends StatelessWidget {
                   Expanded(
                     child: _CampoLecturaQr(
                       label: 'Color',
-                      valor: _textoNoVacio(qr.bicicletaColor, 'Sin color'),
+                      valor: textoNoVacio(qr.bicicletaColor, 'Sin color'),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: _CampoLecturaQr(
                       label: 'Aro',
-                      valor: _textoNoVacio(qr.bicicletaAro, 'Sin aro'),
+                      valor: textoNoVacio(qr.bicicletaAro, 'Sin aro'),
                     ),
                   ),
                 ],
@@ -496,10 +662,10 @@ class _FormularioQrValidado extends StatelessWidget {
               const SizedBox(height: 10),
               _CampoLecturaQr(
                 label: 'Número de serie',
-                valor: _textoNoVacio(qr.bicicletaNumeroSerie, 'Sin serie'),
+                valor: textoNoVacio(qr.bicicletaNumeroSerie, 'Sin serie'),
               ),
               const SizedBox(height: 12),
-              _SelectorFotoBicicleta(
+              SelectorFotoBicicleta(
                 fotoDataUrl: qr.bicicletaFotoUrl,
                 onCamara: () {},
                 onGaleria: () {},
@@ -561,7 +727,7 @@ class _FormularioQrValidado extends StatelessWidget {
     );
   }
 
-  String _textoNoVacio(String? valor, String respaldo) {
+  String textoNoVacio(String? valor, String respaldo) {
     final texto = valor?.trim();
     return texto == null || texto.isEmpty ? respaldo : texto;
   }
@@ -624,7 +790,9 @@ class _ContenidoPanelEscaneoGuardia extends StatelessWidget {
     required this.codigoDetectado,
     required this.qrValidado,
     required this.controller,
+    required this.sesionEscaner,
     required this.onDetect,
+    required this.onReintentar,
   });
 
   final bool escaneando;
@@ -632,17 +800,25 @@ class _ContenidoPanelEscaneoGuardia extends StatelessWidget {
   final bool codigoDetectado;
   final bool qrValidado;
   final MobileScannerController controller;
+  final int sesionEscaner;
   final void Function(BarcodeCapture captura) onDetect;
+  final VoidCallback onReintentar;
 
   @override
   Widget build(BuildContext context) {
     if (escaneando) {
       return ClipRRect(
-        key: const ValueKey('camara-activa'),
+        key: ValueKey('camara-activa-$sesionEscaner'),
         borderRadius: BorderRadius.circular(18),
         child: MobileScanner(
           controller: controller,
           onDetect: onDetect,
+          placeholderBuilder: (context, child) =>
+              const _EstadoCamaraQr(mensaje: 'Activando cámara...'),
+          errorBuilder: (context, error, child) => _ErrorEscanerQr(
+            error: error,
+            onReintentar: onReintentar,
+          ),
         ),
       );
     }
@@ -714,6 +890,89 @@ class _ContenidoPanelEscaneoGuardia extends StatelessWidget {
                 ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EstadoCamaraQr extends StatelessWidget {
+  const _EstadoCamaraQr({required this.mensaje});
+
+  final String mensaje;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 42,
+              height: 42,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              mensaje,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorEscanerQr extends StatelessWidget {
+  const _ErrorEscanerQr({
+    required this.error,
+    required this.onReintentar,
+  });
+
+  final MobileScannerException error;
+  final VoidCallback onReintentar;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: Colors.white,
+                size: 42,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _mensajeErrorEscaner(error),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed: onReintentar,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Reintentar'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
