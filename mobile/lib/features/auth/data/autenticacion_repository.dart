@@ -61,4 +61,13 @@ class AutenticacionRepository {
     required String contrasena,
   }) =>
       _api.cambiarContrasena(token: token, contrasena: contrasena);
+
+  Future<String> cambiarContrasenaSesion({
+    required String contrasenaActual,
+    required String contrasenaNueva,
+  }) =>
+      _api.cambiarContrasenaSesion(
+        contrasenaActual: contrasenaActual,
+        contrasenaNueva: contrasenaNueva,
+      );
 }
