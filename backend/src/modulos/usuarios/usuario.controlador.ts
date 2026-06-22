@@ -3,7 +3,9 @@ import {
   actualizarPermisosUsuario,
   crearUsuarioAdmin,
   eliminarUsuarioAdmin,
-  listarUsuarios
+  listarUsuarios,
+  reenviarCorreoAccesoAdmin,
+  reenviarVerificacionCorreoAdmin
 } from './usuario.servicio';
 import { RolUsuario } from './rol-usuario';
 
@@ -46,6 +48,16 @@ export const crear = controladorAsync(async (req, res) => {
 export const actualizarPermisos = controladorAsync(async (req, res) => {
   const usuario = await actualizarPermisosUsuario(req.params.id, req.body, req.usuario?.usuarioId);
   return res.status(200).json({ usuario });
+});
+
+export const reenviarVerificacion = controladorAsync(async (req, res) => {
+  const resultado = await reenviarVerificacionCorreoAdmin(req.params.id, req.usuario?.usuarioId);
+  return res.status(200).json(resultado);
+});
+
+export const reenviarAcceso = controladorAsync(async (req, res) => {
+  const resultado = await reenviarCorreoAccesoAdmin(req.params.id, req.usuario?.usuarioId);
+  return res.status(200).json(resultado);
 });
 
 export const eliminar = controladorAsync(async (req, res) => {
