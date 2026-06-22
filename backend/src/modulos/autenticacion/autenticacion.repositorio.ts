@@ -116,6 +116,10 @@ export const actualizarContrasena = (
     id,
     {
       contrasenaHash,
+      correoVerificado: true,
+      debeCambiarContrasena: false,
+      tokenVerificacionCorreo: null,
+      tokenVerificacionCorreoExpiraEn: null,
       tokenCambioContrasena: null,
       tokenCambioContrasenaExpiraEn: null,
       versionSesion: {
