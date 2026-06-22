@@ -31,6 +31,66 @@ String resolverUrlFotoBicicleta(String fotoUrl) {
   return fotoUrl;
 }
 
+Future<void> mostrarFotoBicicletaAmpliada(
+  BuildContext context,
+  String fotoReferencia,
+) {
+  final bytesFoto = decodificarFotoDataUrl(fotoReferencia);
+  final imagen = bytesFoto != null
+      ? Image.memory(bytesFoto, fit: BoxFit.contain)
+      : Image.network(
+          resolverUrlFotoBicicleta(fotoReferencia),
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const Icon(
+            Icons.broken_image_outlined,
+            color: ColoresUbb.textoSecundario,
+            size: 64,
+          ),
+        );
+
+  return showDialog<void>(
+    context: context,
+    builder: (context) {
+      final size = MediaQuery.sizeOf(context);
+      final ancho = (size.width - 32).clamp(280.0, 560.0);
+      final alto = (ancho * 0.72).clamp(220.0, size.height * 0.68);
+
+      return Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        clipBehavior: Clip.antiAlias,
+        backgroundColor: Colors.white,
+        child: Stack(
+          children: [
+            SizedBox(
+              width: ancho,
+              height: alto,
+              child: InteractiveViewer(
+                minScale: 0.8,
+                maxScale: 4,
+                child: Center(child: imagen),
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Material(
+                color: Colors.black54,
+                shape: const CircleBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: IconButton(
+                  tooltip: 'Cerrar',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
 String formatearFecha(DateTime fecha) {
   final local = fecha.toLocal();
   final dia = local.day.toString().padLeft(2, '0');
