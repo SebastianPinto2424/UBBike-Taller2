@@ -1,4 +1,5 @@
 import 'package:app_links/app_links.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -6,16 +7,37 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 
 import 'core/providers/sesion_provider.dart';
+import 'core/servicios/cliente_http.dart';
+import 'core/servicios/fcm_service.dart';
 import 'core/tema/tema_ubb.dart';
+import 'features/auth/presentation/pantalla_cambio_obligatorio.dart';
 import 'features/auth/presentation/pantalla_login.dart';
 import 'features/auth/presentation/pantallas_correo.dart';
 import 'features/inicio/presentation/pantalla_principal.dart';
 
 final _navigatorKey = GlobalKey<NavigatorState>();
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   usePathUrlStrategy();
+
+  await inicializarClienteHttp();
+  await _inicializarFirebase();
   runApp(const ProviderScope(child: AplicacionUBBike()));
+}
+
+Future<void> _inicializarFirebase() async {
+  if (kIsWeb) {
+    return;
+  }
+  try {
+    await Firebase.initializeApp();
+    await FcmService.instancia.inicializar();
+  } catch (error) {
+    if (kDebugMode) {
+      debugPrint('Firebase no disponible (push deshabilitado): $error');
+    }
+  }
 }
 
 class AplicacionUBBike extends StatefulWidget {
@@ -80,7 +102,9 @@ class _AplicacionUBBikeState extends State<AplicacionUBBike> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      initialRoute: '/',
+      onGenerateInitialRoutes: (rutaInicial) => [
+        _generarRuta(RouteSettings(name: rutaInicial)),
+      ],
       onGenerateRoute: _generarRuta,
     );
   }
@@ -147,6 +171,8 @@ class _EnrutadorRaiz extends ConsumerWidget {
       data: (sesion) => switch (sesion) {
         SesionCargando() => const _PantallaCarga(),
         SesionVacia() => const PantallaLogin(),
+        SesionActiva(:final usuario) when usuario.debeCambiarContrasena =>
+          const PantallaCambioObligatorio(),
         SesionActiva() => const PantallaPrincipal(),
       },
     );
