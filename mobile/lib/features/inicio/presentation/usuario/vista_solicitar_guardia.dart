@@ -1,4 +1,18 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/servicios/excepcion_api.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_modelos.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_repository.dart';
+import 'package:ubbike/shared/modelos/bicicletero_app.dart';
+import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
+import 'package:ubbike/shared/widgets/tarjeta_accion.dart';
+import 'package:ubbike/features/inicio/presentation/comun/widgets_comun.dart';
+import 'package:ubbike/features/inicio/presentation/usuario/formulario_bicicleta_usuario.dart';
 
 class VistaSolicitarGuardia extends StatefulWidget {
   const VistaSolicitarGuardia({super.key});
@@ -17,7 +31,7 @@ class _VistaSolicitarGuardiaState extends State<VistaSolicitarGuardia> {
   @override
   void initState() {
     super.initState();
-    solicitudGuardiaRepository = _leerProvider(
+    solicitudGuardiaRepository = leerProvider(
       context,
       solicitudGuardiaRepositoryProvider,
     );
@@ -353,43 +367,34 @@ class _SheetSolicitarAtencionState extends State<_SheetSolicitarAtencion> {
                     ),
               ),
               const SizedBox(height: 16),
-              Container(
-                decoration: BoxDecoration(
-                  color: ColoresUbb.azulApp.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return DropdownAnclado<BicicleteroApp>(
-                      isExpanded: true,
-                      borderRadius: BorderRadius.circular(16),
-                      menuMaxHeight: 300,
-                      value: seleccionado,
-                      decoration: const InputDecoration(
-                        labelText: 'Bicicletero',
-                        border: InputBorder.none,
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      ),
-                      dropdownColor: Colors.white,
-                      items: widget.bicicleteros
-                          .map(
-                            (bicicletero) => DropdownMenuItem(
-                              value: bicicletero,
-                              child: Text(
-                                bicicletero.nombre,
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return DropdownAnclado<BicicleteroApp>(
+                    isExpanded: true,
+                    borderRadius: BorderRadius.circular(16),
+                    menuMaxHeight: 300,
+                    value: seleccionado,
+                    decoration: decoracionCampoFormularioBicicleta(
+                      labelText: 'Bicicletero',
+                    ),
+                    dropdownColor: Colors.white,
+                    items: widget.bicicleteros
+                        .map(
+                          (bicicletero) => DropdownMenuItem(
+                            value: bicicletero,
+                            child: Text(
+                              bicicletero.nombre,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
-                          )
-                          .toList(),
-                      onChanged: enviando
-                          ? null
-                          : (valor) => setState(() => seleccionado = valor),
-                    );
-                  },
-                ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: enviando
+                        ? null
+                        : (valor) => setState(() => seleccionado = valor),
+                  );
+                },
               ),
               const SizedBox(height: 16),
               Container(
