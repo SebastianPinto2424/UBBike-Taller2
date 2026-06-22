@@ -130,4 +130,18 @@ class AutenticacionApi {
     );
     return respuesta['message'] as String;
   }
+
+  Future<String> cambiarContrasenaSesion({
+    required String contrasenaActual,
+    required String contrasenaNueva,
+  }) async {
+    final respuesta = await cliente.post(
+      '/autenticacion/cambiar-contrasena-sesion',
+      body: {
+        'contrasenaActual': contrasenaActual,
+        'contrasenaNueva': contrasenaNueva,
+      },
+    );
+    return respuesta['message'] as String;
+  }
 }
