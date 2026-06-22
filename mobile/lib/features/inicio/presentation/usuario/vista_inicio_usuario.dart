@@ -1,4 +1,17 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_repository.dart';
+import 'package:ubbike/features/bicicletas/data/bicicleta_repository.dart';
+import 'package:ubbike/shared/modelos/bicicleta_app.dart';
+import 'package:ubbike/shared/modelos/bicicletero_app.dart';
+import 'package:ubbike/shared/utils/sesion_ui_utils.dart';
+import 'package:ubbike/shared/widgets/tarjeta_accion.dart';
+import 'package:ubbike/features/inicio/presentation/comun/widgets_comun.dart';
 
 class VistaInicioUsuario extends StatefulWidget {
   const VistaInicioUsuario({super.key});
@@ -19,8 +32,8 @@ class _VistaInicioUsuarioState extends State<VistaInicioUsuario> {
   @override
   void initState() {
     super.initState();
-    bicicletaRepository = _leerProvider(context, bicicletaRepositoryProvider);
-    solicitudGuardiaRepository = _leerProvider(
+    bicicletaRepository = leerProvider(context, bicicletaRepositoryProvider);
+    solicitudGuardiaRepository = leerProvider(
       context,
       solicitudGuardiaRepositoryProvider,
     );
@@ -44,7 +57,7 @@ class _VistaInicioUsuarioState extends State<VistaInicioUsuario> {
         children: [
           EncabezadoSeccion(
             titulo:
-                '${_saludoActual()}, ${_nombreSesion(context, 'Usuario UBB')}',
+                '${saludoActual()}, ${nombreSesion(context, 'Usuario UBB')}',
             detalle: 'Estado de tus bicicletas y bicicleteros disponibles.',
             icono: Icons.home_outlined,
           ),
