@@ -121,6 +121,26 @@ class SesionNotifier extends AsyncNotifier<SesionState> {
     );
   }
 
+  Future<void> refrescarPerfil() async {
+    final sesionActual = state.value;
+    if (sesionActual is! SesionActiva) return;
+
+    final repository = AutenticacionRepository(
+      AutenticacionApi(
+        cliente: ClienteApi(obtenerToken: () => sesionActual.token),
+      ),
+    );
+    final usuario = await repository.obtenerPerfil();
+
+    state = AsyncData(
+      SesionActiva(
+        usuario: usuario,
+        token: sesionActual.token,
+        refreshToken: sesionActual.refreshToken,
+      ),
+    );
+  }
+
   Future<void> cerrar() async {
     try {
       final sesionActual = state.value;
