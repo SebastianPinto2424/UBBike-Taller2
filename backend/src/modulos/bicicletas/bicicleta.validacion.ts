@@ -162,10 +162,13 @@ const ALIAS_COLORES_BICICLETA: Record<string, string> = {
 };
 
 const PATRON_MARCA_MODELO = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 .&-]+$/;
-const PATRON_NUMERO_SERIE = /^[A-Za-z0-9-]+$/;
+const PATRON_NUMERO_SERIE = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
 
 const debeTenerLetra = (valor: string, helpers: Joi.CustomHelpers) =>
   /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(valor) ? valor : helpers.error('any.invalid');
+
+const debeTenerLetraONumero = (valor: string, helpers: Joi.CustomHelpers) =>
+  /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]/.test(valor) ? valor : helpers.error('any.invalid');
 
 const claveCatalogo = (valor: string) =>
   valor
@@ -236,8 +239,10 @@ const esquemaMarca = Joi.string()
   .min(2)
   .max(40)
   .pattern(PATRON_MARCA_MODELO)
+  .custom(debeTenerLetra)
   .allow('', null)
   .messages({
+    'any.invalid': 'La marca debe incluir texto identificable',
     'string.pattern.base': 'Solo se permiten letras, números y los signos - . &'
   });
 
@@ -245,8 +250,10 @@ const esquemaModelo = Joi.string()
   .trim()
   .max(40)
   .pattern(PATRON_MARCA_MODELO)
+  .custom(debeTenerLetraONumero)
   .allow('', null)
   .messages({
+    'any.invalid': 'El modelo debe incluir texto o numeros',
     'string.pattern.base': 'Solo se permiten letras, números y los signos - . &'
   });
 
@@ -281,6 +288,81 @@ const esquemaNumeroSerie = Joi.string()
     'string.pattern.base': 'El número de serie solo admite letras, números y guion'
   });
 
+const esquemaFotoRequerida = Joi.string()
+  .trim()
+  .max(7000000)
+  .pattern(/^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=]+$/)
+  .required()
+  .messages({
+    'any.required': 'La foto de la bicicleta es obligatoria',
+    'string.empty': 'La foto de la bicicleta es obligatoria',
+    'string.pattern.base': 'La foto debe ser una imagen valida en formato JPG, PNG o WEBP'
+  });
+
+const esquemaMarcaRequerida = Joi.string()
+  .trim()
+  .min(2)
+  .max(40)
+  .pattern(PATRON_MARCA_MODELO)
+  .custom(debeTenerLetra)
+  .required()
+  .messages({
+    'any.required': 'La marca es obligatoria',
+    'string.empty': 'La marca es obligatoria',
+    'any.invalid': 'La marca debe incluir texto identificable',
+    'string.pattern.base': 'Solo se permiten letras, nÃºmeros y los signos - . &'
+  });
+
+const esquemaModeloRequerido = Joi.string()
+  .trim()
+  .max(40)
+  .pattern(PATRON_MARCA_MODELO)
+  .custom(debeTenerLetraONumero)
+  .required()
+  .messages({
+    'any.required': 'El modelo es obligatorio',
+    'string.empty': 'El modelo es obligatorio',
+    'any.invalid': 'El modelo debe incluir texto o numeros',
+    'string.pattern.base': 'Solo se permiten letras, nÃºmeros y los signos - . &'
+  });
+
+const esquemaColorRequerido = Joi.string()
+  .trim()
+  .max(60)
+  .custom(
+    (valor: string, helpers) => normalizarColorBicicleta(valor) ?? helpers.error('any.invalid')
+  )
+  .required()
+  .messages({
+    'any.required': 'El color es obligatorio',
+    'string.empty': 'El color es obligatorio',
+    'any.invalid': 'Ingresa un color vÃ¡lido',
+    'string.max': 'El color no puede superar 60 caracteres'
+  });
+
+const esquemaAroRequerido = Joi.string()
+  .trim()
+  .custom((valor: string, helpers) => normalizarAroBicicleta(valor) ?? helpers.error('any.invalid'))
+  .required()
+  .messages({
+    'any.required': 'El aro es obligatorio',
+    'string.empty': 'El aro es obligatorio',
+    'any.invalid': 'Selecciona un aro vÃ¡lido de la lista'
+  });
+
+const esquemaNumeroSerieRequerido = Joi.string()
+  .trim()
+  .uppercase()
+  .min(4)
+  .max(40)
+  .pattern(PATRON_NUMERO_SERIE)
+  .required()
+  .messages({
+    'any.required': 'El numero de serie es obligatorio',
+    'string.empty': 'El numero de serie es obligatorio',
+    'string.pattern.base': 'El nÃºmero de serie solo admite letras, nÃºmeros y guion'
+  });
+
 export const esquemaDescripcionBicicleta = esquemaDescripcion;
 export const esquemaMarcaBicicleta = esquemaMarca;
 export const esquemaModeloBicicleta = esquemaModelo;
@@ -291,12 +373,12 @@ export const esquemaFotoBicicleta = esquemaFoto;
 
 export const esquemaCrearBicicleta = Joi.object({
   descripcion: esquemaDescripcion.required(),
-  marca: esquemaMarca,
-  modelo: esquemaModelo,
-  color: esquemaColor,
-  aro: esquemaAro,
-  numeroSerie: esquemaNumeroSerie,
-  fotoUrl: esquemaFoto,
+  marca: esquemaMarcaRequerida,
+  modelo: esquemaModeloRequerido,
+  color: esquemaColorRequerido,
+  aro: esquemaAroRequerido,
+  numeroSerie: esquemaNumeroSerieRequerido,
+  fotoUrl: esquemaFotoRequerida,
   activar: Joi.boolean().default(false)
 });
 
