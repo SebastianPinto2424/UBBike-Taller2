@@ -25,6 +25,7 @@ class AccesoRepository {
       _api.denegarQr(token: token, motivo: motivo);
 
   Future<MovimientoApp> registrarManual({
+    String? nombre,
     String? correo,
     String? rut,
     String? bicicletaId,
@@ -43,6 +44,7 @@ class AccesoRepository {
     bool crearBicicletaNueva = false,
   }) =>
       _api.registrarManual(
+        nombre: nombre,
         correo: correo,
         rut: rut,
         bicicletaId: bicicletaId,
