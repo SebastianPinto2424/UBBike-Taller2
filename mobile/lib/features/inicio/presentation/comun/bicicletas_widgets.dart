@@ -23,47 +23,7 @@ class TarjetaBicicletaUsuarioState extends State<TarjetaBicicletaUsuario> {
   bool gestionAbierta = false;
 
   void _mostrarFotoAmpliada(BuildContext context, String fotoReferencia) {
-    final bytesFoto = decodificarFotoDataUrl(fotoReferencia);
-    final Widget imagen = bytesFoto != null
-        ? Image.memory(bytesFoto, fit: BoxFit.contain)
-        : Image.network(
-            resolverUrlFotoBicicleta(fotoReferencia),
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Icon(
-              Icons.broken_image_outlined,
-              color: Colors.white54,
-              size: 64,
-            ),
-          );
-
-    showDialog<void>(
-      context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.black87,
-        insetPadding: const EdgeInsets.all(16),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            InteractiveViewer(
-              minScale: 0.5,
-              maxScale: 4,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: imagen,
-              ),
-            ),
-            Positioned(
-              top: 4,
-              right: 4,
-              child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    mostrarFotoBicicletaAmpliada(context, fotoReferencia);
   }
 
   @override
@@ -71,34 +31,21 @@ class TarjetaBicicletaUsuarioState extends State<TarjetaBicicletaUsuario> {
     final bicicleta = widget.bicicleta;
 
     return Card(
-      elevation: 4,
-      shadowColor: Colors.black.withValues(alpha: 0.05),
+      elevation: 1,
+      shadowColor: Colors.black.withValues(alpha: 0.04),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: Colors.grey.withValues(alpha: 0.1), width: 1),
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: ColoresUbb.borde),
       ),
       color: Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: ColoresUbb.superficieAzulSuave,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.pedal_bike,
-                    color: ColoresUbb.azulApp,
-                  ),
-                ),
-                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,21 +55,15 @@ class TarjetaBicicletaUsuarioState extends State<TarjetaBicicletaUsuario> {
                         style:
                             Theme.of(context).textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w900,
+                                  color: ColoresUbb.azulNoche,
                                 ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        bicicleta.activa
-                            ? 'Activa para operar en bicicleteros.'
-                            : 'Disponible para administrar en tu cuenta.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: ColoresUbb.textoSecundario,
-                            ),
-                      ),
+                      const SizedBox(height: 6),
+                      _EstadoActualBicicleta(bicicleta: bicicleta),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 ChipEstado(
                   texto: bicicleta.activa ? 'Activa' : 'Inactiva',
                   color: bicicleta.activa
@@ -159,7 +100,15 @@ class TarjetaBicicletaUsuarioState extends State<TarjetaBicicletaUsuario> {
               ),
             ],
             const SizedBox(height: 14),
-            _InfoBicicletaGrid(bicicleta: bicicleta),
+            Text(
+              'Detalles',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: ColoresUbb.azulNoche,
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            _FichaDetalleBicicleta(bicicleta: bicicleta),
             const SizedBox(height: 14),
             _BotonGestionBicicleta(
               expandido: gestionAbierta,
@@ -185,62 +134,87 @@ class TarjetaBicicletaUsuarioState extends State<TarjetaBicicletaUsuario> {
   }
 }
 
-class _InfoBicicletaGrid extends StatelessWidget {
-  const _InfoBicicletaGrid({required this.bicicleta});
+class _EstadoActualBicicleta extends StatelessWidget {
+  const _EstadoActualBicicleta({required this.bicicleta});
 
   final BicicletaApp bicicleta;
 
   @override
   Widget build(BuildContext context) {
-    final estadoActual = bicicleta.dentroBicicletero
-        ? 'En ${bicicleta.bicicleteroActualNombre ?? 'bicicletero'}'
+    final texto = bicicleta.dentroBicicletero
+        ? 'Dentro - ${bicicleta.bicicleteroActualNombre ?? 'Bicicletero no informado'}'
         : 'Fuera del bicicletero';
-    final datos = [
-      _DatoBicicletaInfo(
-          etiqueta: 'Marca', valor: _valorInformado(bicicleta.marca)),
-      _DatoBicicletaInfo(
-          etiqueta: 'Modelo', valor: _valorInformado(bicicleta.modelo)),
-      _DatoBicicletaInfo(
-          etiqueta: 'Color', valor: _valorInformado(bicicleta.color)),
-      _DatoBicicletaInfo(
-          etiqueta: 'Aro', valor: _valorInformado(bicicleta.aro)),
-      _DatoBicicletaInfo(
-          etiqueta: 'N° de serie',
-          valor: _valorInformado(bicicleta.numeroSerie)),
-      _DatoBicicletaInfo(etiqueta: 'Estado actual', valor: estadoActual),
-    ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columnas = constraints.maxWidth < 280 ? 1 : 2;
-        const separacion = 10.0;
-        final ancho =
-            (constraints.maxWidth - (separacion * (columnas - 1))) / columnas;
-
-        return Wrap(
-          spacing: separacion,
-          runSpacing: separacion,
-          children: datos
-              .map(
-                (dato) => SizedBox(
-                  width: ancho,
-                  child: dato,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          bicicleta.dentroBicicletero
+              ? Icons.location_on_outlined
+              : Icons.logout_outlined,
+          size: 18,
+          color: ColoresUbb.azulApp,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            texto,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: ColoresUbb.textoSecundario,
+                  fontWeight: FontWeight.w700,
                 ),
-              )
-              .toList(),
-        );
-      },
+          ),
+        ),
+      ],
     );
   }
+}
+
+class _FichaDetalleBicicleta extends StatelessWidget {
+  const _FichaDetalleBicicleta({required this.bicicleta});
+
+  final BicicletaApp bicicleta;
 
   String _valorInformado(String? valor) {
     final limpio = valor?.trim();
     return limpio == null || limpio.isEmpty ? 'No informado' : limpio;
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _FilaDetalleBicicleta(
+          etiqueta: 'Marca',
+          valor: _valorInformado(bicicleta.marca),
+        ),
+        const Divider(height: 1, color: ColoresUbb.borde),
+        _FilaDetalleBicicleta(
+          etiqueta: 'Modelo',
+          valor: _valorInformado(bicicleta.modelo),
+        ),
+        const Divider(height: 1, color: ColoresUbb.borde),
+        _FilaDetalleBicicleta(
+          etiqueta: 'Color',
+          valor: _valorInformado(bicicleta.color),
+        ),
+        const Divider(height: 1, color: ColoresUbb.borde),
+        _FilaDetalleBicicleta(
+          etiqueta: 'Aro',
+          valor: _valorInformado(bicicleta.aro),
+        ),
+        const Divider(height: 1, color: ColoresUbb.borde),
+        _FilaDetalleBicicleta(
+          etiqueta: 'Nro. serie',
+          valor: _valorInformado(bicicleta.numeroSerie),
+        ),
+      ],
+    );
+  }
 }
 
-class _DatoBicicletaInfo extends StatelessWidget {
-  const _DatoBicicletaInfo({
+class _FilaDetalleBicicleta extends StatelessWidget {
+  const _FilaDetalleBicicleta({
     required this.etiqueta,
     required this.valor,
   });
@@ -250,32 +224,32 @@ class _DatoBicicletaInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: ColoresUbb.azulApp.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ColoresUbb.azulApp.withValues(alpha: 0.15)),
-      ),
-      child: Column(
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            etiqueta,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: ColoresUbb.azulApp.withValues(alpha: 0.8),
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
-                ),
+          SizedBox(
+            width: 92,
+            child: Text(
+              etiqueta,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: ColoresUbb.textoSecundario,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            valor,
-            softWrap: true,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: ColoresUbb.azulNoche,
-                ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              valor,
+              textAlign: TextAlign.right,
+              softWrap: true,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: ColoresUbb.azulNoche,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
           ),
         ],
       ),
