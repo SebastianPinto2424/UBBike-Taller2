@@ -67,8 +67,14 @@ class _PantallaLoginState extends ConsumerState<PantallaLogin> {
         builder: (context, constraints) {
           final altoFormulario =
               constraints.maxHeight > 246 ? constraints.maxHeight - 246 : 0.0;
+          final tecladoAbierto = MediaQuery.viewInsetsOf(context).bottom > 0;
 
           return SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+
+            physics: tecladoAbierto
+                ? const ClampingScrollPhysics()
+                : const NeverScrollableScrollPhysics(),
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: Column(
@@ -279,7 +285,7 @@ class _SheetRecuperacionState extends State<_SheetRecuperacion> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Enviaremos un enlace seguro al correo institucional registrado.',
+                  'Enviaremos un enlace seguro al correo registrado.',
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -290,7 +296,7 @@ class _SheetRecuperacionState extends State<_SheetRecuperacion> {
                   textCapitalization: TextCapitalization.none,
                   autofillHints: const [AutofillHints.email],
                   decoration: decoracionCampoAuth(
-                    labelText: 'Correo institucional',
+                    labelText: 'Correo registrado',
                     icono: Icons.mail_outline,
                   ),
                   validator: _validarCorreoAuthFrontend,
