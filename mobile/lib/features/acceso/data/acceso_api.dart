@@ -60,6 +60,7 @@ class AccesoApi {
   }
 
   Future<MovimientoApp> registrarManual({
+    String? nombre,
     String? correo,
     String? rut,
     String? bicicletaId,
@@ -80,6 +81,7 @@ class AccesoApi {
     final respuesta = await cliente.post(
       '/accesos/manual',
       body: {
+        if (nombre != null && nombre.isNotEmpty) 'nombre': nombre,
         if (correo != null && correo.isNotEmpty) 'correo': correo,
         if (rut != null && rut.isNotEmpty) 'rut': rut,
         if (bicicletaId != null && bicicletaId.isNotEmpty)
