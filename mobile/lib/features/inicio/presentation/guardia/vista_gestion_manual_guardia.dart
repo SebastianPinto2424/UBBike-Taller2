@@ -1,4 +1,57 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/servicios/excepcion_api.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/acceso/data/acceso_modelos.dart';
+import 'package:ubbike/features/acceso/data/acceso_repository.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_repository.dart';
+import 'package:ubbike/shared/modelos/bicicleta_app.dart';
+import 'package:ubbike/shared/modelos/bicicletero_app.dart';
+import 'package:ubbike/shared/modelos/rol_usuario.dart';
+import 'package:ubbike/shared/utils/identidad.dart';
+import 'package:ubbike/shared/utils/limites_foto.dart';
+import 'package:ubbike/shared/utils/opciones_bicicleta.dart';
+import 'package:ubbike/shared/utils/sesion_ui_utils.dart';
+import 'package:ubbike/shared/widgets/chip_estado.dart';
+import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
+import 'package:ubbike/features/inicio/presentation/comun/widgets_comun.dart';
+import 'package:ubbike/features/inicio/presentation/usuario/formulario_bicicleta_usuario.dart';
+import 'package:ubbike/features/inicio/presentation/guardia/vista_escaner_qr_guardia.dart';
+
+const _alturaCampoGestionManual = 56.0;
+const _paddingCampoGestionManual =
+    EdgeInsets.symmetric(horizontal: 14, vertical: 14);
+
+InputDecoration _decoracionCampoGestionManual({
+  required String labelText,
+  String? hintText,
+  String? errorText,
+  String? helperText,
+  Widget? prefixIcon,
+  Widget? suffixIcon,
+  bool alignLabelWithHint = false,
+}) {
+  return InputDecoration(
+    labelText: labelText,
+    hintText: hintText,
+    errorText: errorText,
+    helperText: helperText,
+    helperMaxLines: 2,
+    helperStyle: const TextStyle(color: ColoresUbb.textoSecundario),
+    errorMaxLines: 3,
+    prefixIcon: prefixIcon,
+    suffixIcon: suffixIcon,
+    alignLabelWithHint: alignLabelWithHint,
+    contentPadding: _paddingCampoGestionManual,
+    constraints: const BoxConstraints(minHeight: _alturaCampoGestionManual),
+  );
+}
 
 class VistaGestionManualGuardia extends StatefulWidget {
   const VistaGestionManualGuardia({super.key});
@@ -22,7 +75,16 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
   final bicicletaColorController = TextEditingController();
   final bicicletaAroController = TextEditingController();
   final bicicletaNumeroSerieController = TextEditingController();
+  final correoFocusNode = FocusNode();
+  final rutFocusNode = FocusNode();
+  final nombreFocusNode = FocusNode();
+  final comentarioFocusNode = FocusNode();
+  final bicicletaDescripcionFocusNode = FocusNode();
+  final bicicletaMarcaFocusNode = FocusNode();
+  final bicicletaModeloFocusNode = FocusNode();
+  final bicicletaNumeroSerieFocusNode = FocusNode();
   String? fotoBicicletaManual;
+  String? errorFotoBicicletaManual;
   String operacion = 'INGRESO';
   Timer? temporizadorBusqueda;
   CoincidenciaManualApp? coincidenciaManual;
@@ -33,6 +95,8 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
   String? errorBicicleteros;
   bool buscandoCoincidencia = false;
   bool busquedaRealizada = false;
+
+  bool nombreAutocompletado = false;
   bool actualizandoCampos = false;
   bool registrando = false;
   bool cargandoBicicleteros = false;
@@ -52,12 +116,20 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
   @override
   void initState() {
     super.initState();
-    accesoRepository = _leerProvider(context, accesoRepositoryProvider);
+    accesoRepository = leerProvider(context, accesoRepositoryProvider);
     solicitudGuardiaRepository =
-        _leerProvider(context, solicitudGuardiaRepositoryProvider);
+        leerProvider(context, solicitudGuardiaRepositoryProvider);
     correoController.addListener(_programarBusquedaCoincidencia);
     rutController.addListener(_programarBusquedaCoincidencia);
     bicicletaDescripcionController.addListener(_actualizarOperacionVisible);
+    correoFocusNode.addListener(_actualizarAyudaCampo);
+    rutFocusNode.addListener(_actualizarAyudaCampo);
+    nombreFocusNode.addListener(_actualizarAyudaCampo);
+    comentarioFocusNode.addListener(_actualizarAyudaCampo);
+    bicicletaDescripcionFocusNode.addListener(_actualizarAyudaCampo);
+    bicicletaMarcaFocusNode.addListener(_actualizarAyudaCampo);
+    bicicletaModeloFocusNode.addListener(_actualizarAyudaCampo);
+    bicicletaNumeroSerieFocusNode.addListener(_actualizarAyudaCampo);
     _cargarBicicleteros();
   }
 
@@ -67,6 +139,22 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
     correoController.removeListener(_programarBusquedaCoincidencia);
     rutController.removeListener(_programarBusquedaCoincidencia);
     bicicletaDescripcionController.removeListener(_actualizarOperacionVisible);
+    correoFocusNode.removeListener(_actualizarAyudaCampo);
+    rutFocusNode.removeListener(_actualizarAyudaCampo);
+    nombreFocusNode.removeListener(_actualizarAyudaCampo);
+    comentarioFocusNode.removeListener(_actualizarAyudaCampo);
+    bicicletaDescripcionFocusNode.removeListener(_actualizarAyudaCampo);
+    bicicletaMarcaFocusNode.removeListener(_actualizarAyudaCampo);
+    bicicletaModeloFocusNode.removeListener(_actualizarAyudaCampo);
+    bicicletaNumeroSerieFocusNode.removeListener(_actualizarAyudaCampo);
+    correoFocusNode.dispose();
+    rutFocusNode.dispose();
+    nombreFocusNode.dispose();
+    comentarioFocusNode.dispose();
+    bicicletaDescripcionFocusNode.dispose();
+    bicicletaMarcaFocusNode.dispose();
+    bicicletaModeloFocusNode.dispose();
+    bicicletaNumeroSerieFocusNode.dispose();
     nombreController.dispose();
     correoController.dispose();
     rutController.dispose();
@@ -87,6 +175,23 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  void _limpiarNombreSiAutocompletado() {
+    if (nombreAutocompletado) {
+      nombreController.clear();
+      nombreAutocompletado = false;
+    }
+  }
+
+  void _actualizarAyudaCampo() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  String? _ayudaSiActivo(FocusNode focusNode, String texto) {
+    return focusNode.hasFocus ? texto : null;
   }
 
   Future<void> _cargarBicicleteros() async {
@@ -124,7 +229,7 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
 
   @override
   Widget build(BuildContext context) {
-    final rolSesion = _rolSesionActual(context);
+    final rolSesion = rolSesionActual(context);
     final requiereBicicletero =
         rolSesion != RolUsuario.guardia && operacion == 'INGRESO';
     final retiroRegistroParcialBloqueado = _retiroBloqueadoPorRegistroParcial;
@@ -132,6 +237,10 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
     final bicicletaSeleccionada =
         _buscarBicicletaSeleccionada(bicicletaSeleccionadaId);
     final creandoBicicletaNueva = bicicletaSeleccionadaId == null;
+    final bicicletasRegistradas =
+        coincidenciaManual?.bicicletas ?? const <BicicletaApp>[];
+    final mostrandoBicicletaRegistrada =
+        bicicletasRegistradas.isNotEmpty && bicicletaSeleccionadaId != null;
 
     return ListView(
       children: [
@@ -163,13 +272,26 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                     ),
                     const SizedBox(height: 12),
                   ],
+                  Text(
+                    'Datos de usuario',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: ColoresUbb.azulNoche,
+                        ),
+                  ),
+                  const SizedBox(height: 10),
                   TextFormField(
                     controller: correoController,
+                    focusNode: correoFocusNode,
                     keyboardType: TextInputType.emailAddress,
                     autocorrect: false,
                     textCapitalization: TextCapitalization.none,
-                    decoration: const InputDecoration(
+                    decoration: _decoracionCampoGestionManual(
                       labelText: 'Correo institucional',
+                      helperText: _ayudaSiActivo(
+                        correoFocusNode,
+                        'Usa correo institucional cuando corresponda.',
+                      ),
                     ),
                     validator: (valor) => _validarCorreoGestionManual(
                       valor,
@@ -180,9 +302,15 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: rutController,
+                    focusNode: rutFocusNode,
                     autocorrect: false,
-                    decoration: const InputDecoration(
+                    inputFormatters: [RutInputFormatter()],
+                    decoration: _decoracionCampoGestionManual(
                       labelText: 'RUT',
+                      helperText: _ayudaSiActivo(
+                        rutFocusNode,
+                        'Escribe el guion; los puntos se agregan solos.',
+                      ),
                     ),
                     validator: (valor) => _validarRutGestionManual(
                       valor,
@@ -192,10 +320,25 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: nombreController,
-                    readOnly: true,
-                    decoration: const InputDecoration(
+                    focusNode: nombreFocusNode,
+                    readOnly: coincidenciaManual != null,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: _decoracionCampoGestionManual(
                       labelText: 'Nombre',
-                      hintText: 'Se completa si existe coincidencia',
+                      hintText: coincidenciaManual != null
+                          ? null
+                          : 'Nombre y apellido de la persona',
+                      helperText: coincidenciaManual == null
+                          ? _ayudaSiActivo(
+                              nombreFocusNode,
+                              'Nombre real para identificar a la persona.',
+                            )
+                          : null,
+                    ),
+                    onChanged: (_) => nombreAutocompletado = false,
+                    validator: (valor) => _validarNombreGestionManual(
+                      valor,
+                      requerido: _requiereDatosUsuarioNuevo,
                     ),
                   ),
                   _EstadoBusquedaManual(
@@ -236,53 +379,79 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                             ),
                           ),
                         ),
-                      if ((coincidenciaManual?.bicicletas ?? const [])
-                          .isNotEmpty) ...[
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            return DropdownAnclado<String>(
-                              key: ValueKey(
-                                bicicletaSeleccionadaId ?? 'sin-bici',
-                              ),
-                              isExpanded: true,
-                              borderRadius: BorderRadius.circular(16),
-                              menuMaxHeight: 300,
-                              value: bicicletaSeleccionadaId,
-                              decoration: const InputDecoration(
-                                labelText: 'Bicicleta registrada',
-                              ),
-                              items: coincidenciaManual!.bicicletas
-                                  .map(
-                                    (bicicleta) => DropdownMenuItem(
-                                      value: bicicleta.id,
-                                      child: Text(
-                                        _resumenBicicleta(bicicleta),
-                                        overflow: TextOverflow.ellipsis,
+                      if (mostrandoBicicletaRegistrada) ...[
+                        if (bicicletasRegistradas.length == 1 &&
+                            bicicletaSeleccionada != null)
+                          _DetalleBicicletaRegistrada(
+                            bicicleta: bicicletaSeleccionada,
+                          )
+                        else
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              return DropdownAnclado<String>(
+                                key: ValueKey(
+                                  bicicletaSeleccionadaId ?? 'sin-bici',
+                                ),
+                                isExpanded: true,
+                                borderRadius: BorderRadius.circular(16),
+                                menuMaxHeight: 300,
+                                value: bicicletaSeleccionadaId,
+                                decoration: _decoracionCampoGestionManual(
+                                  labelText: 'Bicicleta registrada',
+                                ),
+                                items: bicicletasRegistradas
+                                    .map(
+                                      (bicicleta) => DropdownMenuItem(
+                                        value: bicicleta.id,
+                                        child: Text(
+                                          _resumenBicicleta(bicicleta),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (valor) =>
-                                  _seleccionarBicicleta(valor),
-                            );
-                          },
-                        ),
+                                    )
+                                    .toList(),
+                                onChanged: (valor) =>
+                                    _seleccionarBicicleta(valor),
+                              );
+                            },
+                          ),
                         const SizedBox(height: 8),
                         Align(
                           alignment: Alignment.centerLeft,
-                          child: TextButton(
-                            onPressed: _usarBicicletaNoRegistrada,
-                            child: const Text('Usar bicicleta no registrada'),
+                          child: UnconstrainedBox(
+                            child: FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: ColoresUbb.azulApp,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(0, 44),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                              onPressed: _usarBicicletaNoRegistrada,
+                              icon: const Icon(
+                                Icons.pedal_bike_outlined,
+                                size: 16,
+                              ),
+                              label: const Text('Registrar otra bicicleta'),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),
                       ],
                       TextFormField(
                         controller: bicicletaDescripcionController,
-                        readOnly: bicicletaSeleccionadaId != null,
-                        decoration: const InputDecoration(
+                        focusNode: bicicletaDescripcionFocusNode,
+                        readOnly: bicicletaSeleccionadaId != null &&
+                            operacion == 'RETIRO',
+                        onChanged: (_) => _detacharBicicletaSiEditada(),
+                        decoration: _decoracionCampoGestionManual(
                           labelText: 'Descripción',
-                          hintText: 'Ej: MTB roja con canasto',
+                          helperText: _ayudaSiActivo(
+                            bicicletaDescripcionFocusNode,
+                            'Nombre breve para reconocer la bicicleta.',
+                          ),
                         ),
                         validator: (valor) => creandoBicicletaNueva
                             ? validarDescripcionBicicleta(valor)
@@ -297,9 +466,16 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                           Expanded(
                             child: TextFormField(
                               controller: bicicletaMarcaController,
-                              readOnly: bicicletaSeleccionadaId != null,
-                              decoration: const InputDecoration(
+                              focusNode: bicicletaMarcaFocusNode,
+                              readOnly: bicicletaSeleccionadaId != null &&
+                                  operacion == 'RETIRO',
+                              onChanged: (_) => _detacharBicicletaSiEditada(),
+                              decoration: _decoracionCampoGestionManual(
                                 labelText: 'Marca',
+                                helperText: _ayudaSiActivo(
+                                  bicicletaMarcaFocusNode,
+                                  'Usa la marca visible o registrada.',
+                                ),
                               ),
                               validator: (valor) =>
                                   _validarCampoRequeridoConFormato(
@@ -314,9 +490,16 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                           Expanded(
                             child: TextFormField(
                               controller: bicicletaModeloController,
-                              readOnly: bicicletaSeleccionadaId != null,
-                              decoration: const InputDecoration(
+                              focusNode: bicicletaModeloFocusNode,
+                              readOnly: bicicletaSeleccionadaId != null &&
+                                  operacion == 'RETIRO',
+                              onChanged: (_) => _detacharBicicletaSiEditada(),
+                              decoration: _decoracionCampoGestionManual(
                                 labelText: 'Modelo',
+                                helperText: _ayudaSiActivo(
+                                  bicicletaModeloFocusNode,
+                                  'Usa el modelo visible o una referencia breve.',
+                                ),
                               ),
                               validator: (valor) =>
                                   _validarCampoRequeridoConFormato(
@@ -333,12 +516,19 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                       Row(
                         children: [
                           Expanded(
-                            child: TextFormField(
-                              controller: bicicletaColorController,
-                              readOnly: bicicletaSeleccionadaId != null,
-                              decoration: const InputDecoration(
-                                labelText: 'Color',
+                            child: CampoColorBicicleta(
+                              key: ValueKey(
+                                'color-manual-${bicicletaSeleccionadaId ?? 'nuevo'}',
                               ),
+                              valorInicial: bicicletaColorController.text,
+                              habilitado: !(bicicletaSeleccionadaId != null &&
+                                  operacion == 'RETIRO'),
+                              helperText:
+                                  'Color principal o combinacion simple.',
+                              onChanged: (valor) {
+                                bicicletaColorController.text = valor;
+                                _detacharBicicletaSiEditada();
+                              },
                               validator: (valor) =>
                                   _validarCampoRequeridoConFormato(
                                 valor,
@@ -350,16 +540,54 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: TextFormField(
-                              controller: bicicletaAroController,
-                              readOnly: bicicletaSeleccionadaId != null,
-                              decoration: const InputDecoration(
-                                labelText: 'Aro',
+                            child: FormField<String>(
+                              key: ValueKey(
+                                'aro-manual-${bicicletaSeleccionadaId ?? 'nuevo'}-${bicicletaAroController.text}',
                               ),
+                              initialValue: normalizarAroBicicleta(
+                                    bicicletaAroController.text,
+                                  ) ??
+                                  '',
                               validator: (valor) => _validarAroGestionManual(
                                 valor,
                                 requerido: creandoBicicletaNueva,
                               ),
+                              builder: (field) {
+                                final bloqueado =
+                                    bicicletaSeleccionadaId != null &&
+                                        operacion == 'RETIRO';
+                                final valor = field.value ?? '';
+
+                                return DropdownAnclado<String>(
+                                  value: valor,
+                                  decoration: _decoracionCampoGestionManual(
+                                    labelText: 'Aro',
+                                    errorText: field.errorText,
+                                    helperText: 'Selecciona la medida del aro.',
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem<String>(
+                                      value: '',
+                                      child: Text('Seleccionar'),
+                                    ),
+                                    ...arosBicicleta.map(
+                                      (aro) => DropdownMenuItem<String>(
+                                        value: aro,
+                                        child: Text(aro),
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: bloqueado
+                                      ? null
+                                      : (valor) {
+                                          final seleccionado = valor ?? '';
+                                          field.didChange(seleccionado);
+                                          bicicletaAroController.text =
+                                              seleccionado;
+                                          _detacharBicicletaSiEditada();
+                                        },
+                                );
+                              },
                             ),
                           ),
                         ],
@@ -367,9 +595,16 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: bicicletaNumeroSerieController,
-                        readOnly: bicicletaSeleccionadaId != null,
-                        decoration: const InputDecoration(
+                        focusNode: bicicletaNumeroSerieFocusNode,
+                        readOnly: bicicletaSeleccionadaId != null &&
+                            operacion == 'RETIRO',
+                        onChanged: (_) => _detacharBicicletaSiEditada(),
+                        decoration: _decoracionCampoGestionManual(
                           labelText: 'N° de serie',
+                          helperText: _ayudaSiActivo(
+                            bicicletaNumeroSerieFocusNode,
+                            'Codigo del marco, sin espacios.',
+                          ),
                         ),
                         validator: (valor) => _validarCampoRequeridoConFormato(
                           valor,
@@ -379,7 +614,7 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      _SelectorFotoBicicleta(
+                      SelectorFotoBicicleta(
                         fotoDataUrl: bicicletaSeleccionada?.fotoUrl ??
                             fotoBicicletaManual,
                         onCamara: creandoBicicletaNueva
@@ -396,8 +631,12 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                                 fotoBicicletaManual == null
                             ? null
                             : () => setState(
-                                  () => fotoBicicletaManual = null,
+                                  () {
+                                    fotoBicicletaManual = null;
+                                    errorFotoBicicletaManual = null;
+                                  },
                                 ),
+                        errorText: errorFotoBicicletaManual,
                         mostrarAcciones: creandoBicicletaNueva,
                       ),
                     ],
@@ -405,11 +644,16 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: comentarioController,
+                    focusNode: comentarioFocusNode,
                     maxLines: 3,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Comentario opcional del guardia',
                       hintText: 'Ej: Usuario posee U-Lock',
                       alignLabelWithHint: true,
+                      helperText: _ayudaSiActivo(
+                        comentarioFocusNode,
+                        'Solo observaciones operativas si corresponde.',
+                      ),
                     ),
                     validator: (valor) =>
                         _validarCampoOpcionalGestionManual(valor, 600),
@@ -499,26 +743,28 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
     final rut = rutController.text.trim();
 
     if (correo.isEmpty && rut.isEmpty) {
-      nombreController.clear();
+      _limpiarNombreSiAutocompletado();
       setState(() {
         buscandoCoincidencia = false;
         busquedaRealizada = false;
         coincidenciaManual = null;
         bicicletaSeleccionadaId = null;
         fotoBicicletaManual = null;
+        errorFotoBicicletaManual = null;
         errorBusquedaManual = null;
       });
       return;
     }
 
     if (!_datoBusquedaSuficiente(correo, rut)) {
-      nombreController.clear();
+      _limpiarNombreSiAutocompletado();
       setState(() {
         buscandoCoincidencia = false;
         busquedaRealizada = false;
         coincidenciaManual = null;
         bicicletaSeleccionadaId = null;
         fotoBicicletaManual = null;
+        errorFotoBicicletaManual = null;
         errorBusquedaManual = null;
       });
       return;
@@ -530,9 +776,10 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       coincidenciaManual = null;
       bicicletaSeleccionadaId = null;
       fotoBicicletaManual = null;
+      errorFotoBicicletaManual = null;
       errorBusquedaManual = null;
     });
-    nombreController.clear();
+    _limpiarNombreSiAutocompletado();
 
     temporizadorBusqueda = Timer(
       const Duration(milliseconds: 550),
@@ -559,13 +806,14 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       }
 
       if (coincidencia == null) {
-        nombreController.clear();
+        _limpiarNombreSiAutocompletado();
         setState(() {
           buscandoCoincidencia = false;
           busquedaRealizada = true;
           coincidenciaManual = null;
           bicicletaSeleccionadaId = null;
           fotoBicicletaManual = null;
+          errorFotoBicicletaManual = null;
           bicicletaDescripcionController.clear();
           bicicletaMarcaController.clear();
           bicicletaModeloController.clear();
@@ -580,13 +828,14 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       _aplicarCoincidenciaManual(coincidencia);
     } on ExcepcionApi catch (error) {
       if (!mounted) return;
-      nombreController.clear();
+      _limpiarNombreSiAutocompletado();
       setState(() {
         buscandoCoincidencia = false;
         busquedaRealizada = true;
         coincidenciaManual = null;
         bicicletaSeleccionadaId = null;
         fotoBicicletaManual = null;
+        errorFotoBicicletaManual = null;
         errorBusquedaManual = error.mensaje;
       });
     }
@@ -600,6 +849,7 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
     correoController.text = coincidencia.usuario.correo;
     rutController.text = coincidencia.usuario.rut ?? rutController.text.trim();
     actualizandoCampos = false;
+    nombreAutocompletado = true;
 
     final preferida = _bicicletaPreferidaAutodetectada(coincidencia.bicicletas);
 
@@ -609,6 +859,7 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       coincidenciaManual = coincidencia;
       bicicletaSeleccionadaId = preferida?.id;
       fotoBicicletaManual = null;
+      errorFotoBicicletaManual = null;
       errorBusquedaManual = null;
 
       if (preferida == null) {
@@ -680,6 +931,7 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       bicicletaSeleccionadaId = bicicleta?.id;
       if (bicicleta != null) {
         fotoBicicletaManual = null;
+        errorFotoBicicletaManual = null;
         _cargarDatosBicicleta(bicicleta);
         operacion = _operacionParaBicicleta(bicicleta);
       }
@@ -690,8 +942,10 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
     bicicletaDescripcionController.text = bicicleta.descripcion;
     bicicletaMarcaController.text = bicicleta.marca ?? '';
     bicicletaModeloController.text = bicicleta.modelo ?? '';
-    bicicletaColorController.text = bicicleta.color ?? '';
-    bicicletaAroController.text = bicicleta.aro ?? '';
+    bicicletaColorController.text =
+        normalizarColorBicicleta(bicicleta.color) ?? bicicleta.color ?? '';
+    bicicletaAroController.text =
+        normalizarAroBicicleta(bicicleta.aro) ?? bicicleta.aro ?? '';
     bicicletaNumeroSerieController.text = bicicleta.numeroSerie ?? '';
   }
 
@@ -709,9 +963,9 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       }
 
       final bytes = await imagen.readAsBytes();
-      final mime = _detectarMimeDesdeBytes(bytes);
+      final mime = detectarMimeDesdeBytes(bytes);
 
-      if (!_mimesFotoPermitidos.contains(mime)) {
+      if (!mimesFotoPermitidos.contains(mime)) {
         if (mounted) {
           context.mostrarError('La foto debe ser JPG, PNG o WEBP.');
         }
@@ -719,7 +973,7 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       }
 
       final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
-      if (dataUrl.length > _maxFotoDataUrlLength) {
+      if (dataUrl.length > maxFotoDataUrlLength) {
         if (mounted) {
           context.mostrarError(
             'La foto es muy pesada. Elige una imagen mas liviana.',
@@ -729,7 +983,10 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       }
 
       if (mounted) {
-        setState(() => fotoBicicletaManual = dataUrl);
+        setState(() {
+          fotoBicicletaManual = dataUrl;
+          errorFotoBicicletaManual = null;
+        });
       }
     } catch (_) {
       if (mounted) {
@@ -738,11 +995,24 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
     }
   }
 
+  void _detacharBicicletaSiEditada() {
+    if (actualizandoCampos ||
+        bicicletaSeleccionadaId == null ||
+        operacion == 'RETIRO') {
+      return;
+    }
+    setState(() {
+      bicicletaSeleccionadaId = null;
+      operacion = 'INGRESO';
+    });
+  }
+
   void _usarBicicletaNoRegistrada() {
     setState(() {
       operacion = 'INGRESO';
       bicicletaSeleccionadaId = null;
       fotoBicicletaManual = null;
+      errorFotoBicicletaManual = null;
       bicicletaDescripcionController.clear();
       bicicletaMarcaController.clear();
       bicicletaModeloController.clear();
@@ -769,7 +1039,7 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       showDragHandle: true,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => _SheetDenegacion(
+      builder: (_) => SheetDenegacion(
         onConfirmar: (motivo) => _registrarManual(
           denegar: true,
           motivo: motivo,
@@ -781,7 +1051,7 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
   bool _validarFormularioGestionManual() {
     final crearBicicletaNueva = bicicletaSeleccionadaId == null;
     final requiereBicicletero =
-        _rolSesionActual(context) != RolUsuario.guardia &&
+        rolSesionActual(context) != RolUsuario.guardia &&
             operacion == 'INGRESO';
 
     if (registrando) {
@@ -796,7 +1066,9 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       return false;
     }
     if (crearBicicletaNueva && fotoBicicletaManual == null) {
-      context.mostrarError('Toma o sube una foto de la bicicleta.');
+      setState(() {
+        errorFotoBicicletaManual = 'Toma o sube una foto de la bicicleta.';
+      });
       return false;
     }
     if (requiereBicicletero && bicicleteroSeleccionadoId == null) {
@@ -823,6 +1095,7 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
 
     try {
       final movimiento = await accesoRepository.registrarManual(
+        nombre: nombreController.text.trim(),
         correo: correo,
         rut: rut,
         bicicletaId: bicicletaSeleccionadaId,
@@ -833,8 +1106,12 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
         bicicletaDescripcion: bicicletaDescripcionController.text.trim(),
         bicicletaMarca: bicicletaMarcaController.text.trim(),
         bicicletaModelo: bicicletaModeloController.text.trim(),
-        bicicletaColor: bicicletaColorController.text.trim(),
-        bicicletaAro: bicicletaAroController.text.trim(),
+        bicicletaColor:
+            normalizarColorBicicleta(bicicletaColorController.text.trim()) ??
+                bicicletaColorController.text.trim(),
+        bicicletaAro:
+            normalizarAroBicicleta(bicicletaAroController.text.trim()) ??
+                bicicletaAroController.text.trim(),
         bicicletaNumeroSerie: bicicletaNumeroSerieController.text.trim(),
         bicicletaFotoUrl: fotoBicicletaManual,
         crearBicicletaNueva: crearBicicletaNueva,
@@ -887,18 +1164,33 @@ class _VistaGestionManualGuardiaState extends State<VistaGestionManualGuardia> {
       operacion = 'INGRESO';
       buscandoCoincidencia = false;
       busquedaRealizada = false;
+      nombreAutocompletado = false;
       coincidenciaManual = null;
       bicicletaSeleccionadaId = null;
       bicicleteroSeleccionadoId = null;
       fotoBicicletaManual = null;
+      errorFotoBicicletaManual = null;
       errorBusquedaManual = null;
     });
   }
 }
 
-RolUsuario _rolSesionActual(BuildContext context) {
-  final sesion = _leerProvider(context, sesionProvider).value;
-  return sesion is SesionActiva ? sesion.usuario.rol : RolUsuario.estudiante;
+String? _validarNombreGestionManual(
+  String? valor, {
+  bool requerido = false,
+}) {
+  final nombre = valor?.trim() ?? '';
+
+  if (nombre.isEmpty) {
+    return requerido ? 'Ingresa el nombre de la persona.' : null;
+  }
+  if (nombre.length < 3) {
+    return 'Debe tener al menos 3 caracteres.';
+  }
+  if (nombre.length > 120) {
+    return 'Maximo 120 caracteres.';
+  }
+  return null;
 }
 
 String? _validarCorreoGestionManual(
@@ -1079,9 +1371,9 @@ class _SelectorBicicleteroManual extends StatelessWidget {
       value: valorSeguro,
       borderRadius: BorderRadius.circular(16),
       menuMaxHeight: 320,
-      decoration: const InputDecoration(
+      decoration: _decoracionCampoGestionManual(
         labelText: 'Bicicletero del ingreso',
-        prefixIcon: Icon(Icons.local_parking_outlined),
+        prefixIcon: const Icon(Icons.local_parking_outlined),
       ),
       items: bicicleteros
           .map(
@@ -1120,6 +1412,71 @@ class _IndicadorOperacionManual extends StatelessWidget {
       child: ChipEstado(
         texto: textoOperacion,
         color: color,
+      ),
+    );
+  }
+}
+
+class _DetalleBicicletaRegistrada extends StatelessWidget {
+  const _DetalleBicicletaRegistrada({
+    required this.bicicleta,
+  });
+
+  final BicicletaApp bicicleta;
+
+  @override
+  Widget build(BuildContext context) {
+    final estado = bicicleta.activa ? 'Activa' : 'Inactiva';
+    final bicicletero = bicicleta.dentroBicicletero
+        ? bicicleta.bicicleteroActualNombre ?? 'Bicicletero no informado'
+        : 'No registra ingreso activo';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _CampoDetalleBicicletaRegistrada(
+          etiqueta: 'Bicicleta',
+          valor: bicicleta.descripcion,
+        ),
+        const SizedBox(height: 10),
+        _CampoDetalleBicicletaRegistrada(
+          etiqueta: 'Estado',
+          valor: estado,
+        ),
+        const SizedBox(height: 10),
+        _CampoDetalleBicicletaRegistrada(
+          etiqueta: 'Bicicletero actual',
+          valor: bicicletero,
+        ),
+      ],
+    );
+  }
+}
+
+class _CampoDetalleBicicletaRegistrada extends StatelessWidget {
+  const _CampoDetalleBicicletaRegistrada({
+    required this.etiqueta,
+    required this.valor,
+  });
+
+  final String etiqueta;
+  final String valor;
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: _decoracionCampoGestionManual(
+        labelText: etiqueta,
+      ),
+      child: Text(
+        valor,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        softWrap: true,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: ColoresUbb.azulNoche,
+              fontWeight: FontWeight.w700,
+            ),
       ),
     );
   }
