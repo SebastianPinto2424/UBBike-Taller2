@@ -211,17 +211,17 @@ class TarjetaSolicitudGuardia extends StatelessWidget {
                 permitirNotificarUsuario &&
                 onNotificarGuardia != null) ...[
               const SizedBox(height: 14),
-              OutlinedButton.icon(
-                onPressed: solicitud.puedeNotificarGuardiaUsuario
-                    ? () => _notificarGuardia(context)
-                    : null,
-                icon: const Icon(Icons.notifications_active_outlined),
-                label: Text(
-                  solicitud.guardiaAsignado == null
-                      ? 'Central avisada'
-                      : 'Recordar al guardia',
+              if (solicitud.guardiaAsignado == null)
+
+                const _IndicadorCentralAvisada()
+              else
+                OutlinedButton.icon(
+                  onPressed: solicitud.puedeNotificarGuardiaUsuario
+                      ? () => _notificarGuardia(context)
+                      : null,
+                  icon: const Icon(Icons.notifications_active_outlined),
+                  label: const Text('Recordar al guardia'),
                 ),
-              ),
             ],
           ],
         ),
@@ -265,30 +265,104 @@ class BloqueMensajeSolicitud extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: ColoresUbb.azulApp.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: ColoresUbb.borde),
+        color: ColoresUbb.superficieAzulSuave,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ColoresUbb.azulApp.withValues(alpha: 0.25)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 4,
+              decoration: const BoxDecoration(
+                color: ColoresUbb.azulApp,
+                borderRadius:
+                    BorderRadius.horizontal(left: Radius.circular(12)),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titulo,
+                      style: textTheme.labelMedium?.copyWith(
+                        color: ColoresUbb.azulApp,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      mensaje,
+                      style: textTheme.titleSmall?.copyWith(
+                        color: ColoresUbb.azulNoche,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IndicadorCentralAvisada extends StatelessWidget {
+  const _IndicadorCentralAvisada();
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: ColoresUbb.exito.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: ColoresUbb.exito.withValues(alpha: 0.35)),
+      ),
+      child: Row(
         children: [
-          Text(
-            titulo,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: ColoresUbb.textoSecundario,
-                  fontWeight: FontWeight.w800,
-                ),
+          const Icon(
+            Icons.check_circle_outline,
+            size: 20,
+            color: ColoresUbb.exito,
           ),
-          const SizedBox(height: 6),
-          Text(
-            mensaje,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Central avisada',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: ColoresUbb.exito,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
+                const SizedBox(height: 2),
+                Text(
+                  'Esperando que se asigne un guardia al bicicletero.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: ColoresUbb.textoSecundario,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
