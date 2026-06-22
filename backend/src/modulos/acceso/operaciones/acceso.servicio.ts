@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { existsSync } from 'node:fs';
 import bcrypt from 'bcryptjs';
 import { ErrorHttp } from '../../../comun/errors/error-http';
 import { entorno } from '../../../configuracion/entorno';
@@ -6,13 +8,11 @@ import { Prisma } from '../../../generated/prisma/client';
 import { registrarAuditoria } from '../../auditoria/auditoria.servicio';
 import {
   crearCorreoCompletarRegistro,
-  crearCorreoMovimientoManual,
+  crearCorreoMovimiento,
   enviarCorreo
 } from '../../correos/correo.servicio';
 import { EstadoMovimiento } from '../../historial/estado-movimiento';
 import { TipoMovimiento } from '../../historial/tipo-movimiento';
-import { crearNotificacion } from '../../notificaciones/notificacion.servicio';
-import { TipoNotificacion } from '../../notificaciones/tipo-notificacion';
 import { obtenerCodigoQrEscaneadoParaMovimiento } from '../../qr/qr.servicio';
 import { RolUsuario } from '../../usuarios/rol-usuario';
 import {
@@ -47,6 +47,7 @@ type DatosDenegarQr = DatosConfirmarQr & {
 type DatosGestionManual = {
   guardiaId: string;
   rol: string;
+  nombre?: string;
   correo?: string;
   rut?: string;
   bicicletaId?: string;
@@ -246,33 +247,6 @@ const registrarMovimiento = async ({
     );
   }
 
-  const etiquetaMovimiento = tipo === TipoMovimiento.INGRESO ? 'Ingreso' : 'Retiro';
-  const mensajeConfirmado =
-    tipo === TipoMovimiento.INGRESO
-      ? `${bicicleta.descripcion} fue registrada en ${bicicletero.nombre}.`
-      : `${bicicleta.descripcion} fue registrada como retirada de ${bicicletero.nombre}.`;
-  const mensajeDenegado = motivo
-    ? `El guardia denegó la operación. Motivo: ${motivo}.`
-    : 'El guardia denegó la operación.';
-
-  await crearNotificacion(
-    {
-      usuarioId: usuario.id,
-      titulo:
-        estado === EstadoMovimiento.CONFIRMADO
-          ? `${etiquetaMovimiento} confirmado`
-          : `${etiquetaMovimiento} denegado`,
-      mensaje: estado === EstadoMovimiento.CONFIRMADO ? mensajeConfirmado : mensajeDenegado,
-      tipo: TipoNotificacion.MOVIMIENTO,
-      datos: {
-        movimientoId: movimiento.id,
-        estado,
-        tipo
-      }
-    },
-    db
-  );
-
   await registrarAuditoria(
     {
       actorUsuarioId: guardiaId,
@@ -295,26 +269,42 @@ const registrarMovimiento = async ({
 
   const movimientoCompleto = await accesoRepositorio.buscarMovimientoCompleto(movimiento.id, db);
 
-  if (origen === 'MANUAL') {
-    const correo = crearCorreoMovimientoManual({
-      nombre: movimientoCompleto.usuario.nombre,
-      tipo: movimientoCompleto.tipo,
-      estado: movimientoCompleto.estado,
-      bicicleta: movimientoCompleto.bicicleta.descripcion,
-      bicicletero: movimientoCompleto.bicicletero.nombre,
-      guardia: movimientoCompleto.validadoPorGuardia.nombre,
-      fecha: movimientoCompleto.creadoEn,
-      motivoDenegacion: movimientoCompleto.motivoDenegacion,
-      comentarioGuardia: movimientoCompleto.comentarioGuardia
-    });
+  const fotoNombreArchivo = movimientoCompleto.bicicleta.fotoNombreArchivo;
+  const rutaFoto = fotoNombreArchivo
+    ? path.join(entorno.archivos.directorioUploads, 'bicicletas', fotoNombreArchivo)
+    : null;
+  const hayFoto = rutaFoto != null && existsSync(rutaFoto);
+  const fotoCid = hayFoto ? 'foto-bicicleta' : null;
 
-    await enviarCorreo({
-      para: movimientoCompleto.usuario.correo,
-      asunto: correo.asunto,
-      texto: correo.texto,
-      html: correo.html
-    });
-  }
+  const correo = crearCorreoMovimiento({
+    nombre: movimientoCompleto.usuario.nombre,
+    tipo: movimientoCompleto.tipo,
+    estado: movimientoCompleto.estado,
+    origen: movimientoCompleto.origen,
+    bicicleta: movimientoCompleto.bicicleta.descripcion,
+    marca: movimientoCompleto.bicicleta.marca,
+    modelo: movimientoCompleto.bicicleta.modelo,
+    color: movimientoCompleto.bicicleta.color,
+    aro: movimientoCompleto.bicicleta.aro,
+    numeroSerie: movimientoCompleto.bicicleta.numeroSerie,
+    bicicletero: movimientoCompleto.bicicletero.nombre,
+    guardia: movimientoCompleto.validadoPorGuardia.nombre,
+    fecha: movimientoCompleto.creadoEn,
+    motivoDenegacion: movimientoCompleto.motivoDenegacion,
+    comentarioGuardia: movimientoCompleto.comentarioGuardia,
+    fotoCid
+  });
+
+  await enviarCorreo({
+    para: movimientoCompleto.usuario.correo,
+    asunto: correo.asunto,
+    texto: correo.texto,
+    html: correo.html,
+    adjuntos:
+      hayFoto && fotoNombreArchivo && rutaFoto
+        ? [{ filename: fotoNombreArchivo, path: rutaFoto, cid: fotoCid! }]
+        : undefined
+  });
 
   emitirTiempoReal(
     [
@@ -526,7 +516,7 @@ export const registrarGestionManual = async (datos: DatosGestionManual) => {
       correoCompletarRegistro = correoNormalizado;
 
       usuario = await accesoRepositorio.crearUsuario({
-        nombre: 'Registro pendiente',
+        nombre: datos.nombre?.trim() || 'Registro pendiente',
         correo: correoNormalizado,
         rut: datos.rut,
         rol: rolAsignado,
