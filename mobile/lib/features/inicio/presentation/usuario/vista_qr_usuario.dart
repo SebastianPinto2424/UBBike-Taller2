@@ -1,4 +1,21 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/servicios/excepcion_api.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_repository.dart';
+import 'package:ubbike/features/bicicletas/data/bicicleta_repository.dart';
+import 'package:ubbike/features/qr/data/qr_modelos.dart';
+import 'package:ubbike/features/qr/data/qr_repository.dart';
+import 'package:ubbike/shared/modelos/bicicleta_app.dart';
+import 'package:ubbike/shared/modelos/bicicletero_app.dart';
+import 'package:ubbike/shared/widgets/chip_estado.dart';
+import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
+import 'package:ubbike/features/inicio/presentation/comun/widgets_comun.dart';
+import 'package:ubbike/features/inicio/presentation/usuario/formulario_bicicleta_usuario.dart';
 
 class VistaQrUsuario extends StatefulWidget {
   const VistaQrUsuario({super.key});
@@ -22,9 +39,9 @@ class _VistaQrUsuarioState extends State<VistaQrUsuario> {
   @override
   void initState() {
     super.initState();
-    qrRepository = _leerProvider(context, qrRepositoryProvider);
-    bicicletaRepository = _leerProvider(context, bicicletaRepositoryProvider);
-    solicitudGuardiaRepository = _leerProvider(
+    qrRepository = leerProvider(context, qrRepositoryProvider);
+    bicicletaRepository = leerProvider(context, bicicletaRepositoryProvider);
+    solicitudGuardiaRepository = leerProvider(
       context,
       solicitudGuardiaRepositoryProvider,
     );
@@ -205,64 +222,54 @@ class _SelectorBicicleteroQr extends StatelessWidget {
               ),
         ),
         const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: ColoresUbb.azulApp.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return DropdownAnclado<BicicleteroApp>(
-                isExpanded: true,
-                borderRadius: BorderRadius.circular(16),
-                menuMaxHeight: 300,
-                value: bicicleteroSeleccionado,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(
-                    Icons.location_on_outlined,
-                    color: ColoresUbb.azulApp,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return DropdownAnclado<BicicleteroApp>(
+              isExpanded: true,
+              borderRadius: BorderRadius.circular(16),
+              menuMaxHeight: 300,
+              value: bicicleteroSeleccionado,
+              decoration: decoracionCampoFormularioBicicleta(
+                labelText: 'Bicicletero',
+                prefixIcon: const Icon(
+                  Icons.location_on_outlined,
+                  color: ColoresUbb.azulApp,
                 ),
-                dropdownColor: Colors.white,
-                items: bicicleteros
-                    .map(
-                      (bicicletero) => DropdownMenuItem(
-                        value: bicicletero,
-                        enabled: bicicletero.cuposDisponibles > 0,
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                '${bicicletero.nombre} (${bicicletero.cuposDisponibles} cupos)',
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                                style: TextStyle(
-                                  color: bicicletero.cuposDisponibles > 0
-                                      ? null
-                                      : ColoresUbb.textoSecundario,
-                                ),
+              ),
+              dropdownColor: Colors.white,
+              items: bicicleteros
+                  .map(
+                    (bicicletero) => DropdownMenuItem(
+                      value: bicicletero,
+                      enabled: bicicletero.cuposDisponibles > 0,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${bicicletero.nombre} (${bicicletero.cuposDisponibles} cupos)',
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                              style: TextStyle(
+                                color: bicicletero.cuposDisponibles > 0
+                                    ? null
+                                    : ColoresUbb.textoSecundario,
                               ),
                             ),
-                            if (bicicletero.cuposDisponibles == 0)
-                              const Icon(
-                                Icons.block_outlined,
-                                size: 16,
-                                color: ColoresUbb.rojoInstitucional,
-                              ),
-                          ],
-                        ),
+                          ),
+                          if (bicicletero.cuposDisponibles == 0)
+                            const Icon(
+                              Icons.block_outlined,
+                              size: 16,
+                              color: ColoresUbb.rojoInstitucional,
+                            ),
+                        ],
                       ),
-                    )
-                    .toList(),
-                onChanged: onChanged,
-              );
-            },
-          ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: onChanged,
+            );
+          },
         ),
       ],
     );
