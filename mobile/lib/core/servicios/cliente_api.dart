@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../configuracion/configuracion_api.dart';
+import 'cliente_http.dart';
 import 'excepcion_api.dart';
 
 class ClienteApi {
@@ -32,11 +33,11 @@ class ClienteApi {
   }
 
   Future<Map<String, dynamic>> get(String ruta) async {
-    return _ejecutar(() => http.get(_uri(ruta), headers: _headers()));
+    return _ejecutar(() => clienteHttp.get(_uri(ruta), headers: _headers()));
   }
 
   Future<String> getTexto(String ruta) async {
-    final respuesta = await http.get(_uri(ruta), headers: _headers());
+    final respuesta = await clienteHttp.get(_uri(ruta), headers: _headers());
     if (respuesta.statusCode >= 400) _procesarRespuesta(respuesta);
     return respuesta.body;
   }
@@ -46,7 +47,7 @@ class ClienteApi {
     Map<String, dynamic>? body,
   }) async {
     return _ejecutar(
-      () => http.post(
+      () => clienteHttp.post(
         _uri(ruta),
         headers: _headers(),
         body: jsonEncode(body ?? {}),
@@ -59,7 +60,7 @@ class ClienteApi {
     Map<String, dynamic>? body,
   }) async {
     return _ejecutar(
-      () => http.patch(
+      () => clienteHttp.patch(
         _uri(ruta),
         headers: _headers(),
         body: jsonEncode(body ?? {}),
@@ -67,8 +68,17 @@ class ClienteApi {
     );
   }
 
-  Future<Map<String, dynamic>> delete(String ruta) async {
-    return _ejecutar(() => http.delete(_uri(ruta), headers: _headers()));
+  Future<Map<String, dynamic>> delete(
+    String ruta, {
+    Map<String, dynamic>? body,
+  }) async {
+    return _ejecutar(
+      () => clienteHttp.delete(
+        _uri(ruta),
+        headers: _headers(),
+        body: body == null ? null : jsonEncode(body),
+      ),
+    );
   }
 
   Future<Map<String, dynamic>> _ejecutar(
@@ -98,7 +108,7 @@ class ClienteApi {
     String usuarioId,
   ) async {
     try {
-      final respuesta = await http.post(
+      final respuesta = await clienteHttp.post(
         Uri.parse('${ConfiguracionApi.baseUrl}/autenticacion/refresh'),
         headers: {'Content-Type': 'application/json'},
         body:
