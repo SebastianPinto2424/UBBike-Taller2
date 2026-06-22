@@ -1,9 +1,11 @@
 import { SolicitudAutenticada } from '../../comun/middlewares/autenticacion.middleware';
 import { controladorAsync } from '../../comun/utils/controlador-async';
 import {
+  eliminarDispositivo as eliminarDispositivoServicio,
   listarNotificacionesUsuario,
   marcarNotificacionLeida,
-  marcarTodasLeidas
+  marcarTodasLeidas,
+  registrarDispositivo as registrarDispositivoServicio
 } from './notificacion.servicio';
 
 export const listarNotificaciones = controladorAsync<SolicitudAutenticada>(async (req, res) => {
@@ -28,4 +30,18 @@ export const marcarLeida = controladorAsync<SolicitudAutenticada>(async (req, re
 export const marcarTodas = controladorAsync<SolicitudAutenticada>(async (req, res) => {
   const resultado = await marcarTodasLeidas(req.usuario!.usuarioId);
   return res.status(200).json(resultado);
+});
+
+export const registrarDispositivo = controladorAsync<SolicitudAutenticada>(async (req, res) => {
+  await registrarDispositivoServicio(
+    req.usuario!.usuarioId,
+    req.body.token,
+    req.body.plataforma
+  );
+  return res.status(201).json({ message: 'Dispositivo registrado para notificaciones' });
+});
+
+export const eliminarDispositivo = controladorAsync<SolicitudAutenticada>(async (req, res) => {
+  await eliminarDispositivoServicio(req.usuario!.usuarioId, req.body.token);
+  return res.status(200).json({ message: 'Dispositivo eliminado' });
 });
