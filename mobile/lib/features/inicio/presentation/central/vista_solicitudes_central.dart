@@ -1,4 +1,15 @@
-part of '../pantalla_principal.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_modelos.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_repository.dart';
+import 'package:ubbike/shared/utils/auto_refresco.dart';
+import 'package:ubbike/shared/widgets/tarjeta_accion.dart';
+import 'package:ubbike/features/inicio/presentation/comun/widgets_comun.dart';
 
 class VistaSolicitudesCentral extends StatefulWidget {
   const VistaSolicitudesCentral({super.key});
@@ -20,7 +31,7 @@ class _VistaSolicitudesCentralState extends State<VistaSolicitudesCentral>
   @override
   void initState() {
     super.initState();
-    solicitudGuardiaRepository = _leerProvider(
+    solicitudGuardiaRepository = leerProvider(
       context,
       solicitudGuardiaRepositoryProvider,
     );
@@ -31,7 +42,9 @@ class _VistaSolicitudesCentralState extends State<VistaSolicitudesCentral>
   @override
   Future<void> refrescar() async {
     if (mounted) {
-      setState(() => futuroSolicitudes = _cargarSolicitudes());
+      setState(() {
+        futuroSolicitudes = _cargarSolicitudes();
+      });
     }
   }
 
@@ -106,14 +119,14 @@ class _VistaSolicitudesCentralState extends State<VistaSolicitudesCentral>
             ),
           ),
           const SizedBox(height: 10),
-          _PanelFiltros(
+          PanelFiltros(
             titulo: 'Filtros',
             detalle: estadoFiltro == 'TODOS'
                 ? 'Todas'
                 : etiquetaEstadoSolicitud(estadoFiltro),
             onLimpiar: _limpiarFiltros,
             children: [
-              _EtiquetaFiltro(
+              EtiquetaFiltro(
                 texto: 'Estado',
                 child: Wrap(
                   spacing: 8,
@@ -127,7 +140,7 @@ class _VistaSolicitudesCentralState extends State<VistaSolicitudesCentral>
                       'RESUELTA',
                       'CANCELADA',
                     ])
-                      _FiltroChip(
+                      FiltroChip(
                         label: item == 'TODOS'
                             ? 'Todas'
                             : etiquetaEstadoSolicitud(item),
@@ -155,9 +168,9 @@ class _VistaSolicitudesCentralState extends State<VistaSolicitudesCentral>
                   if (snapshot.hasData) {
                     _ultimoDato = snapshot.data;
                   }
-                  final cargandoInicial = snapshot.connectionState ==
-                          ConnectionState.waiting &&
-                      _ultimoDato == null;
+                  final cargandoInicial =
+                      snapshot.connectionState == ConnectionState.waiting &&
+                          _ultimoDato == null;
                   if (cargandoInicial) {
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -185,7 +198,8 @@ class _VistaSolicitudesCentralState extends State<VistaSolicitudesCentral>
                     );
                   }
 
-                  final solicitudes = _ultimoDato ?? const <SolicitudGuardiaApp>[];
+                  final solicitudes =
+                      _ultimoDato ?? const <SolicitudGuardiaApp>[];
 
                   if (solicitudes.isEmpty) {
                     return ListView(
