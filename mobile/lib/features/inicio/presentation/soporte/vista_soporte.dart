@@ -1,14 +1,29 @@
-part of '../pantalla_principal.dart';
+import 'package:flutter/material.dart';
+
+import 'package:ubbike/features/admin/presentation/vista_gestion_usuarios.dart';
+import 'package:ubbike/shared/widgets/vista_con_tabs.dart';
+import 'package:ubbike/features/inicio/presentation/usuario/vista_qr_usuario.dart';
+import 'package:ubbike/features/inicio/presentation/usuario/vista_solicitar_guardia.dart';
+import 'package:ubbike/features/inicio/presentation/guardia/vista_escaner_qr_guardia.dart';
+import 'package:ubbike/features/inicio/presentation/guardia/vista_gestion_manual_guardia.dart';
+import 'package:ubbike/features/inicio/presentation/guardia/vista_alertas_guardia.dart';
+import 'package:ubbike/features/inicio/presentation/central/vista_movimientos_central.dart';
+import 'package:ubbike/features/inicio/presentation/central/vista_operaciones_guardias_central.dart';
+import 'package:ubbike/features/inicio/presentation/central/vista_solicitudes_central.dart';
+import 'package:ubbike/features/inicio/presentation/soporte/vista_incidencias.dart';
 
 class VistaSoporteUsuario extends StatelessWidget {
-  const VistaSoporteUsuario({super.key});
+  const VistaSoporteUsuario({super.key, this.initialIndex = 0});
+
+  final int initialIndex;
 
   @override
   Widget build(BuildContext context) {
-    return _VistaConTabs(
+    return VistaConTabs(
+      initialIndex: initialIndex,
       tabs: [
-        _tabCompacto(Icons.headset_mic_outlined, 'Atención'),
-        _tabCompacto(Icons.flag_outlined, 'Incidencias'),
+        tabCompacto(Icons.headset_mic_outlined, 'Atención'),
+        tabCompacto(Icons.flag_outlined, 'Incidencias'),
       ],
       vistas: const [
         VistaSolicitarGuardia(),
@@ -23,14 +38,17 @@ class VistaSoporteUsuario extends StatelessWidget {
 }
 
 class VistaSoporteGuardia extends StatelessWidget {
-  const VistaSoporteGuardia({super.key});
+  const VistaSoporteGuardia({super.key, this.initialIndex = 0});
+
+  final int initialIndex;
 
   @override
   Widget build(BuildContext context) {
-    return _VistaConTabs(
+    return VistaConTabs(
+      initialIndex: initialIndex,
       tabs: [
-        _tabCompacto(Icons.notifications_active_outlined, 'Alertas'),
-        _tabCompacto(Icons.report_problem_outlined, 'Incidencias'),
+        tabCompacto(Icons.notifications_active_outlined, 'Alertas'),
+        tabCompacto(Icons.report_problem_outlined, 'Incidencias'),
       ],
       vistas: const [
         VistaAlertasGuardia(),
@@ -45,14 +63,17 @@ class VistaSoporteGuardia extends StatelessWidget {
 }
 
 class VistaSoporteCentral extends StatelessWidget {
-  const VistaSoporteCentral({super.key});
+  const VistaSoporteCentral({super.key, this.initialIndex = 0});
+
+  final int initialIndex;
 
   @override
   Widget build(BuildContext context) {
-    return _VistaConTabs(
+    return VistaConTabs(
+      initialIndex: initialIndex,
       tabs: [
-        _tabCompacto(Icons.campaign_outlined, 'Solicitudes'),
-        _tabCompacto(Icons.report_problem_outlined, 'Incidencias'),
+        tabCompacto(Icons.campaign_outlined, 'Solicitudes'),
+        tabCompacto(Icons.report_problem_outlined, 'Incidencias'),
       ],
       vistas: const [
         VistaSolicitudesCentral(),
@@ -67,15 +88,18 @@ class VistaSoporteCentral extends StatelessWidget {
 }
 
 class VistaSoporteAdministrador extends StatelessWidget {
-  const VistaSoporteAdministrador({super.key});
+  const VistaSoporteAdministrador({super.key, this.initialIndex = 0});
+
+  final int initialIndex;
 
   @override
   Widget build(BuildContext context) {
-    return _VistaConTabs(
+    return VistaConTabs(
+      initialIndex: initialIndex,
       tabs: [
-        _tabCompacto(Icons.security_outlined, 'Guardias'),
-        _tabCompacto(Icons.campaign_outlined, 'Solicitudes'),
-        _tabCompacto(Icons.report_problem_outlined, 'Incidencias'),
+        tabCompacto(Icons.security_outlined, 'Guardias'),
+        tabCompacto(Icons.campaign_outlined, 'Solicitudes'),
+        tabCompacto(Icons.report_problem_outlined, 'Incidencias'),
       ],
       vistas: const [
         VistaOperacionesGuardiasCentral(),
@@ -90,63 +114,50 @@ class VistaSoporteAdministrador extends StatelessWidget {
   }
 }
 
-class _VistaConTabs extends StatelessWidget {
-  const _VistaConTabs({
-    super.key,
-    required this.tabs,
-    required this.vistas,
-    this.initialIndex = 0,
-  });
-
-  final List<Tab> tabs;
-  final List<Widget> vistas;
-  final int initialIndex;
+class VistaQrAdmin extends StatelessWidget {
+  const VistaQrAdmin({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: tabs.length,
-      initialIndex: initialIndex,
-      child: Column(
-        children: [
-          Material(
-            color: ColoresUbb.superficieAzulSuave,
-            borderRadius: BorderRadius.circular(14),
-            child: TabBar(
-              tabs: tabs,
-              padding: const EdgeInsets.all(4),
-              labelColor: Colors.white,
-              unselectedLabelColor: ColoresUbb.textoSecundario,
-              indicator: BoxDecoration(
-                color: ColoresUbb.azulApp,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              splashBorderRadius: BorderRadius.circular(10),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: TabBarView(children: vistas),
-          ),
-        ],
-      ),
+    return VistaConTabs(
+      tabs: [
+        tabCompacto(Icons.qr_code_2, 'Generar'),
+        tabCompacto(Icons.qr_code_scanner, 'Validar'),
+        tabCompacto(Icons.edit_note_outlined, 'Manual'),
+      ],
+      vistas: const [
+        VistaQrUsuario(),
+        VistaEscanerQrGuardia(),
+        VistaGestionManualGuardia(),
+      ],
     );
   }
 }
 
-Tab _tabCompacto(IconData icono, String texto) {
-  return Tab(
-    height: 44,
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icono, size: 18),
-        const SizedBox(width: 8),
-        Text(texto),
+class VistaGestionAdmin extends StatelessWidget {
+  const VistaGestionAdmin({
+    super.key,
+    this.initialIndex = 0,
+    this.initialSoporteIndex = 0,
+  });
+
+  final int initialIndex;
+  final int initialSoporteIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    return VistaConTabs(
+      initialIndex: initialIndex,
+      tabs: [
+        tabCompacto(Icons.manage_accounts_outlined, 'Usuarios'),
+        tabCompacto(Icons.manage_search_outlined, 'Movimientos'),
+        tabCompacto(Icons.support_agent_outlined, 'Atención'),
       ],
-    ),
-  );
+      vistas: [
+        const VistaGestionUsuarios(),
+        const VistaMovimientosCentral(),
+        VistaSoporteAdministrador(initialIndex: initialSoporteIndex),
+      ],
+    );
+  }
 }
