@@ -33,7 +33,6 @@ class UsuariosAdminApi {
     required String nombre,
     required String correo,
     required RolUsuario rol,
-    required String contrasena,
     String? rut,
   }) async {
     final respuesta = await cliente.post(
@@ -42,7 +41,6 @@ class UsuariosAdminApi {
         'nombre': nombre,
         'correo': correo,
         'rol': rol.valorApi,
-        'contrasena': contrasena,
         if (rut != null && rut.trim().isNotEmpty) 'rut': rut.trim(),
       },
     );
@@ -57,7 +55,6 @@ class UsuariosAdminApi {
     String? rut,
     RolUsuario? rol,
     bool? cuentaActiva,
-    bool? correoVerificado,
   }) async {
     final respuesta = await cliente.patch(
       '/usuarios/$usuarioId/permisos',
@@ -67,11 +64,18 @@ class UsuariosAdminApi {
         if (rut != null) 'rut': rut,
         if (rol != null) 'rol': rol.valorApi,
         if (cuentaActiva != null) 'cuentaActiva': cuentaActiva,
-        if (correoVerificado != null) 'correoVerificado': correoVerificado,
       },
     );
 
     return UsuarioApp.desdeJson(respuesta['usuario'] as Map<String, dynamic>);
+  }
+
+  Future<void> reenviarVerificacion(String usuarioId) async {
+    await cliente.post('/usuarios/$usuarioId/reenviar-verificacion');
+  }
+
+  Future<void> reenviarAcceso(String usuarioId) async {
+    await cliente.post('/usuarios/$usuarioId/reenviar-acceso');
   }
 
   Future<void> eliminarUsuario(String usuarioId) async {
