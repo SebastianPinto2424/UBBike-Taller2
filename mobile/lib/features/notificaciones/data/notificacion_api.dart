@@ -21,4 +21,16 @@ class NotificacionApi {
   Future<void> marcarLeida(String notificacionId) async {
     await cliente.patch('/notificaciones/$notificacionId/leida');
   }
+
+  Future<void> registrarDispositivo(String token,
+      {String plataforma = 'android'}) async {
+    await cliente.post(
+      '/notificaciones/dispositivos',
+      body: {'token': token, 'plataforma': plataforma},
+    );
+  }
+
+  Future<void> eliminarDispositivo(String token) async {
+    await cliente.delete('/notificaciones/dispositivos', body: {'token': token});
+  }
 }
