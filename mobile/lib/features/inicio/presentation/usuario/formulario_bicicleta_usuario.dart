@@ -1,7 +1,46 @@
-part of '../pantalla_principal.dart';
+import 'dart:convert';
 
-class _FormularioBicicletaSheet extends StatefulWidget {
-  const _FormularioBicicletaSheet({
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../../../../core/servicios/excepcion_api.dart';
+import '../../../../core/tema/colores_ubb.dart';
+import '../../../../shared/modelos/bicicleta_app.dart';
+import '../../../../shared/utils/limites_foto.dart';
+import '../../../../shared/utils/opciones_bicicleta.dart';
+import '../../../../shared/widgets/snackbar_semantico.dart';
+import '../../../bicicletas/data/bicicleta_repository.dart';
+import '../comun/widgets_comun.dart';
+
+const _alturaCampoFormularioBicicleta = 56.0;
+const _paddingCampoFormularioBicicleta =
+    EdgeInsets.symmetric(horizontal: 14, vertical: 14);
+
+InputDecoration decoracionCampoFormularioBicicleta({
+  required String labelText,
+  String? errorText,
+  String? helperText,
+  Widget? prefixIcon,
+  Widget? suffixIcon,
+}) {
+  return InputDecoration(
+    labelText: labelText,
+    errorText: errorText,
+    helperText: helperText,
+    helperMaxLines: 2,
+    helperStyle: const TextStyle(color: ColoresUbb.textoSecundario),
+    errorMaxLines: 3,
+    prefixIcon: prefixIcon,
+    suffixIcon: suffixIcon,
+    contentPadding: _paddingCampoFormularioBicicleta,
+    constraints:
+        const BoxConstraints(minHeight: _alturaCampoFormularioBicicleta),
+  );
+}
+
+class FormularioBicicletaSheet extends StatefulWidget {
+  const FormularioBicicletaSheet({
+    super.key,
     required this.bicicleta,
     required this.bicicletaRepository,
   });
@@ -10,16 +49,20 @@ class _FormularioBicicletaSheet extends StatefulWidget {
   final BicicletaRepository bicicletaRepository;
 
   @override
-  State<_FormularioBicicletaSheet> createState() =>
+  State<FormularioBicicletaSheet> createState() =>
       _FormularioBicicletaSheetState();
 }
 
-class _FormularioBicicletaSheetState extends State<_FormularioBicicletaSheet> {
+class _FormularioBicicletaSheetState extends State<FormularioBicicletaSheet> {
   final formKeyBicicleta = GlobalKey<FormState>();
   late final TextEditingController descripcionController;
   late final TextEditingController marcaController;
   late final TextEditingController modeloController;
   late final TextEditingController numeroSerieController;
+  final descripcionFocusNode = FocusNode();
+  final marcaFocusNode = FocusNode();
+  final modeloFocusNode = FocusNode();
+  final numeroSerieFocusNode = FocusNode();
   late String colorTexto;
   String? aroSeleccionado;
   late String? fotoSeleccionada;
@@ -42,15 +85,37 @@ class _FormularioBicicletaSheetState extends State<_FormularioBicicletaSheet> {
         TextEditingController(text: bicicleta?.numeroSerie ?? '');
     fotoSeleccionada = bicicleta?.fotoUrl;
     activar = bicicleta?.activa ?? true;
+    descripcionFocusNode.addListener(_actualizarAyudaCampo);
+    marcaFocusNode.addListener(_actualizarAyudaCampo);
+    modeloFocusNode.addListener(_actualizarAyudaCampo);
+    numeroSerieFocusNode.addListener(_actualizarAyudaCampo);
   }
 
   @override
   void dispose() {
+    descripcionFocusNode.removeListener(_actualizarAyudaCampo);
+    marcaFocusNode.removeListener(_actualizarAyudaCampo);
+    modeloFocusNode.removeListener(_actualizarAyudaCampo);
+    numeroSerieFocusNode.removeListener(_actualizarAyudaCampo);
+    descripcionFocusNode.dispose();
+    marcaFocusNode.dispose();
+    modeloFocusNode.dispose();
+    numeroSerieFocusNode.dispose();
     descripcionController.dispose();
     marcaController.dispose();
     modeloController.dispose();
     numeroSerieController.dispose();
     super.dispose();
+  }
+
+  void _actualizarAyudaCampo() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  String? _ayudaSiActivo(FocusNode focusNode, String texto) {
+    return focusNode.hasFocus ? texto : null;
   }
 
   Future<void> _seleccionarFoto(ImageSource source) async {
@@ -68,9 +133,9 @@ class _FormularioBicicletaSheetState extends State<_FormularioBicicletaSheet> {
 
       final bytes = await imagen.readAsBytes();
 
-      final mime = _detectarMimeDesdeBytes(bytes);
+      final mime = detectarMimeDesdeBytes(bytes);
 
-      if (!_mimesFotoPermitidos.contains(mime)) {
+      if (!mimesFotoPermitidos.contains(mime)) {
         if (mounted) {
           context.mostrarError('La foto debe ser JPG, PNG o WEBP.');
         }
@@ -78,7 +143,7 @@ class _FormularioBicicletaSheetState extends State<_FormularioBicicletaSheet> {
       }
 
       final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
-      if (dataUrl.length > _maxFotoDataUrlLength) {
+      if (dataUrl.length > maxFotoDataUrlLength) {
         if (mounted) {
           context.mostrarError(
               'La foto es muy pesada. Elige una imagen más liviana.');
@@ -101,12 +166,6 @@ class _FormularioBicicletaSheetState extends State<_FormularioBicicletaSheet> {
 
   Future<void> _guardar() async {
     if (formKeyBicicleta.currentState?.validate() != true || guardando) {
-      return;
-    }
-
-    if (widget.bicicleta == null &&
-        (fotoSeleccionada == null || fotoSeleccionada!.trim().isEmpty)) {
-      context.mostrarError('Toma o sube una foto de la bicicleta.');
       return;
     }
 
@@ -189,8 +248,13 @@ class _FormularioBicicletaSheetState extends State<_FormularioBicicletaSheet> {
               const SizedBox(height: 14),
               TextFormField(
                 controller: descripcionController,
-                decoration: const InputDecoration(
+                focusNode: descripcionFocusNode,
+                decoration: decoracionCampoFormularioBicicleta(
                   labelText: 'Descripción',
+                  helperText: _ayudaSiActivo(
+                    descripcionFocusNode,
+                    'Nombre breve para reconocer la bicicleta.',
+                  ),
                 ),
                 textInputAction: TextInputAction.next,
                 validator: validarDescripcionBicicleta,
@@ -201,19 +265,29 @@ class _FormularioBicicletaSheetState extends State<_FormularioBicicletaSheet> {
                   Expanded(
                     child: TextFormField(
                       controller: marcaController,
-                      decoration: const InputDecoration(
+                      focusNode: marcaFocusNode,
+                      decoration: decoracionCampoFormularioBicicleta(
                         labelText: 'Marca',
+                        helperText: _ayudaSiActivo(
+                          marcaFocusNode,
+                          'Usa la marca visible o registrada.',
+                        ),
                       ),
                       textInputAction: TextInputAction.next,
                       validator: validarMarcaBicicleta,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: TextFormField(
                       controller: modeloController,
-                      decoration: const InputDecoration(
+                      focusNode: modeloFocusNode,
+                      decoration: decoracionCampoFormularioBicicleta(
                         labelText: 'Modelo',
+                        helperText: _ayudaSiActivo(
+                          modeloFocusNode,
+                          'Usa el modelo visible o una referencia breve.',
+                        ),
                       ),
                       textInputAction: TextInputAction.next,
                       validator: validarModeloBicicleta,
@@ -225,37 +299,51 @@ class _FormularioBicicletaSheetState extends State<_FormularioBicicletaSheet> {
               Row(
                 children: [
                   Expanded(
-                    child: _CampoColorBicicleta(
+                    child: CampoColorBicicleta(
                       valorInicial: colorTexto,
                       habilitado: !guardando,
+                      helperText: 'Color principal o combinacion simple.',
                       onChanged: (valor) => colorTexto = valor,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: DropdownAnclado<String>(
-                      value: aroSeleccionado ?? '',
-                      decoration: const InputDecoration(
-                        labelText: 'Aro',
-                      ),
-                      items: [
-                        const DropdownMenuItem<String>(
-                          value: '',
-                          child: Text('Sin especificar'),
-                        ),
-                        ...arosBicicleta.map(
-                          (aro) => DropdownMenuItem<String>(
-                            value: aro,
-                            child: Text(aro),
+                    child: FormField<String>(
+                      initialValue: aroSeleccionado ?? '',
+                      validator: validarAroBicicleta,
+                      builder: (field) {
+                        return DropdownAnclado<String>(
+                          value: field.value ?? '',
+                          decoration: decoracionCampoFormularioBicicleta(
+                            labelText: 'Aro',
+                            errorText: field.errorText,
+                            helperText: 'Selecciona la medida del aro.',
                           ),
-                        ),
-                      ],
-                      onChanged: guardando
-                          ? null
-                          : (valor) => setState(
-                                () => aroSeleccionado =
-                                    valor == '' ? null : valor,
+                          items: [
+                            const DropdownMenuItem<String>(
+                              value: '',
+                              child: Text('Seleccionar'),
+                            ),
+                            ...arosBicicleta.map(
+                              (aro) => DropdownMenuItem<String>(
+                                value: aro,
+                                child: Text(aro),
                               ),
+                            ),
+                          ],
+                          onChanged: guardando
+                              ? null
+                              : (valor) {
+                                  final seleccionado = valor ?? '';
+                                  field.didChange(seleccionado);
+                                  setState(
+                                    () => aroSeleccionado = seleccionado.isEmpty
+                                        ? null
+                                        : seleccionado,
+                                  );
+                                },
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -263,24 +351,48 @@ class _FormularioBicicletaSheetState extends State<_FormularioBicicletaSheet> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: numeroSerieController,
-                decoration: const InputDecoration(
+                focusNode: numeroSerieFocusNode,
+                decoration: decoracionCampoFormularioBicicleta(
                   labelText: 'Número de serie',
+                  helperText: _ayudaSiActivo(
+                    numeroSerieFocusNode,
+                    'Codigo del marco, sin espacios.',
+                  ),
                 ),
                 textInputAction: TextInputAction.done,
                 textCapitalization: TextCapitalization.characters,
                 validator: validarNumeroSerieBicicleta,
               ),
               const SizedBox(height: 12),
-              _SelectorFotoBicicleta(
-                fotoDataUrl: fotoSeleccionada,
-                onCamara: () => _seleccionarFoto(ImageSource.camera),
-                onGaleria: () => _seleccionarFoto(ImageSource.gallery),
-                onQuitar: fotoSeleccionada == null
-                    ? null
-                    : () => setState(() {
-                          fotoSeleccionada = null;
-                          fotoModificada = true;
-                        }),
+              FormField<String?>(
+                initialValue: fotoSeleccionada,
+                validator: (valor) {
+                  final foto = valor?.trim() ?? '';
+                  return foto.isEmpty ? 'Toma o sube una foto.' : null;
+                },
+                builder: (field) {
+                  return SelectorFotoBicicleta(
+                    fotoDataUrl: fotoSeleccionada,
+                    errorText: field.errorText,
+                    onCamara: () async {
+                      await _seleccionarFoto(ImageSource.camera);
+                      field.didChange(fotoSeleccionada);
+                    },
+                    onGaleria: () async {
+                      await _seleccionarFoto(ImageSource.gallery);
+                      field.didChange(fotoSeleccionada);
+                    },
+                    onQuitar: fotoSeleccionada == null
+                        ? null
+                        : () {
+                            setState(() {
+                              fotoSeleccionada = null;
+                              fotoModificada = true;
+                            });
+                            field.didChange(null);
+                          },
+                  );
+                },
               ),
               if (bicicleta == null) ...[
                 const SizedBox(height: 8),
@@ -313,54 +425,92 @@ class _FormularioBicicletaSheetState extends State<_FormularioBicicletaSheet> {
   }
 }
 
-class _CampoColorBicicleta extends StatelessWidget {
-  const _CampoColorBicicleta({
+class CampoColorBicicleta extends StatefulWidget {
+  const CampoColorBicicleta({
+    super.key,
     required this.valorInicial,
     required this.habilitado,
     required this.onChanged,
+    this.helperText,
+    this.validator,
   });
 
   final String valorInicial;
   final bool habilitado;
   final ValueChanged<String> onChanged;
+  final String? helperText;
+  final FormFieldValidator<String>? validator;
+
+  @override
+  State<CampoColorBicicleta> createState() => _CampoColorBicicletaState();
+}
+
+class _CampoColorBicicletaState extends State<CampoColorBicicleta> {
+  FocusNode? _focusNode;
+
+  @override
+  void dispose() {
+    _focusNode?.removeListener(_actualizarFoco);
+    super.dispose();
+  }
+
+  void _sincronizarFocusNode(FocusNode focusNode) {
+    if (_focusNode == focusNode) {
+      return;
+    }
+    _focusNode?.removeListener(_actualizarFoco);
+    _focusNode = focusNode..addListener(_actualizarFoco);
+  }
+
+  void _actualizarFoco() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Autocomplete<String>(
-      initialValue: TextEditingValue(text: valorInicial),
+      initialValue: TextEditingValue(text: widget.valorInicial),
       displayStringForOption: (opcion) => opcion,
       optionsBuilder: (texto) => sugerirColoresBicicleta(texto.text),
-      onSelected: onChanged,
+      onSelected: widget.onChanged,
       fieldViewBuilder: (
         context,
         controller,
         focusNode,
         onFieldSubmitted,
       ) {
+        _sincronizarFocusNode(focusNode);
+
         return TextFormField(
           controller: controller,
           focusNode: focusNode,
-          enabled: habilitado,
-          decoration: const InputDecoration(
+          enabled: widget.habilitado,
+          decoration: decoracionCampoFormularioBicicleta(
             labelText: 'Color',
+            helperText: focusNode.hasFocus ? widget.helperText : null,
+            suffixIcon: const Icon(Icons.arrow_drop_down),
           ),
           textInputAction: TextInputAction.next,
           textCapitalization: TextCapitalization.words,
-          onChanged: onChanged,
-          validator: validarColorBicicleta,
+          onChanged: widget.onChanged,
+          validator: widget.validator ?? validarColorBicicleta,
         );
       },
     );
   }
 }
 
-class _SelectorFotoBicicleta extends StatelessWidget {
-  const _SelectorFotoBicicleta({
+class SelectorFotoBicicleta extends StatelessWidget {
+  const SelectorFotoBicicleta({
+    super.key,
     required this.fotoDataUrl,
     required this.onCamara,
     required this.onGaleria,
     required this.onQuitar,
     this.mostrarAcciones = true,
+    this.errorText,
   });
 
   final String? fotoDataUrl;
@@ -368,6 +518,7 @@ class _SelectorFotoBicicleta extends StatelessWidget {
   final VoidCallback onGaleria;
   final VoidCallback? onQuitar;
   final bool mostrarAcciones;
+  final String? errorText;
 
   @override
   Widget build(BuildContext context) {
@@ -473,6 +624,15 @@ class _SelectorFotoBicicleta extends StatelessWidget {
           ),
         ),
         if (mostrarAcciones) const SizedBox(height: 6),
+        if (errorText != null)
+          Text(
+            errorText!,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        if (errorText != null && mostrarAcciones) const SizedBox(height: 6),
         if (hayFoto && mostrarAcciones)
           Text(
             'Toca la ✕ para quitar la imagen.',
@@ -531,55 +691,6 @@ class _SelectorFotoBicicleta extends StatelessWidget {
     BuildContext context,
     String fotoReferencia,
   ) async {
-    final bytesFoto = decodificarFotoDataUrl(fotoReferencia);
-    final imagen = bytesFoto != null
-        ? Image.memory(bytesFoto, fit: BoxFit.contain)
-        : Image.network(
-            resolverUrlFotoBicicleta(fotoReferencia),
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => _placeholderImagen(
-              'No se pudo cargar la imagen',
-            ),
-          );
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          insetPadding: const EdgeInsets.all(16),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            children: [
-              Container(
-                color: Colors.black,
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * 0.82,
-                  maxWidth: MediaQuery.sizeOf(context).width * 0.94,
-                ),
-                child: InteractiveViewer(
-                  minScale: 0.8,
-                  maxScale: 4,
-                  child: Center(child: imagen),
-                ),
-              ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Material(
-                  color: Colors.black54,
-                  shape: const CircleBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  child: IconButton(
-                    tooltip: 'Cerrar',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close, color: Colors.white),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    await mostrarFotoBicicletaAmpliada(context, fotoReferencia);
   }
 }
