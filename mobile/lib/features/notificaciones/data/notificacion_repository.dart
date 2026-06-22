@@ -12,4 +12,10 @@ class NotificacionRepository {
 
   Future<void> marcarLeida(String notificacionId) =>
       _api.marcarLeida(notificacionId);
+
+  Future<void> registrarDispositivo(String token) =>
+      _api.registrarDispositivo(token);
+
+  Future<void> eliminarDispositivo(String token) =>
+      _api.eliminarDispositivo(token);
 }
