@@ -24,14 +24,12 @@ class UsuariosAdminRepository {
     required String nombre,
     required String correo,
     required RolUsuario rol,
-    required String contrasena,
     String? rut,
   }) =>
       _api.crearUsuario(
         nombre: nombre,
         correo: correo,
         rol: rol,
-        contrasena: contrasena,
         rut: rut,
       );
 
@@ -42,7 +40,6 @@ class UsuariosAdminRepository {
     String? rut,
     RolUsuario? rol,
     bool? cuentaActiva,
-    bool? correoVerificado,
   }) =>
       _api.actualizarPermisos(
         usuarioId: usuarioId,
@@ -51,8 +48,13 @@ class UsuariosAdminRepository {
         rut: rut,
         rol: rol,
         cuentaActiva: cuentaActiva,
-        correoVerificado: correoVerificado,
       );
+
+  Future<void> reenviarVerificacion(String usuarioId) =>
+      _api.reenviarVerificacion(usuarioId);
+
+  Future<void> reenviarAcceso(String usuarioId) =>
+      _api.reenviarAcceso(usuarioId);
 
   Future<void> eliminarUsuario(String usuarioId) =>
       _api.eliminarUsuario(usuarioId);
