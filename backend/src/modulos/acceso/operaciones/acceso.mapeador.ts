@@ -27,7 +27,8 @@ export const mapearMovimiento = (movimiento: MovimientoCompleto) => ({
   },
   bicicleta: {
     id: movimiento.bicicleta.id,
-    descripcion: movimiento.bicicleta.descripcion
+    descripcion: movimiento.bicicleta.descripcion,
+    numeroSerie: movimiento.bicicleta.numeroSerie
   },
   bicicletero: {
     id: movimiento.bicicletero.id,
