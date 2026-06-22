@@ -16,6 +16,7 @@ Table usuarios {
   contrasenaHash String [not null]
   correoVerificado Boolean [not null, default: false]
   registroParcial Boolean [not null, default: false]
+  debeCambiarContrasena Boolean [not null, default: false]
   cuentaActiva Boolean [not null, default: true]
   versionSesion Int [not null, default: 0]
   tokenVerificacionCorreo String
@@ -125,6 +126,15 @@ Table notificaciones {
   leida Boolean [not null, default: false]
   datos Json
   creadaEn DateTime [default: `now()`, not null]
+}
+
+Table dispositivos_tokens {
+  id String [pk]
+  usuarioId String [not null]
+  token String [unique, not null]
+  plataforma String [not null, default: 'android']
+  creadoEn DateTime [default: `now()`, not null]
+  actualizadoEn DateTime [not null]
 }
 
 Table incidencias {
@@ -251,6 +261,8 @@ Ref: codigos_qr_temporales.bicicleteroId > bicicleteros.id
 Ref: codigos_qr_temporales.escaneadoPorGuardiaId > usuarios.id [delete: Cascade]
 
 Ref: notificaciones.usuarioId > usuarios.id [delete: Cascade]
+
+Ref: dispositivos_tokens.usuarioId > usuarios.id [delete: Cascade]
 
 Ref: incidencias.reportadaPorUsuarioId > usuarios.id [delete: Cascade]
 
