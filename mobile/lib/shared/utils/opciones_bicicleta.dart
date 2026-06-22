@@ -160,8 +160,9 @@ const Map<String, String> _aliasColoresBicicleta = {
 };
 
 final _tieneLetra = RegExp(r'[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]');
+final _tieneLetraONumero = RegExp(r'[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]');
 final _patronMarcaModelo = RegExp(r'^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 .&-]+$');
-final _patronNumeroSerie = RegExp(r'^[A-Za-z0-9-]+$');
+final _patronNumeroSerie = RegExp(r'^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$');
 final _separadorColores = RegExp(r'\s*(?:/|\+|,|&|\by\b|\be\b)\s*');
 
 final Map<String, String> _arosPorClave = {
@@ -276,7 +277,7 @@ String? validarDescripcionBicicleta(String? valor) {
 String? validarMarcaBicicleta(String? valor) {
   final texto = valor?.trim() ?? '';
   if (texto.isEmpty) {
-    return null;
+    return 'Ingresa la marca.';
   }
   if (texto.length < 2) {
     return 'Debe tener al menos 2 caracteres.';
@@ -287,13 +288,16 @@ String? validarMarcaBicicleta(String? valor) {
   if (!_patronMarcaModelo.hasMatch(texto)) {
     return 'Solo letras, números y los signos - . &';
   }
+  if (!_tieneLetra.hasMatch(texto)) {
+    return 'La marca debe incluir texto identificable.';
+  }
   return null;
 }
 
 String? validarModeloBicicleta(String? valor) {
   final texto = valor?.trim() ?? '';
   if (texto.isEmpty) {
-    return null;
+    return 'Ingresa el modelo.';
   }
   if (texto.length > 40) {
     return 'Máximo 40 caracteres.';
@@ -301,13 +305,16 @@ String? validarModeloBicicleta(String? valor) {
   if (!_patronMarcaModelo.hasMatch(texto)) {
     return 'Solo letras, números y los signos - . &';
   }
+  if (!_tieneLetraONumero.hasMatch(texto)) {
+    return 'El modelo debe incluir texto o números.';
+  }
   return null;
 }
 
 String? validarColorBicicleta(String? valor) {
   final texto = valor?.trim() ?? '';
   if (texto.isEmpty) {
-    return null;
+    return 'Ingresa el color.';
   }
   if (texto.length > 60) {
     return 'Máximo 60 caracteres.';
@@ -321,7 +328,7 @@ String? validarColorBicicleta(String? valor) {
 String? validarNumeroSerieBicicleta(String? valor) {
   final texto = valor?.trim() ?? '';
   if (texto.isEmpty) {
-    return null;
+    return 'Ingresa el numero de serie.';
   }
   if (texto.length < 4) {
     return 'Debe tener al menos 4 caracteres.';
@@ -330,7 +337,18 @@ String? validarNumeroSerieBicicleta(String? valor) {
     return 'Máximo 40 caracteres.';
   }
   if (!_patronNumeroSerie.hasMatch(texto)) {
-    return 'Solo letras, números y guion (sin espacios).';
+    return 'Usa letras, números y guion, sin espacios.';
+  }
+  return null;
+}
+
+String? validarAroBicicleta(String? valor) {
+  final texto = valor?.trim() ?? '';
+  if (texto.isEmpty) {
+    return 'Selecciona el aro.';
+  }
+  if (normalizarAroBicicleta(texto) == null) {
+    return 'Selecciona un aro valido.';
   }
   return null;
 }
