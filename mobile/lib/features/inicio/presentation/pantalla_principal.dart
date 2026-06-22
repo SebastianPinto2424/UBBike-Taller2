@@ -1,78 +1,29 @@
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../core/providers/repositorios_provider.dart';
 import '../../../core/providers/sesion_provider.dart';
 import '../../../core/tema/colores_ubb.dart';
-import '../../../core/servicios/excepcion_api.dart';
+import '../../../core/servicios/fcm_service.dart';
 import '../../../core/servicios/tiempo_real_service.dart';
-import '../../../features/acceso/data/acceso_modelos.dart';
-import '../../../features/acceso/data/solicitud_guardia_modelos.dart';
-import '../../../features/acceso/data/solicitud_guardia_repository.dart';
-import '../../../features/admin/presentation/vista_gestion_usuarios.dart';
-import '../../../features/bicicletas/data/bicicleta_repository.dart';
-import '../../../features/acceso/data/acceso_repository.dart';
-import '../../../features/historial/data/historial_modelos.dart';
-import '../../../features/historial/data/historial_repository.dart';
-import '../../../features/incidencias/data/incidencia_modelos.dart';
-import '../../../features/incidencias/data/incidencia_repository.dart';
 import '../../../features/inicio/application/controlador_notificaciones_inicio.dart';
 import '../../../features/notificaciones/presentation/pantalla_notificaciones.dart';
-import '../../../features/qr/data/qr_modelos.dart';
-import '../../../features/qr/data/qr_repository.dart';
-import '../../../shared/modelos/bicicleta_app.dart';
-import '../../../shared/modelos/bicicletero_app.dart';
-import '../../../shared/modelos/movimiento_app.dart';
+import '../../../shared/modelos/notificacion_app.dart';
 import '../../../shared/modelos/rol_usuario.dart';
-import '../../../shared/servicios/descarga_reporte.dart';
-import '../../../shared/widgets/chip_estado.dart';
 import '../../../shared/widgets/contenedor_responsivo.dart';
-import '../../../shared/widgets/tarjeta_accion.dart';
-import '../../../shared/utils/auto_refresco.dart';
-import '../../../shared/utils/identidad.dart';
-import '../../../shared/utils/opciones_bicicleta.dart';
-import '../../../shared/widgets/snackbar_semantico.dart';
-import 'comun/widgets_comun.dart';
 
-part 'usuario/vista_inicio_usuario.dart';
-part 'usuario/vista_bicicletas_usuario.dart';
-part 'usuario/formulario_bicicleta_usuario.dart';
-part 'usuario/vista_movimientos_usuario.dart';
-part 'usuario/vista_qr_usuario.dart';
-part 'usuario/vista_solicitar_guardia.dart';
-part 'guardia/vista_inicio_guardia.dart';
-part 'guardia/vista_escaner_qr_guardia.dart';
-part 'guardia/vista_gestion_manual_guardia.dart';
-part 'guardia/vista_ingreso_guardia.dart';
-part 'guardia/vista_alertas_guardia.dart';
-part 'central/vista_dashboard_central.dart';
-part 'central/vista_movimientos_central.dart';
-part 'central/vista_operaciones_guardias_central.dart';
-part 'central/vista_solicitudes_central.dart';
-part 'soporte/vista_incidencias.dart';
-part 'soporte/vista_soporte.dart';
-part 'perfil/pantalla_principal_perfil.dart';
-
-const int _maxFotoDataUrlLength = 7000000;
-const Set<String> _mimesFotoPermitidos = {
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'image/webp',
-};
-
-T _leerProvider<T>(BuildContext context, ProviderListenable<T> provider) {
-  return ProviderScope.containerOf(context, listen: false).read(provider);
-}
+import 'usuario/vista_inicio_usuario.dart';
+import 'usuario/vista_bicicletas_usuario.dart';
+import 'usuario/vista_qr_usuario.dart';
+import 'guardia/vista_inicio_guardia.dart';
+import 'guardia/vista_ingreso_guardia.dart';
+import 'central/vista_dashboard_central.dart';
+import 'central/vista_movimientos_central.dart';
+import 'central/vista_operaciones_guardias_central.dart';
+import 'soporte/vista_soporte.dart';
+import 'perfil/pantalla_principal_perfil.dart';
 
 class PantallaPrincipal extends ConsumerStatefulWidget {
   const PantallaPrincipal({super.key});
@@ -84,6 +35,10 @@ class PantallaPrincipal extends ConsumerStatefulWidget {
 class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   int indice = 0;
   ModoIngresoGuardia modoIngresoGuardia = ModoIngresoGuardia.qr;
+  int tabGestionAdmin = 0;
+  int tabAtencionAdmin = 0;
+  int tabSoporte = 0;
+  int tabBicicletas = 0;
   late final ControladorNotificacionesInicio controladorNotificaciones;
   late final TiempoRealService tiempoRealService;
 
@@ -91,6 +46,13 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     setState(() {
       modoIngresoGuardia = modo;
       indice = 2;
+    });
+  }
+
+  void _abrirGestionAdmin(int tab) {
+    setState(() {
+      tabGestionAdmin = tab;
+      indice = 4;
     });
   }
 
@@ -104,9 +66,12 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     );
     controladorNotificaciones.addListener(_sincronizarNotificaciones);
     controladorNotificaciones.iniciar();
+    FcmService.instancia.notificacionTocada.addListener(_alTocarPush);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _sincronizarTiempoRealConSesion(ref.read(sesionProvider).value);
+
+        _alTocarPush();
       }
     });
   }
@@ -115,31 +80,129 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   void dispose() {
     controladorNotificaciones.removeListener(_sincronizarNotificaciones);
     controladorNotificaciones.dispose();
+    FcmService.instancia.notificacionTocada.removeListener(_alTocarPush);
     tiempoRealService.dispose();
     super.dispose();
   }
 
+  void _alTocarPush() {
+    final data = FcmService.instancia.notificacionTocada.value;
+    if (data == null || !mounted) {
+      return;
+    }
+
+    final sesion = ref.read(sesionProvider).value;
+    final rol =
+        sesion is SesionActiva ? sesion.usuario.rol : RolUsuario.estudiante;
+    final tipo = data['tipo']?.toString();
+
+    switch (tipo) {
+      case 'SOLICITUD_GUARDIA':
+        _abrirDestinoSolicitudGuardia(rol);
+        break;
+      case 'INCIDENCIA':
+        _abrirDestinoIncidencia(rol);
+        break;
+      case 'MOVIMIENTO':
+        _abrirDestinoMovimiento(rol);
+        break;
+    }
+
+    FcmService.instancia.notificacionTocada.value = null;
+    controladorNotificaciones.actualizar();
+  }
+
   void _sincronizarTiempoRealConSesion(SesionState? sesion) {
+    final repositorio = ref.read(notificacionRepositoryProvider);
+
     if (sesion is SesionActiva) {
       tiempoRealService.conectar(sesion.token);
+      FcmService.instancia.registrarToken(repositorio);
       return;
     }
 
     tiempoRealService.desconectar();
+    FcmService.instancia.eliminarToken(repositorio);
   }
 
   Future<void> _abrirNotificaciones() async {
-    controladorNotificaciones.marcarTodasLeidas();
+    final sesion = ref.read(sesionProvider).value;
+    final rol =
+        sesion is SesionActiva ? sesion.usuario.rol : RolUsuario.estudiante;
 
-    await Navigator.of(context).push(
+    final notificacion = await Navigator.of(context).push<NotificacionApp>(
       MaterialPageRoute(
         builder: (_) => const PantallaNotificaciones(),
       ),
     );
 
     if (mounted) {
+      if (notificacion != null) {
+        _navegarDesdeNotificacion(notificacion, rol);
+      }
       await controladorNotificaciones.actualizar();
     }
+  }
+
+  void _navegarDesdeNotificacion(
+    NotificacionApp notificacion,
+    RolUsuario rol,
+  ) {
+    switch (notificacion.tipo) {
+      case 'SOLICITUD_GUARDIA':
+        _abrirDestinoSolicitudGuardia(rol);
+        return;
+      case 'INCIDENCIA':
+        _abrirDestinoIncidencia(rol);
+        return;
+      case 'MOVIMIENTO':
+        _abrirDestinoMovimiento(rol);
+        return;
+    }
+  }
+
+  void _abrirDestinoSolicitudGuardia(RolUsuario rol) {
+    setState(() {
+      tabSoporte = 0;
+      if (rol == RolUsuario.guardia) {
+        indice = 3;
+      } else if (rol == RolUsuario.adminCentral) {
+        indice = 3;
+      } else if (rol == RolUsuario.administrador) {
+        tabGestionAdmin = 2;
+        tabAtencionAdmin = 1;
+        indice = 4;
+      } else {
+        indice = 3;
+      }
+    });
+  }
+
+  void _abrirDestinoIncidencia(RolUsuario rol) {
+    setState(() {
+      tabSoporte = 1;
+      if (rol == RolUsuario.administrador) {
+        tabGestionAdmin = 2;
+        tabAtencionAdmin = 2;
+        indice = 4;
+      } else {
+        indice = 3;
+      }
+    });
+  }
+
+  void _abrirDestinoMovimiento(RolUsuario rol) {
+    setState(() {
+      if (rol == RolUsuario.guardia || rol == RolUsuario.adminCentral) {
+        indice = 1;
+      } else if (rol == RolUsuario.administrador) {
+        tabGestionAdmin = 1;
+        indice = 4;
+      } else {
+        tabBicicletas = 1;
+        indice = 1;
+      }
+    });
   }
 
   void _sincronizarNotificaciones() {
@@ -389,24 +452,24 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
           label: 'Inicio',
         ),
         const NavigationDestination(
-          icon: Icon(Icons.manage_search_outlined),
-          selectedIcon: Icon(Icons.manage_search),
-          label: 'Movimientos',
+          icon: Icon(Icons.pedal_bike_outlined),
+          selectedIcon: Icon(Icons.pedal_bike),
+          label: 'Bicicletas',
         ),
         const NavigationDestination(
-          icon: Icon(Icons.manage_accounts_outlined),
-          selectedIcon: Icon(Icons.manage_accounts),
-          label: 'Usuarios',
-        ),
-        NavigationDestination(
-          icon: iconoQrGuardia,
-          selectedIcon: iconoQrGuardia,
+          icon: Icon(Icons.qr_code_scanner_outlined),
+          selectedIcon: Icon(Icons.qr_code_scanner),
           label: 'Validar',
         ),
         const NavigationDestination(
           icon: Icon(Icons.support_agent_outlined),
           selectedIcon: Icon(Icons.support_agent),
           label: 'Soporte',
+        ),
+        const NavigationDestination(
+          icon: Icon(Icons.tune_outlined),
+          selectedIcon: Icon(Icons.tune),
+          label: 'Gestión',
         ),
         const NavigationDestination(
           icon: Icon(Icons.person_outline),
@@ -452,8 +515,15 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
           onOpenIngreso: _abrirIngresoGuardia,
         ),
         const VistaMovimientosCentral(),
-        VistaIngresoGuardia(modoInicial: modoIngresoGuardia),
-        const VistaSoporteGuardia(),
+        VistaIngresoGuardia(
+          modoInicial: modoIngresoGuardia,
+
+          onIrAHistorial: () => setState(() => indice = 1),
+        ),
+        VistaSoporteGuardia(
+          key: ValueKey('soporte-guardia-$tabSoporte'),
+          initialIndex: tabSoporte,
+        ),
         const VistaPerfil(rol: RolUsuario.guardia),
       ];
     }
@@ -467,7 +537,10 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
         ),
         const VistaMovimientosCentral(),
         const VistaOperacionesGuardiasCentral(),
-        const VistaSoporteCentral(),
+        VistaSoporteCentral(
+          key: ValueKey('soporte-central-$tabSoporte'),
+          initialIndex: tabSoporte,
+        ),
         const VistaPerfil(rol: RolUsuario.adminCentral),
       ];
     }
@@ -475,23 +548,39 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     if (rol == RolUsuario.administrador) {
       return [
         VistaDashboardCentral(
-          onAbrirMovimientos: () => setState(() => indice = 1),
-          onAbrirGuardias: () => setState(() => indice = 4),
-          onAbrirSoporte: () => setState(() => indice = 4),
+          onAbrirMovimientos: () => _abrirGestionAdmin(1),
+          onAbrirGuardias: () => _abrirGestionAdmin(2),
+          onAbrirSoporte: () => _abrirGestionAdmin(2),
         ),
-        const VistaMovimientosCentral(),
-        const VistaGestionUsuarios(),
-        VistaIngresoGuardia(modoInicial: modoIngresoGuardia),
-        const VistaSoporteAdministrador(),
+        VistaBicicletas(
+          key: ValueKey('bicicletas-admin-$tabBicicletas'),
+          initialIndex: tabBicicletas,
+        ),
+        const VistaQrAdmin(),
+        VistaSoporteUsuario(
+          key: ValueKey('soporte-admin-propio-$tabSoporte'),
+          initialIndex: tabSoporte,
+        ),
+        VistaGestionAdmin(
+          key: ValueKey('gestion-admin-$tabGestionAdmin-$tabAtencionAdmin'),
+          initialIndex: tabGestionAdmin,
+          initialSoporteIndex: tabAtencionAdmin,
+        ),
         const VistaPerfil(rol: RolUsuario.administrador),
       ];
     }
 
     return [
       const VistaInicioUsuario(),
-      const VistaBicicletas(),
+      VistaBicicletas(
+        key: ValueKey('bicicletas-usuario-$tabBicicletas'),
+        initialIndex: tabBicicletas,
+      ),
       const VistaQrUsuario(),
-      const VistaSoporteUsuario(),
+      VistaSoporteUsuario(
+        key: ValueKey('soporte-usuario-$tabSoporte'),
+        initialIndex: tabSoporte,
+      ),
       VistaPerfil(rol: rol),
     ];
   }
@@ -518,10 +607,10 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     if (rol == RolUsuario.administrador) {
       return const [
         (Icons.dashboard_outlined, 'Inicio'),
-        (Icons.manage_search_outlined, 'Movimientos'),
-        (Icons.manage_accounts_outlined, 'Usuarios'),
+        (Icons.pedal_bike_outlined, 'Bicicletas'),
         (Icons.qr_code_scanner, 'Validar'),
         (Icons.support_agent_outlined, 'Soporte'),
+        (Icons.tune_outlined, 'Gestión'),
         (Icons.person_outline, 'Perfil'),
       ];
     }
@@ -533,57 +622,4 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
       (Icons.person_outline, 'Perfil'),
     ];
   }
-}
-
-String _saludoActual() {
-  final hora = DateTime.now().hour;
-  if (hora < 12) {
-    return 'Buenos días';
-  }
-  if (hora < 20) {
-    return 'Buenas tardes';
-  }
-  return 'Buenas noches';
-}
-
-String _nombreSesion(BuildContext context, String respaldo) {
-  final sesion = _leerProvider(context, sesionProvider).value;
-  final nombre = sesion is SesionActiva ? sesion.usuario.nombre : null;
-  return nombreCorto(_textoNoVacio(nombre, respaldo));
-}
-
-String _textoNoVacio(String? valor, String respaldo) {
-  final texto = valor?.trim();
-  if (texto == null || texto.isEmpty) {
-    return respaldo;
-  }
-  return texto;
-}
-
-String _detectarMimeDesdeBytes(Uint8List bytes) {
-  if (bytes.length >= 3 &&
-      bytes[0] == 0xFF &&
-      bytes[1] == 0xD8 &&
-      bytes[2] == 0xFF) {
-    return 'image/jpeg';
-  }
-  if (bytes.length >= 4 &&
-      bytes[0] == 0x89 &&
-      bytes[1] == 0x50 &&
-      bytes[2] == 0x4E &&
-      bytes[3] == 0x47) {
-    return 'image/png';
-  }
-  if (bytes.length >= 12 &&
-      bytes[0] == 0x52 &&
-      bytes[1] == 0x49 &&
-      bytes[2] == 0x46 &&
-      bytes[3] == 0x46 &&
-      bytes[8] == 0x57 &&
-      bytes[9] == 0x45 &&
-      bytes[10] == 0x42 &&
-      bytes[11] == 0x50) {
-    return 'image/webp';
-  }
-  return 'image/jpeg';
 }
