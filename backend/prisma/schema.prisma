@@ -113,6 +113,7 @@ model Usuario {
   contrasenaHash                  String              @map("contrasena_hash") @db.VarChar(255)
   correoVerificado                Boolean             @default(false) @map("correo_verificado")
   registroParcial                 Boolean             @default(false) @map("registro_parcial")
+  debeCambiarContrasena           Boolean             @default(false) @map("debe_cambiar_contrasena")
   cuentaActiva                    Boolean             @default(true) @map("cuenta_activa")
   versionSesion                   Int                 @default(0) @map("version_sesion")
   tokenVerificacionCorreo         String?             @map("token_verificacion_correo") @db.VarChar(120)
@@ -134,6 +135,7 @@ model Usuario {
   incidenciasGestionadas          Incidencia[]        @relation("IncidenciaGestor")
   notificaciones                  Notificacion[]
   auditoriaEventos                AuditoriaEvento[]
+  dispositivosTokens              DispositivoToken[]
 
   @@map("usuarios")
 }
@@ -286,6 +288,19 @@ model Notificacion {
 
   @@index([usuarioId, leida, creadaEn], map: "idx_notificaciones_usuario_leida")
   @@map("notificaciones")
+}
+
+model DispositivoToken {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  usuarioId     String   @map("usuario_id") @db.Uuid
+  token         String   @unique @db.VarChar(255)
+  plataforma    String   @default("android") @db.VarChar(20)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  usuario       Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId], map: "idx_dispositivos_usuario")
+  @@map("dispositivos_tokens")
 }
 
 model Incidencia {
