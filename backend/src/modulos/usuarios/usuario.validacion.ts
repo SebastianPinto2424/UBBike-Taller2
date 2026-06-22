@@ -6,7 +6,6 @@ const esquemaContrasenaAdmin = Joi.string()
   .min(12)
   .max(72)
   .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/)
-  .required()
   .messages({
     'string.min': 'La contraseña debe tener al menos 12 caracteres',
     'string.pattern.base': 'La contraseña debe incluir mayúscula, minúscula, número y símbolo'
@@ -21,7 +20,7 @@ export const esquemaCrearUsuario = Joi.object({
   rol: Joi.string()
     .valid(...Object.values(RolUsuario))
     .required(),
-  contrasena: esquemaContrasenaAdmin
+  contrasena: esquemaContrasenaAdmin.optional()
 });
 
 export const esquemaActualizarPermisosUsuario = Joi.object({
@@ -33,6 +32,5 @@ export const esquemaActualizarPermisosUsuario = Joi.object({
   rol: Joi.string()
     .valid(...Object.values(RolUsuario))
     .optional(),
-  cuentaActiva: Joi.boolean().optional(),
-  correoVerificado: Joi.boolean().optional()
+  cuentaActiva: Joi.boolean().optional()
 }).min(1);
