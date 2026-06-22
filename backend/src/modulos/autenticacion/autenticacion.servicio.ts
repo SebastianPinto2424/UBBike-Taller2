@@ -49,37 +49,75 @@ type DatosCompletarRegistro = {
 };
 
 export const registrarUsuario = async (datos: DatosRegistro) => {
-  const correoNormalizado = datos.correo.toLowerCase();
+  const correoNormalizado = datos.correo.trim().toLowerCase();
+  const rut = datos.rut?.trim() || null;
   const rolAsignado = resolverRolRegistrable(correoNormalizado);
-  const usuarioExistente = await autenticacionRepositorio.buscarPorCorreo(correoNormalizado);
+  const usuarioPorCorreo = await autenticacionRepositorio.buscarPorCorreo(correoNormalizado);
+  const usuarioPorRut = rut ? await autenticacionRepositorio.buscarPorRut(rut) : null;
 
-  if (usuarioExistente) {
+  if (usuarioPorCorreo && !usuarioPorCorreo.eliminadoEn) {
     throw new ErrorHttp(409, 'El correo ya está registrado');
   }
 
-  if (datos.rut) {
-    const rutExistente = await autenticacionRepositorio.buscarPorRut(datos.rut);
+  if (usuarioPorRut && !usuarioPorRut.eliminadoEn) {
+    throw new ErrorHttp(409, 'El RUT ya está registrado');
+  }
 
-    if (rutExistente) {
-      throw new ErrorHttp(409, 'El RUT ya está registrado');
-    }
+  if (
+    usuarioPorCorreo?.eliminadoEn &&
+    usuarioPorRut?.eliminadoEn &&
+    usuarioPorCorreo.id !== usuarioPorRut.id
+  ) {
+    throw new ErrorHttp(
+      409,
+      'El correo y el RUT pertenecen a cuentas eliminadas distintas. Solicita apoyo administrativo.'
+    );
   }
 
   const contrasenaHash = await bcrypt.hash(datos.contrasena, 12);
   const tokenVerificacion = crearTokenSeguro();
-  const usuarioGuardado = await autenticacionRepositorio.crear({
-    nombre: datos.nombre,
-    correo: correoNormalizado,
-    rut: datos.rut ?? null,
-    rol: rolAsignado,
-    contrasenaHash,
-    cuentaActiva: true,
-    correoVerificado: false,
-    tokenVerificacionCorreo: hashearToken(tokenVerificacion),
-    tokenVerificacionCorreoExpiraEn: new Date(
-      Date.now() + 1000 * 60 * 60 * horasExpiracionVerificacionCorreo
-    )
-  });
+  const tokenVerificacionCorreo = hashearToken(tokenVerificacion);
+  const tokenVerificacionCorreoExpiraEn = new Date(
+    Date.now() + 1000 * 60 * 60 * horasExpiracionVerificacionCorreo
+  );
+  const cuentaEliminada = usuarioPorRut?.eliminadoEn
+    ? usuarioPorRut
+    : usuarioPorCorreo?.eliminadoEn
+      ? usuarioPorCorreo
+      : null;
+  const usuarioGuardado = cuentaEliminada
+    ? await autenticacionRepositorio.actualizar(cuentaEliminada.id, {
+        nombre: datos.nombre.trim(),
+        correo: correoNormalizado,
+        rut,
+        rol: rolAsignado,
+        contrasenaHash,
+        cuentaActiva: true,
+        correoVerificado: false,
+        registroParcial: false,
+        debeCambiarContrasena: false,
+        eliminadoEn: null,
+        tokenVerificacionCorreo,
+        tokenVerificacionCorreoExpiraEn,
+        tokenCambioContrasena: null,
+        tokenCambioContrasenaExpiraEn: null,
+        versionSesion: {
+          increment: 1
+        }
+      })
+    : await autenticacionRepositorio.crear({
+        nombre: datos.nombre.trim(),
+        correo: correoNormalizado,
+        rut,
+        rol: rolAsignado,
+        contrasenaHash,
+        cuentaActiva: true,
+        correoVerificado: false,
+        registroParcial: false,
+        debeCambiarContrasena: false,
+        tokenVerificacionCorreo,
+        tokenVerificacionCorreoExpiraEn
+      });
   const enlace = `${entorno.app.urlFrontend}/verificar-correo?token=${tokenVerificacion}`;
   const correo = crearCorreoVerificacion(usuarioGuardado.nombre, enlace);
 
@@ -100,7 +138,7 @@ export const registrarUsuario = async (datos: DatosRegistro) => {
 
   await registrarAuditoria({
     actorUsuarioId: usuarioGuardado.id,
-    accion: 'CUENTA_REGISTRADA',
+    accion: cuentaEliminada ? 'CUENTA_RESTAURADA_REGISTRO' : 'CUENTA_REGISTRADA',
     entidad: 'usuarios',
     entidadId: usuarioGuardado.id,
     datos: {
@@ -394,6 +432,59 @@ export const cambiarContrasena = async (token: string, contrasena: string) => {
   };
 };
 
+export const cambiarContrasenaSesion = async (
+  usuarioId: string,
+  contrasenaActual: string,
+  contrasenaNueva: string
+) => {
+  const usuario = await autenticacionRepositorio.buscarPorId(usuarioId);
+
+  if (!usuario) {
+    throw new ErrorHttp(404, 'Usuario no encontrado');
+  }
+
+  const actualCoincide = await bcrypt.compare(contrasenaActual, usuario.contrasenaHash);
+  if (!actualCoincide) {
+    throw new ErrorHttp(400, 'La contraseña actual no es correcta');
+  }
+
+  const esIgualAnterior = await bcrypt.compare(contrasenaNueva, usuario.contrasenaHash);
+  if (esIgualAnterior) {
+    throw new ErrorHttp(400, 'La nueva contraseña debe ser distinta a la actual');
+  }
+
+  await autenticacionRepositorio.actualizar(usuario.id, {
+    contrasenaHash: await bcrypt.hash(contrasenaNueva, 12),
+    debeCambiarContrasena: false
+  });
+
+  await crearNotificacion({
+    usuarioId: usuario.id,
+    titulo: 'Contraseña actualizada',
+    mensaje: 'Tu contraseña fue cambiada correctamente.',
+    tipo: TipoNotificacion.CUENTA
+  });
+
+  const correoContrasenaActualizada = crearCorreoContrasenaActualizada(usuario.nombre);
+  await enviarCorreo({
+    para: usuario.correo,
+    asunto: correoContrasenaActualizada.asunto,
+    texto: correoContrasenaActualizada.texto,
+    html: correoContrasenaActualizada.html
+  });
+
+  await registrarAuditoria({
+    actorUsuarioId: usuario.id,
+    accion: 'CONTRASENA_CAMBIADA_SESION',
+    entidad: 'usuarios',
+    entidadId: usuario.id
+  });
+
+  return {
+    message: 'Contraseña actualizada correctamente'
+  };
+};
+
 export const refrescarToken = async (usuarioId: string, refreshTokenRecibido: string) => {
   const usuario = await autenticacionRepositorio.buscarPorId(usuarioId);
 
@@ -425,6 +516,10 @@ export const cerrarSesion = async (usuarioId: string, refreshTokenRecibido?: str
   } else {
     await revocarTodosLosRefreshTokens(usuarioId);
   }
+
+  await autenticacionRepositorio.actualizar(usuarioId, {
+    versionSesion: { increment: 1 }
+  });
 
   await registrarAuditoria({
     actorUsuarioId: usuarioId,
