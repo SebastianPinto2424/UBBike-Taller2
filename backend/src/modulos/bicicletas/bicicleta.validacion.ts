@@ -310,7 +310,7 @@ const esquemaMarcaRequerida = Joi.string()
     'any.required': 'La marca es obligatoria',
     'string.empty': 'La marca es obligatoria',
     'any.invalid': 'La marca debe incluir texto identificable',
-    'string.pattern.base': 'Solo se permiten letras, nÃºmeros y los signos - . &'
+    'string.pattern.base': 'Solo se permiten letras, números y los signos - . &'
   });
 
 const esquemaModeloRequerido = Joi.string()
@@ -323,7 +323,7 @@ const esquemaModeloRequerido = Joi.string()
     'any.required': 'El modelo es obligatorio',
     'string.empty': 'El modelo es obligatorio',
     'any.invalid': 'El modelo debe incluir texto o numeros',
-    'string.pattern.base': 'Solo se permiten letras, nÃºmeros y los signos - . &'
+    'string.pattern.base': 'Solo se permiten letras, números y los signos - . &'
   });
 
 const esquemaColorRequerido = Joi.string()
@@ -336,7 +336,7 @@ const esquemaColorRequerido = Joi.string()
   .messages({
     'any.required': 'El color es obligatorio',
     'string.empty': 'El color es obligatorio',
-    'any.invalid': 'Ingresa un color vÃ¡lido',
+    'any.invalid': 'Ingresa un color válido',
     'string.max': 'El color no puede superar 60 caracteres'
   });
 
@@ -347,7 +347,7 @@ const esquemaAroRequerido = Joi.string()
   .messages({
     'any.required': 'El aro es obligatorio',
     'string.empty': 'El aro es obligatorio',
-    'any.invalid': 'Selecciona un aro vÃ¡lido de la lista'
+    'any.invalid': 'Selecciona un aro válido de la lista'
   });
 
 const esquemaNumeroSerieRequerido = Joi.string()
@@ -360,7 +360,7 @@ const esquemaNumeroSerieRequerido = Joi.string()
   .messages({
     'any.required': 'El numero de serie es obligatorio',
     'string.empty': 'El numero de serie es obligatorio',
-    'string.pattern.base': 'El nÃºmero de serie solo admite letras, nÃºmeros y guion'
+    'string.pattern.base': 'El número de serie solo admite letras, números y guion'
   });
 
 export const esquemaDescripcionBicicleta = esquemaDescripcion;
