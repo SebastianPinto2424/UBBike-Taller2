@@ -40,13 +40,6 @@ const fechaLegible = (fecha: Date = new Date()): string =>
     timeZone: 'America/Santiago'
   });
 
-const fechaCortaAsunto = (fecha: Date = new Date()): string =>
-  fecha.toLocaleString('es-CL', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-    timeZone: 'America/Santiago'
-  });
-
 const etiquetaRol = (rol?: string): string => {
   switch (rol) {
     case 'GUARDIA':
@@ -290,7 +283,7 @@ ${pieTexto()}`,
 export const crearCorreoCambioContrasena = (nombre: string, enlace: string) => {
   const fecha = fechaLegible();
   return {
-    asunto: `Restablece tu contraseña de UBBike (${fechaCortaAsunto()})`,
+    asunto: 'Restablece tu contraseña de UBBike',
     texto: `Hola ${nombre}: recibimos una solicitud para restablecer la contraseña de esta cuenta el ${fecha}.
 Si fuiste tú, crea una nueva (enlace de un solo uso, vence en 30 minutos): ${enlace}
 Este enlace reemplaza cualquier enlace de restablecimiento enviado antes.
@@ -330,7 +323,7 @@ export const crearCorreoCuentaActivada = (nombre: string, rol?: string) => {
   const rolTexto = etiquetaRol(rol);
   const fecha = fechaLegible();
   return {
-    asunto: `Tu cuenta de ${rolTexto} en UBBike quedó activa (${fechaCortaAsunto()})`,
+    asunto: `Tu cuenta de ${rolTexto} en UBBike quedó activa`,
     texto: `Hola ${nombre}: creaste tu contraseña y tu cuenta de ${rolTexto} quedó activa el ${fecha}.
 Ya puedes iniciar sesión en la app UBBike con tu correo institucional.
 Si no fuiste tú quien activó esta cuenta, escríbenos a ${CORREO_SOPORTE}.
@@ -417,7 +410,7 @@ export const crearCorreoMovimiento = (datos: DatosCorreoMovimiento) => {
     : '';
 
   return {
-    asunto: `${tipo} ${estado}: ${datos.bicicleta} en UBBike (${fechaCortaAsunto(datos.fecha)})`,
+    asunto: `${tipo} ${estado}: ${datos.bicicleta} en UBBike`,
     texto: [
       `Hola ${datos.nombre}.`,
       `Registramos un ${tipo.toLowerCase()} ${origen} ${estado} el ${fecha}.`,
