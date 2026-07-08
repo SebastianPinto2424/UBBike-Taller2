@@ -1,208 +1,257 @@
 # UBBike
 
-Aplicación web/mobile y API REST para gestionar el registro de bicicletas, el ingreso y retiro desde bicicleteros, y la trazabilidad operativa de los accesos en la Universidad del Bío-Bío.
+Aplicacion web/mobile y API REST para registrar bicicletas, validar ingresos y retiros en bicicleteros, y mantener trazabilidad operativa para la Universidad del Bio-Bio.
 
-## Estructura del proyecto
+## Alcance de la entrega
 
-- `backend/`: API REST con Node.js, Express, Prisma, PostgreSQL y Redis.
-- `mobile/`: aplicación Flutter Web/Mobile con vistas por rol.
-- `docs/`: documentación técnica, modelo relacional y notas de producción.
+La entrega funcional se valida con estos roles:
 
-## Requisitos
+| Rol | Cuenta demo | Funciones principales |
+| --- | --- | --- |
+| Usuario | `estudiante@alumnos.ubiobio.cl` | Registrar bicicleta, seleccionar bicicleta activa, generar QR, revisar historial, solicitar apoyo y gestionar perfil. |
+| Guardia | `guardia@ubiobio.cl` | Seleccionar bicicletero de turno, validar QR, registrar movimientos manuales, atender solicitudes y revisar historial. |
+| Administrador | `administrador@ubiobio.cl` | Gestionar usuarios, validar operaciones, revisar soporte, administrar solicitudes y usar herramientas de control. |
 
-- Docker Desktop y mantenerlo abierto durante la ejecución local.
-- Git.
-- Navegador web para probar la aplicación local.
-- Flutter y Node.js solo si se desea ejecutar sin Docker.
-
-## Entrega Docker Compose
-
-Esta sección contiene el procedimiento específico para la entrega de integración con Docker Compose. El archivo `docker-compose.yml` se encuentra en la raíz del repositorio y levanta todos los servicios necesarios del proyecto.
-
-### Requisitos para ejecutar
-
-- Docker Desktop o Docker Engine con Docker Compose disponible.
-- Git.
-- Navegador web para acceder a la aplicación.
-- Archivo `.env` si se desean personalizar puertos, secretos o SMTP real para Nodemailer.
-
-### Procedimiento desde cero
-
-Clonar el repositorio, entrar a la raíz del proyecto y levantar los servicios:
-
-```bash
-git clone https://github.com/SebastianPinto2424/ubbike.git
-cd ubbike
-docker compose up
-```
-
-Si el repositorio ya fue clonado previamente, entrar a la carpeta del proyecto, actualizar la rama principal y levantar los servicios:
-
-```bash
-git switch main
-git pull
-docker compose up
-```
-
-### Verificación de ejecución
-
-Cuando los contenedores terminen de iniciar, verificar los siguientes accesos:
-
-- Aplicación web: [http://localhost:8082](http://localhost:8082)
-- Health check backend: [http://localhost:3001/health](http://localhost:3001/health)
-- Correos: se envían por el SMTP configurado en `.env`; si no hay SMTP, se registran en consola.
-- PostgreSQL local: `127.0.0.1:5433`
-
-Para consultar el estado de los contenedores:
-
-```bash
-docker compose ps
-```
-
-Para detener la ejecución:
-
-```bash
-docker compose down
-```
-
-### Servicios definidos en Docker Compose
-
-| Contenedor | Servicio | Puerto local | Función |
-| --- | --- | --- | --- |
-| `ubbike_taller_db` | PostgreSQL | `5433` | Almacena usuarios, bicicletas, bicicleteros, movimientos, solicitudes y notificaciones. |
-| `ubbike_taller_redis` | Redis | `6380` | Mantiene contadores temporales para limitar intentos de acceso y proteger acciones sensibles. |
-| `ubbike_taller_backend` | Backend API | `3001` | Expone la API REST, aplica reglas de negocio, seguridad, validaciones y migraciones. |
-| `ubbike_taller_frontend` | Frontend Flutter Web | `8082` | Sirve la aplicación web de UBBike mediante Nginx. |
-
-## Configuración opcional
-
-Si desea personalizar puertos, contraseñas o secretos para Docker, edite el archivo `.env` de la raíz del proyecto.
-
-Luego reemplace, como mínimo:
-
-- `.env`: `POSTGRES_PASSWORD` por una clave segura.
-- `.env`: `JWT_SECRET` por un secreto largo de 32 o más caracteres.
-
-El archivo `.env` está ignorado por Git y no debe subirse al repositorio. El backend, Prisma y Docker Compose leen ese mismo archivo de la raíz.
-
-## Despliegue local con Docker
-
-Desde la carpeta principal del proyecto, si desea reconstruir y dejar los servicios en segundo plano, ejecute:
-
-```bash
-docker compose up -d --build
-```
-
-Para el servidor de produccion, copie `.env.ubb-prod.example` a `.env`, complete los datos reales y use el compose especifico:
-
-```bash
-docker compose -f docker-compose.ubb-prod.yml up -d --build
-```
-
-## Prueba con la app móvil nativa
-
-Los contenedores de Docker exponen el backend en el puerto `3001`. Para conectar la app Flutter en un emulador o dispositivo físico:
-
-```bash
-# Emulador Android (10.0.2.2 apunta al localhost de la máquina anfitriona)
-flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3001
-
-# Dispositivo físico (reemplazar con la IP local de la máquina)
-flutter run --dart-define=API_BASE_URL=http://192.168.1.50:3001
-```
-
-## Comandos útiles
-
-Ejecutar o aplicar cambios:
-
-```bash
-docker compose up -d --build
-```
-
-Reconstrucción limpia sin caché:
-
-```bash
-docker compose build --no-cache
-docker compose up -d
-```
-
-Detener conservando datos:
-
-```bash
-docker compose down
-```
-
-Reiniciar desde cero eliminando volúmenes:
-
-```bash
-docker compose down -v
-docker compose up -d --build
-```
-
-Consultar estado:
-
-```bash
-docker compose ps
-```
-
-Consultar logs:
-
-```bash
-docker compose logs -f backend
-docker compose logs -f frontend
-```
-
-### Base de datos existente y Prisma
-
-Si se migra una base ya creada antes de Prisma, no elimine el volumen para "arreglar" el error `P3005`.
-Primero aplique el SQL idempotente y luego registre la migración inicial como aplicada:
-
-```powershell
-docker compose stop backend
-Get-Content -Raw backend\prisma\migrations\20260515123000_init\migration.sql | docker compose exec -T db psql -v ON_ERROR_STOP=1 -U ubbike -d ubbike
-docker compose run --rm --no-deps backend npx prisma migrate resolve --applied 20260515123000_init
-docker compose up -d
-```
-
-Use `docker compose down -v` solo cuando quiera borrar completamente los datos locales.
-
-## Seguridad local
-
-El proyecto queda preparado con una configuración segura base:
-
-- Backend en `NODE_ENV=production`.
-- Migraciones versionadas con Prisma Migrate.
-- Backend ejecutado como usuario no root.
-- Contenedores con `read_only`, `tmpfs`, `cap_drop` y `no-new-privileges`.
-- Puertos publicados solo en `127.0.0.1` en entorno local.
-- Redis para rate limiting distribuido.
-- Nginx con headers de seguridad y CSP para Flutter Web.
-- Validación estricta de correo institucional y contraseñas.
-- Tokens de verificación de correo con expiración.
-- QR temporal de corta duración.
-- Validación de QR restringida al bicicletero activo del guardia.
-
-## Credenciales demo
-
-En local, `SEED_DEMO_DATA=true` crea usuarios de prueba. Todas las cuentas utilizan:
+Contrasena demo local:
 
 ```text
 UBBike2026*
 ```
 
-| Rol | Correo |
+En produccion debe usarse `SEED_DEMO_DATA=false`.
+
+## Estructura
+
+- `backend/`: API REST con Node.js, Express, Prisma y PostgreSQL.
+- `mobile/`: aplicacion Flutter para Web y Android.
+- `deploy/`: plantillas para produccion sin Docker.
+- `docs/`: documentacion tecnica complementaria.
+
+## Ejecucion local con Docker
+
+Requisitos:
+
+- Docker Desktop o Docker Engine con Docker Compose.
+- Git.
+- Navegador web.
+- Flutter solo si se compila APK o se ejecuta la app fuera de Docker.
+
+Levantar el entorno local:
+
+```bash
+docker compose up -d --build
+```
+
+Verificar:
+
+```bash
+docker compose ps
+```
+
+Accesos locales por defecto:
+
+| Servicio | URL |
 | --- | --- |
-| Estudiante | `estudiante@alumnos.ubiobio.cl` |
-| Funcionario | `funcionario@ubiobio.cl` |
-| Guardia | `guardia@ubiobio.cl` |
-| Admin central | `admin.central@ubiobio.cl` |
-| Administrador | `administrador@ubiobio.cl` |
+| Web Flutter | `http://localhost:8082` |
+| Backend health | `http://localhost:3001/health` |
+| PostgreSQL local | `127.0.0.1:5433` |
 
-En producción, `SEED_DEMO_DATA=false`.
+Detener:
 
-## Documentación adicional
+```bash
+docker compose down
+```
 
-La documentación técnica adicional se encuentra en:
+## APK demo en red Wi-Fi
 
-- `docs/desarrollo-y-api.md`: flujo funcional, endpoints principales, arranque sin Docker y validaciones.
-- `docs/modelo-relacional.md`: modelo relacional del proyecto.
+Para probar desde celulares reales, conecta el PC y los celulares a la misma red Wi-Fi y ejecuta:
+
+```powershell
+.\preparar-demo.ps1
+```
+
+El script detecta la IP local, actualiza `.env`, levanta Docker, verifica el backend y genera una APK debug para prueba local en:
+
+```text
+C:\Users\sebas\Desktop\apks-pruebas\ubbike-taller.apk
+```
+
+Antes de instalar la APK, abre desde el celular:
+
+```text
+http://IP_DEL_PC:3000/salud
+```
+
+Si no responde, ejecuta el script una vez como administrador o habilita el puerto TCP 3000 en el Firewall de Windows. Esta APK es solo para demo local por HTTP; la APK de produccion debe compilarse en release apuntando a HTTPS.
+
+## Produccion sin Docker
+
+La produccion se despliega sin Docker usando:
+
+- Apache como servidor HTTPS y proxy reverso.
+- Node.js 20 para el backend.
+- PostgreSQL institucional externo.
+- Flutter Web compilado como archivos estaticos.
+- systemd para mantener el backend activo.
+
+Las plantillas incluidas son:
+
+| Archivo | Uso |
+| --- | --- |
+| `backend/.env.production.example` | Variables requeridas por el backend en produccion. |
+| `deploy/apache/ubbike-https.conf.example` | VirtualHost Apache con HTTPS, Flutter Web y proxy al backend. |
+| `deploy/systemd/ubbike-backend.service.example` | Servicio systemd para ejecutar `node dist/servidor.js`. |
+
+Nunca subas `.env`, credenciales, certificados privados, APKs ni archivos de Firebase reales.
+
+### HTTPS
+
+Produccion debe usar HTTPS. La app Android y Flutter Web deben compilarse apuntando al origen publico seguro:
+
+```bash
+flutter build web --release --dart-define=API_BASE_URL=https://DOMINIO_O_IP_PUBLICA
+flutter build apk --release --dart-define=API_BASE_URL=https://DOMINIO_O_IP_PUBLICA
+```
+
+Recomendado: solicitar un dominio o subdominio institucional apuntando al servidor y emitir certificado con Certbot/Let's Encrypt.
+
+Si solo se usa IP publica, Let's Encrypt permite certificados para IP desde 2026, pero son certificados short-lived y requieren automatizacion frecuente. Certbot puede obtenerlos con `--ip-address`, aunque la instalacion automatica en Apache todavia no es igual al flujo de dominios. Para una entrega estable, es preferible usar dominio institucional.
+
+Fuentes:
+
+- `https://certbot.eff.org/instructions?os=snap&ws=apache`
+- `https://letsencrypt.org/2026/03/11/shorter-certs-certbot`
+
+### Variables de entorno
+
+En el servidor crea:
+
+```bash
+/opt/ubbike/backend/.env
+```
+
+Usa `backend/.env.production.example` como base y completa los valores reales:
+
+```env
+NODE_ENV=production
+PORT=3000
+TRUST_PROXY=loopback
+DB_HOST=<HOST_DB_INSTITUCIONAL>
+DB_PORT=5432
+DB_USER=<USUARIO_DB>
+DB_PASSWORD=<PASSWORD_DB>
+DB_NAME=<NOMBRE_DB>
+JWT_SECRET=<SECRETO_LARGO_MINIMO_32_CARACTERES>
+FRONTEND_URL=https://DOMINIO_O_IP_PUBLICA
+CORS_ORIGINS=https://DOMINIO_O_IP_PUBLICA
+SEED_DEMO_DATA=false
+SWAGGER_ENABLED=false
+UPLOADS_DIR=/opt/ubbike/uploads
+UPLOADS_PUBLIC_PATH=/uploads
+```
+
+### Compilacion backend
+
+Desde el servidor:
+
+```bash
+cd /opt/ubbike/backend
+npm ci
+npm run build
+npm run migrate
+```
+
+### Servicio backend
+
+Copiar la plantilla:
+
+```bash
+sudo cp /opt/ubbike/deploy/systemd/ubbike-backend.service.example /etc/systemd/system/ubbike-backend.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now ubbike-backend
+sudo systemctl status ubbike-backend
+```
+
+### Compilacion Flutter Web
+
+Desde el servidor si Flutter esta instalado:
+
+```bash
+cd /opt/ubbike/mobile
+flutter pub get
+flutter build web --release --dart-define=API_BASE_URL=https://DOMINIO_O_IP_PUBLICA
+sudo rsync -a --delete build/web/ /var/www/ubbike/
+```
+
+Si Flutter no esta instalado en el servidor, compila localmente y sube `mobile/build/web/` a `/var/www/ubbike/`.
+
+### Apache
+
+Habilitar modulos:
+
+```bash
+sudo a2enmod ssl headers rewrite proxy proxy_http proxy_wstunnel
+```
+
+Copiar la plantilla:
+
+```bash
+sudo cp /opt/ubbike/deploy/apache/ubbike-https.conf.example /etc/apache2/sites-available/ubbike.conf
+```
+
+Editar:
+
+```bash
+sudo nano /etc/apache2/sites-available/ubbike.conf
+```
+
+Reemplazar `DOMINIO_O_IP_PUBLICA` por el origen HTTPS real.
+
+Activar:
+
+```bash
+sudo a2ensite ubbike.conf
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+```
+
+### Verificacion produccion
+
+```bash
+curl -I https://DOMINIO_O_IP_PUBLICA
+curl https://DOMINIO_O_IP_PUBLICA/salud
+sudo systemctl status ubbike-backend
+sudo journalctl -u ubbike-backend -f
+```
+
+## Validaciones antes de subir
+
+Backend:
+
+```bash
+cd backend
+npm run typecheck
+npm test
+```
+
+Mobile:
+
+```bash
+cd mobile
+flutter analyze
+```
+
+## Seguridad
+
+- `JWT_SECRET` debe tener al menos 32 caracteres y ser unico.
+- `SEED_DEMO_DATA=false` en produccion.
+- PostgreSQL no debe exponerse publicamente desde el servidor de la app.
+- No publicar `.env`, certificados, llaves privadas ni credenciales.
+- Usar HTTPS para web, API, WebSocket y APK.
+- Configurar SMTP real para correos.
+- Mantener backups de base de datos y uploads.
+
+## Documentacion adicional
+
+- `docs/desarrollo-y-api.md`
+- `docs/modelo-relacional.md`

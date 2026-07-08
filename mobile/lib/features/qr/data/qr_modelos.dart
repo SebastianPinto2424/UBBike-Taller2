@@ -1,5 +1,5 @@
-import '../../../shared/modelos/bicicleta_app.dart';
-import '../../../shared/modelos/bicicletero_app.dart';
+import 'package:ubbike/shared/modelos/bicicleta_app.dart';
+import 'package:ubbike/shared/modelos/bicicletero_app.dart';
 
 class QrTemporalApp {
   const QrTemporalApp({

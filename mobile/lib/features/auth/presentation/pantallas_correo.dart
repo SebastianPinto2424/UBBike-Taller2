@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:ubbike/features/auth/application/autenticacion_vm.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/providers/repositorios_provider.dart';
-import '../../../core/providers/sesion_provider.dart';
-import '../../../core/servicios/excepcion_api.dart';
-import '../../../core/tema/colores_ubb.dart';
-import '../../../shared/widgets/contenedor_responsivo.dart';
-import '../../../shared/widgets/marca_ubbike.dart';
-import '../../../shared/widgets/snackbar_semantico.dart';
-import 'pantalla_login.dart';
-import 'widgets/estilos_formulario_auth.dart';
+import 'package:ubbike/core/providers/sesion_provider.dart';
+import 'package:ubbike/core/servicios/excepcion_api.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/shared/widgets/contenedor_responsivo.dart';
+import 'package:ubbike/shared/widgets/marca_ubbike.dart';
+import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
+import 'package:ubbike/features/auth/presentation/pantalla_login.dart';
+import 'package:ubbike/features/auth/presentation/widgets/estilos_formulario_auth.dart';
 
 class PantallaVerificarCorreo extends ConsumerStatefulWidget {
   const PantallaVerificarCorreo({super.key, required this.token});
@@ -38,7 +38,7 @@ class _PantallaVerificarCorreoState
   Future<void> _verificar() async {
     try {
       final respuesta = await ref
-          .read(autenticacionRepositoryProvider)
+          .read(autenticacionVmProvider)
           .verificarCorreo(widget.token);
       if (mounted) {
         setState(() {
@@ -164,7 +164,7 @@ class _PantallaCompletarRegistroState
 
     try {
       final mensaje =
-          await ref.read(autenticacionRepositoryProvider).completarRegistro(
+          await ref.read(autenticacionVmProvider).completarRegistro(
                 token: widget.token,
                 nombre: nombre,
                 contrasena: contrasenaController.text,
@@ -266,9 +266,15 @@ class _PantallaCompletarRegistroState
 }
 
 class PantallaCambiarContrasena extends ConsumerStatefulWidget {
-  const PantallaCambiarContrasena({super.key, required this.token});
+  const PantallaCambiarContrasena({
+    super.key,
+    required this.token,
+    this.esActivacion = false,
+  });
 
   final String token;
+
+  final bool esActivacion;
 
   @override
   ConsumerState<PantallaCambiarContrasena> createState() =>
@@ -300,7 +306,7 @@ class _PantallaCambiarContrasenaState
 
     try {
       final mensaje =
-          await ref.read(autenticacionRepositoryProvider).cambiarContrasena(
+          await ref.read(autenticacionVmProvider).cambiarContrasena(
                 token: widget.token,
                 contrasena: contrasenaController.text,
               );
@@ -334,9 +340,11 @@ class _PantallaCambiarContrasenaState
   Widget build(BuildContext context) {
     if (cambioCompletado) {
       return _PantallaEstadoCorreo(
-        titulo: 'Contraseña actualizada',
-        mensaje:
-            'Tu contraseña fue actualizada correctamente. Vuelve a la app e inicia sesión con tu nueva contraseña.',
+        titulo:
+            widget.esActivacion ? 'Cuenta activada' : 'Contraseña actualizada',
+        mensaje: widget.esActivacion
+            ? 'Tu cuenta quedó activa. Abre la app UBBike e inicia sesión con tu correo institucional y la contraseña que acabas de crear.'
+            : 'Tu contraseña fue actualizada correctamente. Vuelve a la app e inicia sesión con tu nueva contraseña.',
         cargando: false,
         icono: Icons.check_circle_outline,
         color: ColoresUbb.exito,
@@ -350,7 +358,11 @@ class _PantallaCambiarContrasenaState
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Cambiar contraseña')),
+      appBar: AppBar(
+        title: Text(
+          widget.esActivacion ? 'Activa tu cuenta' : 'Cambiar contraseña',
+        ),
+      ),
       body: ContenedorResponsivo(
         anchoMaximo: 520,
         child: ListView(
@@ -361,7 +373,9 @@ class _PantallaCambiarContrasenaState
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Nueva contraseña',
+                  widget.esActivacion
+                      ? 'Crea tu contraseña'
+                      : 'Nueva contraseña',
                   style: Theme.of(context)
                       .textTheme
                       .titleLarge
@@ -441,15 +455,16 @@ class _PantallaCambiarContrasenaState
                         },
                       ),
                       const SizedBox(height: 26),
-                      ElevatedButton.icon(
+                      ElevatedButton(
                         style: estiloBotonAuth(),
                         onPressed: cargando ? null : _cambiar,
-                        icon: cargando
+                        child: cargando
                             ? indicadorBotonAuth()
-                            : const Icon(Icons.save_outlined),
-                        label: Text(
-                          cargando ? 'Guardando...' : 'Guardar cambio',
-                        ),
+                            : Text(
+                                widget.esActivacion
+                                    ? 'Crear contraseña'
+                                    : 'Guardar cambio',
+                              ),
                       ),
                     ],
                   ),
@@ -491,14 +506,18 @@ class _PantallaCambiarContrasenaState
                             children: [
                               const MarcaUbbike(compacta: true),
                               const SizedBox(height: 22),
-                              const Icon(
-                                Icons.lock_reset_outlined,
+                              Icon(
+                                widget.esActivacion
+                                    ? Icons.badge_outlined
+                                    : Icons.lock_reset_outlined,
                                 color: ColoresUbb.azulApp,
                                 size: 44,
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                'Nueva contraseña',
+                                widget.esActivacion
+                                    ? 'Activa tu cuenta UBBike'
+                                    : 'Nueva contraseña',
                                 textAlign: TextAlign.center,
                                 style: Theme.of(context)
                                     .textTheme
@@ -507,7 +526,9 @@ class _PantallaCambiarContrasenaState
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'Crea una contraseña segura para volver a ingresar.',
+                                widget.esActivacion
+                                    ? 'Tu cuenta fue creada por un administrador. Crea la contraseña con la que iniciarás sesión en la app.'
+                                    : 'Crea una contraseña segura para volver a ingresar.',
                                 textAlign: TextAlign.center,
                                 style: Theme.of(context)
                                     .textTheme
@@ -547,17 +568,16 @@ class _PantallaCambiarContrasenaState
                                 validator: _validarConfirmacionContrasena,
                               ),
                               const SizedBox(height: 22),
-                              ElevatedButton.icon(
+                              ElevatedButton(
                                 style: estiloBotonAuth(),
                                 onPressed: cargando ? null : _cambiar,
-                                icon: cargando
+                                child: cargando
                                     ? indicadorBotonAuth()
-                                    : const Icon(Icons.save_outlined),
-                                label: Text(
-                                  cargando
-                                      ? 'Guardando...'
-                                      : 'Guardar contraseña',
-                                ),
+                                    : Text(
+                                        widget.esActivacion
+                                            ? 'Crear contraseña y activar'
+                                            : 'Guardar contraseña',
+                                      ),
                               ),
                             ],
                           ),

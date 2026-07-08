@@ -3,7 +3,11 @@ import { middlewareAutenticacion } from '../../../comun/middlewares/autenticacio
 import { autorizarRoles } from '../../../comun/middlewares/autorizar-roles.middleware';
 import { validarCuerpo } from '../../../comun/middlewares/validar-cuerpo.middleware';
 import { RolUsuario } from '../../usuarios/rol-usuario';
-import { obtenerMiBicicletero, seleccionarMiBicicletero } from './asignacion-guardia.controlador';
+import {
+  liberarMiBicicletero,
+  obtenerMiBicicletero,
+  seleccionarMiBicicletero
+} from './asignacion-guardia.controlador';
 import { esquemaSeleccionarBicicleteroGuardia } from './asignacion-guardia.validacion';
 
 const rutasAsignacionGuardia = Router();
@@ -16,5 +20,6 @@ rutasAsignacionGuardia.patch(
   validarCuerpo(esquemaSeleccionarBicicleteroGuardia),
   seleccionarMiBicicletero
 );
+rutasAsignacionGuardia.delete('/me/bicicletero', liberarMiBicicletero);
 
 export { rutasAsignacionGuardia };

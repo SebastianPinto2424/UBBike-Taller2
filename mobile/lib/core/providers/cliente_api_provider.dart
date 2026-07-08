@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../servicios/cliente_api.dart';
-import 'sesion_provider.dart';
+import 'package:ubbike/core/servicios/cliente_api.dart';
+import 'package:ubbike/core/providers/sesion_provider.dart';
 
 final clienteApiProvider = Provider<ClienteApi>((ref) {
   ref.watch(sesionProvider);

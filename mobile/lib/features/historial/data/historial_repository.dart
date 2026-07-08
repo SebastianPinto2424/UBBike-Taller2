@@ -1,6 +1,6 @@
-import '../../../shared/modelos/movimiento_app.dart';
-import 'historial_api.dart';
-import 'historial_modelos.dart';
+import 'package:ubbike/shared/modelos/movimiento_app.dart';
+import 'package:ubbike/features/historial/data/historial_api.dart';
+import 'package:ubbike/features/historial/data/historial_modelos.dart';
 
 class HistorialRepository {
   const HistorialRepository(this._api);

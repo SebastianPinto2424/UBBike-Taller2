@@ -4,6 +4,7 @@ import { prismaMock } from '../helpers/prisma-mock';
 
 jest.mock('../../src/modulos/correos/correo.servicio', () => ({
   crearCorreoCompletarRegistro: jest.fn(),
+  crearCorreoMovimiento: jest.fn(),
   crearCorreoMovimientoManual: jest.fn(),
   enviarCorreo: jest.fn().mockResolvedValue(undefined)
 }));

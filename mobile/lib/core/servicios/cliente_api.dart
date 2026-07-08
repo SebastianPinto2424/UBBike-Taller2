@@ -2,9 +2,9 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import '../configuracion/configuracion_api.dart';
-import 'cliente_http.dart';
-import 'excepcion_api.dart';
+import 'package:ubbike/core/configuracion/configuracion_api.dart';
+import 'package:ubbike/core/servicios/cliente_http.dart';
+import 'package:ubbike/core/servicios/excepcion_api.dart';
 
 class ClienteApi {
   const ClienteApi({

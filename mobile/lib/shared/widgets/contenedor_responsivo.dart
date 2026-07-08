@@ -14,13 +14,17 @@ class ContenedorResponsivo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final contenido = Padding(padding: padding, child: child);
+
     return SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: anchoMaximo),
-          child: Padding(padding: padding, child: child),
-        ),
-      ),
+      child: anchoMaximo.isFinite
+          ? Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: anchoMaximo),
+                child: contenido,
+              ),
+            )
+          : SizedBox.expand(child: contenido),
     );
   }
 }

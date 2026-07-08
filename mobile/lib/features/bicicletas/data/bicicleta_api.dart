@@ -1,5 +1,5 @@
-import '../../../core/servicios/cliente_api.dart';
-import '../../../shared/modelos/bicicleta_app.dart';
+import 'package:ubbike/core/servicios/cliente_api.dart';
+import 'package:ubbike/shared/modelos/bicicleta_app.dart';
 
 class BicicletaApi {
   const BicicletaApi({required this.cliente});

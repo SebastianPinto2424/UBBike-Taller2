@@ -40,6 +40,15 @@ import { EstadoSolicitudGuardia } from '../../src/modulos/acceso/solicitudes/est
 
 const UUID = '11111111-1111-4111-8111-111111111111';
 const CONTRASENA_OK = 'Abcdefg1!xyz';
+const BICICLETA_OK = {
+  descripcion: 'Bici urbana',
+  marca: 'Oxford',
+  modelo: 'MTB',
+  color: 'Azul',
+  aro: '29',
+  numeroSerie: 'AB-1234',
+  fotoUrl: 'data:image/png;base64,iVBORw0KGgo='
+};
 const NOMBRE_OK = 'Juan Carlos Pérez Soto';
 
 const esValido = (esquema: { validate: (v: unknown) => { error?: unknown } }, valor: unknown) =>
@@ -152,8 +161,8 @@ describe('esquemaSolicitudCambioContrasena y esquemaVerificarCorreo', () => {
     expect(
       esValido(esquemaSolicitudCambioContrasena, { correo: 'persona@alumnos.ubiobio.cl' })
     ).toBe(true);
+    expect(esValido(esquemaSolicitudCambioContrasena, { correo: 'persona@gmail.com' })).toBe(true);
     expect(esValido(esquemaSolicitudCambioContrasena, { correo: 'correo-roto' })).toBe(false);
-    expect(esValido(esquemaSolicitudCambioContrasena, { correo: 'persona@gmail.com' })).toBe(false);
     expect(esValido(esquemaSolicitudCambioContrasena, {})).toBe(false);
   });
 
@@ -193,45 +202,59 @@ describe('esquemaCompletarRegistro y esquemaCambioContrasena', () => {
 
 describe('esquemaCrearBicicleta', () => {
   it('acepta lo mínimo y aplica activar=false por defecto', () => {
-    const { error, value } = esquemaCrearBicicleta.validate({ descripcion: 'Bici roja' });
+    const { error, value } = esquemaCrearBicicleta.validate(BICICLETA_OK);
     expect(error).toBeUndefined();
     expect(value.activar).toBe(false);
+    for (const campo of ['marca', 'modelo', 'color', 'aro', 'numeroSerie', 'fotoUrl'] as const) {
+      expect(esValido(esquemaCrearBicicleta, { ...BICICLETA_OK, [campo]: '' })).toBe(false);
+    }
   });
 
   it('descripcion: límite inferior (3 ok, 2 falla)', () => {
-    expect(esValido(esquemaCrearBicicleta, { descripcion: 'abc' })).toBe(true);
-    expect(esValido(esquemaCrearBicicleta, { descripcion: 'ab' })).toBe(false);
+    expect(esValido(esquemaCrearBicicleta, { ...BICICLETA_OK, descripcion: 'abc' })).toBe(true);
+    expect(esValido(esquemaCrearBicicleta, { ...BICICLETA_OK, descripcion: 'ab' })).toBe(false);
   });
 
   it('descripcion: exige texto real y limita a 100 caracteres', () => {
-    expect(esValido(esquemaCrearBicicleta, { descripcion: '---' })).toBe(false);
-    expect(esValido(esquemaCrearBicicleta, { descripcion: 'B'.repeat(100) })).toBe(true);
-    expect(esValido(esquemaCrearBicicleta, { descripcion: 'B'.repeat(101) })).toBe(false);
+    expect(esValido(esquemaCrearBicicleta, { ...BICICLETA_OK, descripcion: '---' })).toBe(false);
+    expect(esValido(esquemaCrearBicicleta, { ...BICICLETA_OK, descripcion: 'B'.repeat(100) })).toBe(
+      true
+    );
+    expect(esValido(esquemaCrearBicicleta, { ...BICICLETA_OK, descripcion: 'B'.repeat(101) })).toBe(
+      false
+    );
   });
 
   it('valida marca, modelo, color, aro y numero de serie', () => {
     expect(
       esValido(esquemaCrearBicicleta, {
+        ...BICICLETA_OK,
         descripcion: 'Bici azul',
-        marca: 'Oxford',
-        modelo: 'ATX 720',
-        color: 'Azul',
-        aro: '29',
-        numeroSerie: 'AB-1234'
+        modelo: 'ATX 720'
       })
     ).toBe(true);
     expect(esValido(esquemaCrearBicicleta, { descripcion: 'Bici', marca: 'A' })).toBe(false);
     expect(esValido(esquemaCrearBicicleta, { descripcion: 'Bici', marca: 'Marca@' })).toBe(false);
+    expect(esValido(esquemaCrearBicicleta, { ...BICICLETA_OK, marca: '--' })).toBe(false);
+    expect(esValido(esquemaCrearBicicleta, { ...BICICLETA_OK, modelo: '---' })).toBe(false);
     expect(esValido(esquemaCrearBicicleta, { descripcion: 'Bici', color: 'Azul123' })).toBe(false);
     expect(esValido(esquemaCrearBicicleta, { descripcion: 'Bici', aro: 'R26' })).toBe(false);
     expect(esValido(esquemaCrearBicicleta, { descripcion: 'Bici', numeroSerie: 'A 12' })).toBe(
+      false
+    );
+    expect(esValido(esquemaCrearBicicleta, { ...BICICLETA_OK, numeroSerie: '123456' })).toBe(true);
+    expect(esValido(esquemaCrearBicicleta, { ...BICICLETA_OK, numeroSerie: '----' })).toBe(false);
+    expect(esValido(esquemaCrearBicicleta, { ...BICICLETA_OK, numeroSerie: 'AB--1234' })).toBe(
+      false
+    );
+    expect(esValido(esquemaCrearBicicleta, { ...BICICLETA_OK, numeroSerie: '-AB1234' })).toBe(
       false
     );
   });
 
   it('normaliza color y aro desde alias conocidos', () => {
     const { error, value } = esquemaCrearBicicleta.validate({
-      descripcion: 'Bici urbana',
+      ...BICICLETA_OK,
       color: 'plomo y azul marino',
       aro: '700C'
     });
@@ -243,6 +266,7 @@ describe('esquemaCrearBicicleta', () => {
 
   it('acepta combinaciones de hasta 3 colores validos', () => {
     const { error, value } = esquemaCrearBicicleta.validate({
+      ...BICICLETA_OK,
       descripcion: 'Bici de ruta',
       color: 'negro / rojo / plateado'
     });
@@ -259,6 +283,7 @@ describe('esquemaCrearBicicleta', () => {
 
   it('normaliza numero de serie a mayusculas', () => {
     const { error, value } = esquemaCrearBicicleta.validate({
+      ...BICICLETA_OK,
       descripcion: 'Bici roja',
       numeroSerie: 'ab-1234'
     });
@@ -270,12 +295,13 @@ describe('esquemaCrearBicicleta', () => {
   it('acepta foto base64 con formato data-uri válido y rechaza basura', () => {
     expect(
       esValido(esquemaCrearBicicleta, {
+        ...BICICLETA_OK,
         descripcion: 'Bici',
         fotoUrl: 'data:image/png;base64,iVBORw0KGgo='
       })
     ).toBe(true);
     expect(
-      esValido(esquemaCrearBicicleta, { descripcion: 'Bici', fotoUrl: 'javascript:alert(1)' })
+      esValido(esquemaCrearBicicleta, { ...BICICLETA_OK, fotoUrl: 'javascript:alert(1)' })
     ).toBe(false);
   });
 });
@@ -299,17 +325,20 @@ describe('esquemaActualizarPermisosUsuario', () => {
   it('acepta rol válido del enum', () => {
     expect(esValido(esquemaActualizarPermisosUsuario, { rol: RolUsuario.GUARDIA })).toBe(true);
   });
+
+  it('rechaza marcar correo verificado manualmente', () => {
+    expect(esValido(esquemaActualizarPermisosUsuario, { correoVerificado: true })).toBe(false);
+  });
 });
 
 describe('esquemaCrearUsuario admin', () => {
   const base = {
     nombre: NOMBRE_OK,
     correo: 'guardia.extern@correo.cl',
-    rol: RolUsuario.GUARDIA,
-    contrasena: CONTRASENA_OK
+    rol: RolUsuario.GUARDIA
   };
 
-  it('acepta crear guardia con correo no institucional', () => {
+  it('acepta crear guardia con correo no institucional sin contrasena temporal', () => {
     expect(esValido(esquemaCrearUsuario, base)).toBe(true);
   });
 

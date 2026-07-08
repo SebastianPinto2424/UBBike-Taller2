@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 
-import '../configuracion/configuracion_api.dart';
+import 'package:ubbike/core/configuracion/configuracion_api.dart';
 
 http.Client clienteHttp = http.Client();
 

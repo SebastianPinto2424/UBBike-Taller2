@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/tema/colores_ubb.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
 
 extension SnackBarSemantico on BuildContext {
   void mostrarExito(String mensaje) {
@@ -7,12 +7,12 @@ extension SnackBarSemantico on BuildContext {
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.check_circle_outline, color: Colors.white),
+            const Icon(Icons.check_circle_outline, color: ColoresUbb.turquesa),
             const SizedBox(width: 8),
             Expanded(child: Text(mensaje)),
           ],
         ),
-        backgroundColor: ColoresUbb.exito,
+        backgroundColor: ColoresUbb.azulNoche,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),

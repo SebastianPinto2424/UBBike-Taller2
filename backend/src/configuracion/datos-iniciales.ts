@@ -177,33 +177,4 @@ export const cargarDatosIniciales = async (): Promise<void> => {
       }
     }
   }
-
-  const guardia = await prisma.usuario.findUnique({ where: { correo: 'guardia@ubiobio.cl' } });
-  const bicicleteroCentroIdiomas = await prisma.bicicletero.findUnique({
-    where: {
-      nombre: 'Bicicletero cercano al Centro de Idiomas'
-    }
-  });
-
-  if (guardia && bicicleteroCentroIdiomas) {
-    const asignacionExistente = await prisma.asignacionGuardia.findFirst({
-      where: {
-        guardiaId: guardia.id,
-        bicicleteroId: bicicleteroCentroIdiomas.id,
-        activa: true
-      }
-    });
-
-    if (!asignacionExistente) {
-      await prisma.asignacionGuardia.create({
-        data: {
-          guardiaId: guardia.id,
-          bicicleteroId: bicicleteroCentroIdiomas.id,
-          iniciaEn: new Date(),
-          terminaEn: null,
-          activa: true
-        }
-      });
-    }
-  }
 };

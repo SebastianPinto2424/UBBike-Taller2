@@ -1,6 +1,7 @@
 import { SolicitudAutenticada } from '../../../comun/middlewares/autenticacion.middleware';
 import { controladorAsync } from '../../../comun/utils/controlador-async';
 import {
+  liberarBicicleteroGuardia,
   obtenerAsignacionActivaGuardia,
   seleccionarBicicleteroGuardia
 } from './asignacion-guardia.servicio';
@@ -23,4 +24,9 @@ export const seleccionarMiBicicletero = controladorAsync<SolicitudAutenticada>(a
     asignacion,
     bicicletero: asignacion.bicicletero
   });
+});
+
+export const liberarMiBicicletero = controladorAsync<SolicitudAutenticada>(async (req, res) => {
+  const resultado = await liberarBicicleteroGuardia(req.usuario!.usuarioId);
+  return res.status(200).json(resultado);
 });

@@ -1,0 +1,153 @@
+import 'package:flutter/material.dart';
+import 'package:ubbike/features/acceso/application/solicitudes_guardia_vm.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/shared/modelos/bicicletero_app.dart';
+import 'package:ubbike/features/inicio/presentation/comun/encabezado_widgets.dart';
+import 'package:ubbike/features/acceso/presentation/vista_ingreso_guardia.dart';
+import 'package:ubbike/features/perfil/presentation/pantalla_principal_perfil.dart';
+import 'package:ubbike/shared/utils/sesion_ui_utils.dart';
+import 'package:ubbike/shared/widgets/tarjeta_accion.dart';
+
+class VistaInicioGuardia extends ConsumerStatefulWidget {
+  const VistaInicioGuardia({
+    super.key,
+    this.onOpenIngreso,
+  });
+
+  final ValueChanged<ModoIngresoGuardia>? onOpenIngreso;
+
+  @override
+  ConsumerState<VistaInicioGuardia> createState() => _VistaInicioGuardiaState();
+}
+
+class _VistaInicioGuardiaState extends ConsumerState<VistaInicioGuardia> {
+  SolicitudesGuardiaVm get vm => ref.read(solicitudesGuardiaVmProvider);
+  late Future<BicicleteroApp?> futuroBicicletero;
+  BicicleteroApp? ultimoBicicletero;
+  bool bicicleteroConsultado = false;
+  int versionSelector = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    futuroBicicletero = vm.obtenerBicicleteroGestionado();
+  }
+
+  Future<void> _recargar() async {
+    setState(() {
+      versionSelector++;
+      futuroBicicletero = vm.obtenerBicicleteroGestionado();
+    });
+  }
+
+  void _alCambiarBicicletero() {
+    setState(() {
+      futuroBicicletero = vm.obtenerBicicleteroGestionado();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: ColoresUbb.fondo,
+      child: RefreshIndicator(
+        color: ColoresUbb.azulApp,
+        backgroundColor: ColoresUbb.fondo,
+        onRefresh: _recargar,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          children: [
+            PanelInicioOscuro(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  EncabezadoSeccion(
+                    saludo: saludoActual(),
+                    nombre: nombreSesion(context, 'Guardia'),
+                    sobreOscuro: true,
+                  ),
+                  const SizedBox(height: 16),
+                  FutureBuilder<BicicleteroApp?>(
+                    future: futuroBicicletero,
+                    builder: (context, snapshot) {
+                      final esperando =
+                          snapshot.connectionState == ConnectionState.waiting;
+                      if (!esperando && !snapshot.hasError) {
+                        ultimoBicicletero = snapshot.data;
+                        bicicleteroConsultado = true;
+                      }
+                      final bicicletero =
+                          esperando ? ultimoBicicletero : snapshot.data;
+                      final tieneBicicletero = bicicletero != null;
+                      final primeraCarga = esperando && !bicicleteroConsultado;
+
+                      return EstadoInicioLiviano(
+                        icono: tieneBicicletero || primeraCarga
+                            ? Icons.verified_user_outlined
+                            : Icons.location_off_outlined,
+                        color: tieneBicicletero
+                            ? ColoresUbb.turquesa
+                            : ColoresUbb.azulApp,
+                        titulo: primeraCarga
+                            ? 'Turno'
+                            : tieneBicicletero
+                                ? 'Turno activo'
+                                : 'Turno sin iniciar',
+                        detalle: primeraCarga
+                            ? 'Validando bicicletero asignado.'
+                            : tieneBicicletero
+                                ? 'Gestionas ${bicicletero.nombre} · ${bicicletero.cuposDisponibles == 1 ? '1 cupo libre' : '${bicicletero.cuposDisponibles} cupos libres'}'
+                                : 'Selecciona un bicicletero para comenzar a validar.',
+                        sobreOscuro: true,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 940),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SelectorBicicleteroGuardiaPerfil(
+                        key: ValueKey('selector-guardia-$versionSelector'),
+                        onCambiado: _alCambiarBicicletero,
+                      ),
+                      const SizedBox(height: 10),
+                      TarjetaAccion(
+                        icono: Icons.qr_code_scanner,
+                        titulo: 'Escanear QR temporal',
+                        detalle:
+                            'Lee el código del usuario para confirmar o denegar ingreso/retiro.',
+                        color: ColoresUbb.exito,
+                        onTap: () =>
+                            widget.onOpenIngreso?.call(ModoIngresoGuardia.qr),
+                      ),
+                      const SizedBox(height: 10),
+                      TarjetaAccion(
+                        icono: Icons.edit_note_outlined,
+                        titulo: 'Gestión manual',
+                        detalle:
+                            'Registra ingreso o retiro usando correo institucional y RUT.',
+                        color: ColoresUbb.azulApp,
+                        onTap: () => widget.onOpenIngreso
+                            ?.call(ModoIngresoGuardia.manual),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

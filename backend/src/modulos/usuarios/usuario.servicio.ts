@@ -31,7 +31,7 @@ const crearDatosInvitacionAcceso = () => {
   const tokenCambioContrasenaExpiraEn = new Date(
     Date.now() + 1000 * 60 * 60 * horasExpiracionVerificacionCorreo
   );
-  const enlaceDefinirContrasena = `${entorno.app.urlFrontend}/cambiar-contrasena?token=${tokenCambioContrasena}`;
+  const enlaceDefinirContrasena = `${entorno.app.urlFrontend}/cambiar-contrasena?token=${tokenCambioContrasena}&modo=activacion`;
 
   return {
     tokenCambioContrasenaHash,
@@ -139,7 +139,8 @@ export const crearUsuarioAdmin = async (datos: DatosCrearUsuario, actorUsuarioId
     const correoInvitacion = crearCorreoCuentaAdministrativa(
       usuarioRestaurado.nombre,
       enlaceDefinirContrasena,
-      horasExpiracionVerificacionCorreo
+      horasExpiracionVerificacionCorreo,
+      usuarioRestaurado.rol
     );
     await enviarCorreo({
       para: usuarioRestaurado.correo,
@@ -194,7 +195,8 @@ export const crearUsuarioAdmin = async (datos: DatosCrearUsuario, actorUsuarioId
   const correoInvitacion = crearCorreoCuentaAdministrativa(
     usuarioGuardado.nombre,
     enlaceDefinirContrasena,
-    horasExpiracionVerificacionCorreo
+    horasExpiracionVerificacionCorreo,
+    usuarioGuardado.rol
   );
   await enviarCorreo({
     para: usuarioGuardado.correo,
@@ -346,7 +348,8 @@ export const reenviarCorreoAccesoAdmin = async (usuarioId: string, actorUsuarioI
   const correoInvitacion = crearCorreoCuentaAdministrativa(
     usuarioActualizado.nombre,
     enlaceDefinirContrasena,
-    horasExpiracionVerificacionCorreo
+    horasExpiracionVerificacionCorreo,
+    usuarioActualizado.rol
   );
   await enviarCorreo({
     para: usuarioActualizado.correo,
@@ -501,7 +504,8 @@ export const actualizarPermisosUsuario = async (
     const correoInvitacion = crearCorreoCuentaAdministrativa(
       usuarioGuardado.nombre,
       correoAccesoPendiente.enlace,
-      horasExpiracionVerificacionCorreo
+      horasExpiracionVerificacionCorreo,
+      usuarioGuardado.rol
     );
     await enviarCorreo({
       para: usuarioGuardado.correo,

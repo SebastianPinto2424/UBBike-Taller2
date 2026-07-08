@@ -6,21 +6,20 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 
-import 'core/providers/sesion_provider.dart';
-import 'core/servicios/cliente_http.dart';
-import 'core/servicios/fcm_service.dart';
-import 'core/tema/tema_ubb.dart';
-import 'features/auth/presentation/pantalla_cambio_obligatorio.dart';
-import 'features/auth/presentation/pantalla_login.dart';
-import 'features/auth/presentation/pantallas_correo.dart';
-import 'features/inicio/presentation/pantalla_principal.dart';
+import 'package:ubbike/core/providers/sesion_provider.dart';
+import 'package:ubbike/core/servicios/cliente_http.dart';
+import 'package:ubbike/core/servicios/fcm_service.dart';
+import 'package:ubbike/core/tema/tema_ubb.dart';
+import 'package:ubbike/features/auth/presentation/pantalla_cambio_obligatorio.dart';
+import 'package:ubbike/features/auth/presentation/pantalla_login.dart';
+import 'package:ubbike/features/auth/presentation/pantallas_correo.dart';
+import 'package:ubbike/features/inicio/presentation/pantalla_principal.dart';
 
 final _navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   usePathUrlStrategy();
-
   await inicializarClienteHttp();
   await _inicializarFirebase();
   runApp(const ProviderScope(child: AplicacionUBBike()));
@@ -30,6 +29,7 @@ Future<void> _inicializarFirebase() async {
   if (kIsWeb) {
     return;
   }
+
   try {
     await Firebase.initializeApp();
     await FcmService.instancia.inicializar();
@@ -102,9 +102,7 @@ class _AplicacionUBBikeState extends State<AplicacionUBBike> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      onGenerateInitialRoutes: (rutaInicial) => [
-        _generarRuta(RouteSettings(name: rutaInicial)),
-      ],
+      initialRoute: '/',
       onGenerateRoute: _generarRuta,
     );
   }
@@ -124,6 +122,7 @@ class _AplicacionUBBikeState extends State<AplicacionUBBike> {
       return MaterialPageRoute(
         builder: (_) => PantallaCambiarContrasena(
           token: uri.queryParameters['token'] ?? '',
+          esActivacion: uri.queryParameters['modo'] == 'activacion',
         ),
       );
     }

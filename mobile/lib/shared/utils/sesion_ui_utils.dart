@@ -1,9 +1,9 @@
 import 'package:flutter/widgets.dart';
 
-import '../../core/providers/sesion_provider.dart';
-import '../../core/utils/leer_provider.dart';
-import '../modelos/rol_usuario.dart';
-import 'identidad.dart';
+import 'package:ubbike/core/providers/sesion_provider.dart';
+import 'package:ubbike/core/utils/leer_provider.dart';
+import 'package:ubbike/shared/modelos/rol_usuario.dart';
+import 'package:ubbike/shared/utils/identidad.dart';
 
 String saludoActual() {
   final hora = DateTime.now().hour;

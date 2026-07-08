@@ -1,6 +1,6 @@
-import '../../../shared/modelos/bicicletero_app.dart';
-import 'solicitud_guardia_api.dart';
-import 'solicitud_guardia_modelos.dart';
+import 'package:ubbike/shared/modelos/bicicletero_app.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_api.dart';
+import 'package:ubbike/features/acceso/data/solicitud_guardia_modelos.dart';
 
 class SolicitudGuardiaRepository {
   const SolicitudGuardiaRepository(this._api);
@@ -17,6 +17,9 @@ class SolicitudGuardiaRepository {
     String bicicleteroId,
   ) =>
       _api.seleccionarBicicleteroGestionado(bicicleteroId);
+
+  Future<void> liberarBicicleteroGestionado() =>
+      _api.liberarBicicleteroGestionado();
 
   Future<void> crearSolicitud({
     required String bicicleteroId,

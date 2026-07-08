@@ -1,5 +1,5 @@
-import '../../../core/servicios/cliente_api.dart';
-import '../../../shared/modelos/notificacion_app.dart';
+import 'package:ubbike/core/servicios/cliente_api.dart';
+import 'package:ubbike/shared/modelos/notificacion_app.dart';
 
 class NotificacionApi {
   const NotificacionApi({required this.cliente});

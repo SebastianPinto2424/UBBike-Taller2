@@ -1,14 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:ubbike/features/notificaciones/application/notificaciones_vm.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/providers/repositorios_provider.dart';
-import '../../../core/servicios/excepcion_api.dart';
-import '../../../core/tema/colores_ubb.dart';
-import '../../../shared/modelos/notificacion_app.dart';
-import '../../../shared/widgets/contenedor_responsivo.dart';
-import '../data/notificacion_repository.dart';
+import 'package:ubbike/core/servicios/excepcion_api.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/shared/modelos/notificacion_app.dart';
+import 'package:ubbike/shared/widgets/contenedor_responsivo.dart';
 
 class PantallaNotificaciones extends ConsumerStatefulWidget {
   const PantallaNotificaciones({super.key});
@@ -20,15 +19,14 @@ class PantallaNotificaciones extends ConsumerStatefulWidget {
 
 class _PantallaNotificacionesState
     extends ConsumerState<PantallaNotificaciones> {
-  late final NotificacionRepository notificacionRepository;
+  NotificacionesVm get vm => ref.read(notificacionesVmProvider);
   late Future<List<NotificacionApp>> futuroNotificaciones;
   Timer? temporizadorNotificaciones;
 
   @override
   void initState() {
     super.initState();
-    notificacionRepository = ref.read(notificacionRepositoryProvider);
-    futuroNotificaciones = notificacionRepository.listar();
+    futuroNotificaciones = vm.listar();
     temporizadorNotificaciones = Timer.periodic(
       const Duration(seconds: 20),
       (_) => _recargar(),
@@ -47,7 +45,7 @@ class _PantallaNotificacionesState
     }
 
     setState(() {
-      futuroNotificaciones = notificacionRepository.listar();
+      futuroNotificaciones = vm.listar();
     });
   }
 
@@ -115,7 +113,7 @@ class _PantallaNotificacionesState
   Future<void> _abrirNotificacion(NotificacionApp notificacion) async {
     try {
       if (!notificacion.leida) {
-        await notificacionRepository.marcarLeida(notificacion.id);
+        await vm.marcarLeida(notificacion.id);
       }
     } catch (_) {}
 
@@ -254,7 +252,7 @@ class _TarjetaNotificacion extends StatelessWidget {
   Color _colorPorTipo(String tipo) {
     switch (tipo) {
       case 'CUENTA':
-        return ColoresUbb.azulInstitucional;
+        return ColoresUbb.azulApp;
       case 'SOLICITUD_GUARDIA':
         return ColoresUbb.turquesa;
       case 'SEGURIDAD':

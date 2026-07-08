@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import '../servicios/cliente_api.dart';
-import '../../features/auth/data/autenticacion_api.dart';
-import '../../features/auth/data/autenticacion_repository.dart';
-import '../../shared/modelos/rol_usuario.dart';
-import '../../shared/modelos/usuario_app.dart';
+import 'package:ubbike/core/servicios/cliente_api.dart';
+import 'package:ubbike/features/auth/data/autenticacion_api.dart';
+import 'package:ubbike/features/auth/data/autenticacion_repository.dart';
+import 'package:ubbike/shared/modelos/rol_usuario.dart';
+import 'package:ubbike/shared/modelos/usuario_app.dart';
 
 sealed class SesionState {
   const SesionState();

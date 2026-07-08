@@ -1,5 +1,5 @@
-import '../../../core/servicios/cliente_api.dart';
-import 'qr_modelos.dart';
+import 'package:ubbike/core/servicios/cliente_api.dart';
+import 'package:ubbike/features/qr/data/qr_modelos.dart';
 
 class QrApi {
   const QrApi({required this.cliente});

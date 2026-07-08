@@ -1,6 +1,6 @@
-import '../../../core/servicios/cliente_api.dart';
-import '../../../shared/modelos/rol_usuario.dart';
-import '../../../shared/modelos/usuario_app.dart';
+import 'package:ubbike/core/servicios/cliente_api.dart';
+import 'package:ubbike/shared/modelos/rol_usuario.dart';
+import 'package:ubbike/shared/modelos/usuario_app.dart';
 
 class UsuariosAdminApi {
   const UsuariosAdminApi({required this.cliente});

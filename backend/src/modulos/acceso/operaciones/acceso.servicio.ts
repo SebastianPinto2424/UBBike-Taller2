@@ -267,45 +267,12 @@ const registrarMovimiento = async ({
     db
   );
 
-  const movimientoCompleto = await accesoRepositorio.buscarMovimientoCompleto(movimiento.id, db);
+  return accesoRepositorio.buscarMovimientoCompleto(movimiento.id, db);
+};
 
-  const fotoNombreArchivo = movimientoCompleto.bicicleta.fotoNombreArchivo;
-  const rutaFoto = fotoNombreArchivo
-    ? path.join(entorno.archivos.directorioUploads, 'bicicletas', fotoNombreArchivo)
-    : null;
-  const hayFoto = rutaFoto != null && existsSync(rutaFoto);
-  const fotoCid = hayFoto ? 'foto-bicicleta' : null;
-
-  const correo = crearCorreoMovimiento({
-    nombre: movimientoCompleto.usuario.nombre,
-    tipo: movimientoCompleto.tipo,
-    estado: movimientoCompleto.estado,
-    origen: movimientoCompleto.origen,
-    bicicleta: movimientoCompleto.bicicleta.descripcion,
-    marca: movimientoCompleto.bicicleta.marca,
-    modelo: movimientoCompleto.bicicleta.modelo,
-    color: movimientoCompleto.bicicleta.color,
-    aro: movimientoCompleto.bicicleta.aro,
-    numeroSerie: movimientoCompleto.bicicleta.numeroSerie,
-    bicicletero: movimientoCompleto.bicicletero.nombre,
-    guardia: movimientoCompleto.validadoPorGuardia.nombre,
-    fecha: movimientoCompleto.creadoEn,
-    motivoDenegacion: movimientoCompleto.motivoDenegacion,
-    comentarioGuardia: movimientoCompleto.comentarioGuardia,
-    fotoCid
-  });
-
-  await enviarCorreo({
-    para: movimientoCompleto.usuario.correo,
-    asunto: correo.asunto,
-    texto: correo.texto,
-    html: correo.html,
-    adjuntos:
-      hayFoto && fotoNombreArchivo && rutaFoto
-        ? [{ filename: fotoNombreArchivo, path: rutaFoto, cid: fotoCid! }]
-        : undefined
-  });
-
+const notificarMovimiento = async (
+  movimientoCompleto: Awaited<ReturnType<typeof accesoRepositorio.buscarMovimientoCompleto>>
+) => {
   emitirTiempoReal(
     [
       salaUsuario(movimientoCompleto.usuario.id),
@@ -315,7 +282,46 @@ const registrarMovimiento = async ({
     EventosTiempoReal.MOVIMIENTO
   );
 
-  return mapearMovimiento(movimientoCompleto);
+  try {
+    const fotoNombreArchivo = movimientoCompleto.bicicleta.fotoNombreArchivo;
+    const rutaFoto = fotoNombreArchivo
+      ? path.join(entorno.archivos.directorioUploads, 'bicicletas', fotoNombreArchivo)
+      : null;
+    const hayFoto = rutaFoto != null && existsSync(rutaFoto);
+    const fotoCid = hayFoto ? `foto-bicicleta-${movimientoCompleto.id}@ubbike` : null;
+
+    const correo = crearCorreoMovimiento({
+      nombre: movimientoCompleto.usuario.nombre,
+      tipo: movimientoCompleto.tipo,
+      estado: movimientoCompleto.estado,
+      origen: movimientoCompleto.origen,
+      bicicleta: movimientoCompleto.bicicleta.descripcion,
+      marca: movimientoCompleto.bicicleta.marca,
+      modelo: movimientoCompleto.bicicleta.modelo,
+      color: movimientoCompleto.bicicleta.color,
+      aro: movimientoCompleto.bicicleta.aro,
+      numeroSerie: movimientoCompleto.bicicleta.numeroSerie,
+      bicicletero: movimientoCompleto.bicicletero.nombre,
+      guardia: movimientoCompleto.validadoPorGuardia.nombre,
+      fecha: movimientoCompleto.creadoEn,
+      motivoDenegacion: movimientoCompleto.motivoDenegacion,
+      comentarioGuardia: movimientoCompleto.comentarioGuardia,
+      fotoCid
+    });
+
+    await enviarCorreo({
+      para: movimientoCompleto.usuario.correo,
+      asunto: correo.asunto,
+      texto: correo.texto,
+      html: correo.html,
+      adjuntos:
+        hayFoto && fotoNombreArchivo && rutaFoto
+          ? [{ filename: fotoNombreArchivo, path: rutaFoto, cid: fotoCid! }]
+          : undefined
+    });
+  } catch (error) {
+    console.error('[acceso] No se pudo enviar el correo de movimiento', error);
+  }
 };
 
 const crearBicicletaManual = async (
@@ -378,7 +384,7 @@ const enviarCorreoCompletarRegistro = async (correoUsuario: string, token: strin
 };
 
 export const confirmarQr = async (datos: DatosConfirmarQr) => {
-  return accesoRepositorio.ejecutarEnTransaccion(async (db) => {
+  const movimientoCompleto = await accesoRepositorio.ejecutarEnTransaccion(async (db) => {
     const codigo = await obtenerCodigoQrEscaneadoParaMovimiento(
       datos.token,
       {
@@ -416,10 +422,13 @@ export const confirmarQr = async (datos: DatosConfirmarQr) => {
       db
     });
   });
+
+  void notificarMovimiento(movimientoCompleto);
+  return mapearMovimiento(movimientoCompleto);
 };
 
 export const denegarQr = async (datos: DatosDenegarQr) => {
-  return accesoRepositorio.ejecutarEnTransaccion(async (db) => {
+  const movimientoCompleto = await accesoRepositorio.ejecutarEnTransaccion(async (db) => {
     const codigo = await obtenerCodigoQrEscaneadoParaMovimiento(
       datos.token,
       {
@@ -455,6 +464,9 @@ export const denegarQr = async (datos: DatosDenegarQr) => {
       db
     });
   });
+
+  void notificarMovimiento(movimientoCompleto);
+  return mapearMovimiento(movimientoCompleto);
 };
 
 export const buscarCoincidenciaGestionManual = async (datos: DatosBuscarGestionManual) => {
@@ -489,7 +501,7 @@ export const registrarGestionManual = async (datos: DatosGestionManual) => {
   let tokenCompletarRegistro: string | null = null;
   let correoCompletarRegistro: string | null = null;
 
-  const movimiento = await accesoRepositorio.ejecutarEnTransaccion(async (db) => {
+  const movimientoCompleto = await accesoRepositorio.ejecutarEnTransaccion(async (db) => {
     const criteriosUsuario = construirCriteriosUsuarioManual(datos);
 
     if (!criteriosUsuario.length) {
@@ -612,5 +624,6 @@ export const registrarGestionManual = async (datos: DatosGestionManual) => {
     await enviarCorreoCompletarRegistro(correoCompletarRegistro, tokenCompletarRegistro);
   }
 
-  return movimiento;
+  void notificarMovimiento(movimientoCompleto);
+  return mapearMovimiento(movimientoCompleto);
 };

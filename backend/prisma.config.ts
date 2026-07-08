@@ -3,11 +3,11 @@ import path from 'path';
 import { defineConfig } from 'prisma/config';
 
 const cargarVariablesEntorno = () => {
-  const cwd = process.cwd();
-  const rutas =
-    path.basename(cwd).toLowerCase() === 'backend'
-      ? [path.resolve(cwd, '..', '.env')]
-      : [path.resolve(cwd, '.env')];
+  const rutas = [
+    path.resolve(process.cwd(), '..', '.env'),
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(process.cwd(), 'backend', '.env')
+  ];
 
   for (const ruta of rutas) {
     dotenv.config({ path: ruta });

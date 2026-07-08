@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:ubbike/features/auth/application/autenticacion_vm.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/providers/repositorios_provider.dart';
-import '../../../core/providers/sesion_provider.dart';
-import '../../../core/servicios/excepcion_api.dart';
-import '../../../core/tema/colores_ubb.dart';
-import '../../../shared/widgets/snackbar_semantico.dart';
+import 'package:ubbike/core/providers/sesion_provider.dart';
+import 'package:ubbike/core/servicios/excepcion_api.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
 
 class PantallaCambioObligatorio extends ConsumerStatefulWidget {
   const PantallaCambioObligatorio({super.key});
@@ -40,7 +40,7 @@ class _PantallaCambioObligatorioState
 
     setState(() => guardando = true);
     try {
-      await ref.read(autenticacionRepositoryProvider).cambiarContrasenaSesion(
+      await ref.read(autenticacionVmProvider).cambiarContrasenaSesion(
             contrasenaActual: actualController.text,
             contrasenaNueva: nuevaController.text,
           );

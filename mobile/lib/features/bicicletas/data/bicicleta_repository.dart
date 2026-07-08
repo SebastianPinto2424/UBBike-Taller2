@@ -1,5 +1,5 @@
-import '../../../shared/modelos/bicicleta_app.dart';
-import 'bicicleta_api.dart';
+import 'package:ubbike/shared/modelos/bicicleta_app.dart';
+import 'package:ubbike/features/bicicletas/data/bicicleta_api.dart';
 
 class BicicletaRepository {
   const BicicletaRepository(this._api);

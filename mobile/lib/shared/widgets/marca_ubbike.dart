@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 
-import '../../core/tema/colores_ubb.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
 
 class MarcaUbbike extends StatelessWidget {
   const MarcaUbbike({
     super.key,
     this.compacta = false,
     this.sobreAzul = false,
+    this.alto,
   });
 
   final bool compacta;
   final bool sobreAzul;
+  final double? alto;
 
   @override
   Widget build(BuildContext context) {
-    final altoLogo = compacta ? 34.0 : 68.0;
-    final anchoLogo = compacta ? 128.0 : 224.0;
+    final altoLogo = alto ?? (compacta ? 34.0 : 68.0);
+    final anchoLogo =
+        alto != null ? alto! * (224.0 / 68.0) : (compacta ? 128.0 : 224.0);
     final logo = Image.asset(
       'assets/imagenes/ubbike-logo-transparente.png',
       semanticLabel: 'Logo UBBike',

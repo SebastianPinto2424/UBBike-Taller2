@@ -1,68 +1,14 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/providers/repositorios_provider.dart';
-import '../../../core/servicios/excepcion_api.dart';
-import '../../../core/tema/colores_ubb.dart';
-import '../../../shared/modelos/rol_usuario.dart';
-import '../../../shared/modelos/usuario_app.dart';
-import '../../../shared/utils/identidad.dart';
-import '../../../shared/widgets/snackbar_semantico.dart';
-import '../data/usuarios_admin_repository.dart';
-
-enum _FiltroEstadoCuenta { todos, activos, denegados }
-
-extension _DatosFiltroEstadoCuenta on _FiltroEstadoCuenta {
-  String get etiqueta {
-    switch (this) {
-      case _FiltroEstadoCuenta.todos:
-        return 'Todos';
-      case _FiltroEstadoCuenta.activos:
-        return 'Activos';
-      case _FiltroEstadoCuenta.denegados:
-        return 'Acceso denegado';
-    }
-  }
-
-  bool? get valor {
-    switch (this) {
-      case _FiltroEstadoCuenta.todos:
-        return null;
-      case _FiltroEstadoCuenta.activos:
-        return true;
-      case _FiltroEstadoCuenta.denegados:
-        return false;
-    }
-  }
-}
-
-enum _FiltroEstadoCorreo { todos, verificados, pendientes }
-
-extension _DatosFiltroEstadoCorreo on _FiltroEstadoCorreo {
-  String get etiqueta {
-    switch (this) {
-      case _FiltroEstadoCorreo.todos:
-        return 'Todos';
-      case _FiltroEstadoCorreo.verificados:
-        return 'Verificados';
-      case _FiltroEstadoCorreo.pendientes:
-        return 'Pendientes';
-    }
-  }
-
-  bool? get valor {
-    switch (this) {
-      case _FiltroEstadoCorreo.todos:
-        return null;
-      case _FiltroEstadoCorreo.verificados:
-        return true;
-      case _FiltroEstadoCorreo.pendientes:
-        return false;
-    }
-  }
-}
+import 'package:ubbike/core/servicios/excepcion_api.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/features/admin/application/gestion_usuarios_vm.dart';
+import 'package:ubbike/shared/modelos/rol_usuario.dart';
+import 'package:ubbike/shared/modelos/usuario_app.dart';
+import 'package:ubbike/shared/utils/identidad.dart';
+import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
+import 'package:ubbike/features/auth/presentation/widgets/estilos_formulario_auth.dart';
 
 class VistaGestionUsuarios extends ConsumerStatefulWidget {
   const VistaGestionUsuarios({super.key});
@@ -73,99 +19,37 @@ class VistaGestionUsuarios extends ConsumerStatefulWidget {
 }
 
 class _VistaGestionUsuariosState extends ConsumerState<VistaGestionUsuarios> {
-  late final UsuariosAdminRepository usuariosRepository;
   final busquedaController = TextEditingController();
-  late Future<List<UsuarioApp>> futuroUsuarios;
-  Timer? debounceBusqueda;
-  String filtroBusqueda = '';
-  RolUsuario? filtroRol;
-  _FiltroEstadoCuenta filtroEstadoCuenta = _FiltroEstadoCuenta.todos;
-  _FiltroEstadoCorreo filtroEstadoCorreo = _FiltroEstadoCorreo.todos;
+
+  GestionUsuariosVm get vm => ref.read(gestionUsuariosVmProvider.notifier);
 
   @override
   void initState() {
     super.initState();
-    usuariosRepository = ref.read(usuariosAdminRepositoryProvider);
-    futuroUsuarios = _consultarUsuarios();
+    busquedaController.addListener(_alCambiarTextoBusqueda);
   }
 
   @override
   void dispose() {
-    debounceBusqueda?.cancel();
+    busquedaController.removeListener(_alCambiarTextoBusqueda);
     busquedaController.dispose();
     super.dispose();
   }
 
-  Future<List<UsuarioApp>> _consultarUsuarios() {
-    return usuariosRepository.listarUsuarios(
-      q: filtroBusqueda,
-      rol: filtroRol,
-      cuentaActiva: filtroEstadoCuenta.valor,
-      correoVerificado: filtroEstadoCorreo.valor,
-    );
-  }
-
-  void _recargar() {
-    setState(() {
-      futuroUsuarios = _consultarUsuarios();
-    });
-  }
-
-  void _buscar(String valor) {
-    debounceBusqueda?.cancel();
-    setState(() {});
-    debounceBusqueda = Timer(const Duration(milliseconds: 350), () {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        filtroBusqueda = valor.trim();
-        futuroUsuarios = _consultarUsuarios();
-      });
-    });
-  }
-
-  void _actualizarFiltros({
-    RolUsuario? rol,
-    bool limpiarRol = false,
-    _FiltroEstadoCuenta? estadoCuenta,
-    _FiltroEstadoCorreo? estadoCorreo,
-  }) {
-    setState(() {
-      if (limpiarRol) {
-        filtroRol = null;
-      } else if (rol != null) {
-        filtroRol = rol;
-      }
-      if (estadoCuenta != null) {
-        filtroEstadoCuenta = estadoCuenta;
-      }
-      if (estadoCorreo != null) {
-        filtroEstadoCorreo = estadoCorreo;
-      }
-      futuroUsuarios = _consultarUsuarios();
-    });
+  void _alCambiarTextoBusqueda() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _limpiarFiltros() {
-    debounceBusqueda?.cancel();
     busquedaController.clear();
-    setState(() {
-      filtroBusqueda = '';
-      filtroRol = null;
-      filtroEstadoCuenta = _FiltroEstadoCuenta.todos;
-      filtroEstadoCorreo = _FiltroEstadoCorreo.todos;
-      futuroUsuarios = _consultarUsuarios();
-    });
+    vm.limpiarFiltros();
   }
 
   void _limpiarBusqueda() {
-    debounceBusqueda?.cancel();
     busquedaController.clear();
-    setState(() {
-      filtroBusqueda = '';
-      futuroUsuarios = _consultarUsuarios();
-    });
+    vm.limpiarBusqueda();
   }
 
   Future<void> _actualizar(
@@ -177,15 +61,14 @@ class _VistaGestionUsuariosState extends ConsumerState<VistaGestionUsuarios> {
     bool? cuentaActiva,
   }) async {
     try {
-      await usuariosRepository.actualizarPermisos(
-        usuarioId: usuario.id,
+      await vm.actualizarPermisos(
+        usuario,
         nombre: nombre,
         correo: correo,
         rut: rut,
         rol: rol,
         cuentaActiva: cuentaActiva,
       );
-      _recargar();
       if (mounted) {
         context.mostrarExito('Permisos actualizados');
       }
@@ -202,11 +85,7 @@ class _VistaGestionUsuariosState extends ConsumerState<VistaGestionUsuarios> {
 
   Future<void> _reenviarCorreoCuenta(UsuarioApp usuario) async {
     try {
-      if (usuario.debeCambiarContrasena) {
-        await usuariosRepository.reenviarAcceso(usuario.id);
-      } else {
-        await usuariosRepository.reenviarVerificacion(usuario.id);
-      }
+      await vm.reenviarCorreoCuenta(usuario);
       if (mounted) {
         context.mostrarExito(
           usuario.debeCambiarContrasena
@@ -247,13 +126,12 @@ class _VistaGestionUsuariosState extends ConsumerState<VistaGestionUsuarios> {
     }
 
     try {
-      await usuariosRepository.crearUsuario(
+      await vm.crearUsuario(
         nombre: resultado.nombre,
         correo: resultado.correo,
         rut: resultado.rut,
         rol: resultado.rol,
       );
-      _recargar();
       if (mounted) {
         context.mostrarExito('Cuenta creada. Se envio el correo de acceso.');
       }
@@ -303,8 +181,7 @@ class _VistaGestionUsuariosState extends ConsumerState<VistaGestionUsuarios> {
     }
 
     try {
-      await usuariosRepository.eliminarUsuario(usuario.id);
-      _recargar();
+      await vm.eliminarUsuario(usuario);
       if (mounted) {
         context.mostrarExito('Cuenta eliminada');
       }
@@ -321,87 +198,80 @@ class _VistaGestionUsuariosState extends ConsumerState<VistaGestionUsuarios> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<UsuarioApp>>(
-      future: futuroUsuarios,
-      builder: (context, snapshot) {
-        final cargando = snapshot.connectionState == ConnectionState.waiting;
-        final usuarios = snapshot.data ?? const <UsuarioApp>[];
-        final tieneFiltros = filtroBusqueda.isNotEmpty ||
-            filtroRol != null ||
-            filtroEstadoCuenta != _FiltroEstadoCuenta.todos ||
-            filtroEstadoCorreo != _FiltroEstadoCorreo.todos;
+    final estado = ref.watch(gestionUsuariosVmProvider);
+    final filtros = ref.watch(filtrosGestionUsuariosProvider);
+    final cargando = estado.isLoading;
+    final usuarios = estado.valueOrNull ?? const <UsuarioApp>[];
+    final tieneError = estado.hasError && estado.valueOrNull == null;
+    final tieneFiltros = filtros.tieneFiltros;
 
-        return Column(
-          children: [
-            _EncabezadoAdminUsuarios(onCrear: _crearUsuario),
-            const SizedBox(height: 12),
-            _FiltrosUsuariosAdmin(
-              busquedaController: busquedaController,
-              total: usuarios.length,
-              cargando: cargando,
-              tieneFiltros: tieneFiltros,
-              rol: filtroRol,
-              estadoCuenta: filtroEstadoCuenta,
-              estadoCorreo: filtroEstadoCorreo,
-              onBuscar: _buscar,
-              onRol: (rol) => _actualizarFiltros(
-                rol: rol,
-                limpiarRol: rol == null,
-              ),
-              onEstadoCuenta: (estado) =>
-                  _actualizarFiltros(estadoCuenta: estado),
-              onEstadoCorreo: (estado) =>
-                  _actualizarFiltros(estadoCorreo: estado),
-              onLimpiarBusqueda: _limpiarBusqueda,
-              onLimpiar: _limpiarFiltros,
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: ListView.separated(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                itemCount: snapshot.hasError || cargando || usuarios.isEmpty
-                    ? 1
-                    : usuarios.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  if (cargando) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+    return Column(
+      children: [
+        _EncabezadoAdminUsuarios(onCrear: _crearUsuario),
+        const SizedBox(height: 12),
+        _FiltrosUsuariosAdmin(
+          busquedaController: busquedaController,
+          total: usuarios.length,
+          cargando: cargando,
+          tieneFiltros: tieneFiltros,
+          rol: filtros.rol,
+          estadoCuenta: filtros.estadoCuenta,
+          estadoCorreo: filtros.estadoCorreo,
+          onBuscar: vm.buscar,
+          onRol: (rol) => vm.actualizarFiltros(
+            rol: rol,
+            limpiarRol: rol == null,
+          ),
+          onEstadoCuenta: (estado) =>
+              vm.actualizarFiltros(estadoCuenta: estado),
+          onEstadoCorreo: (estado) =>
+              vm.actualizarFiltros(estadoCorreo: estado),
+          onLimpiarBusqueda: _limpiarBusqueda,
+          onLimpiar: _limpiarFiltros,
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: ListView.separated(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            itemCount:
+                tieneError || cargando || usuarios.isEmpty ? 1 : usuarios.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              if (cargando) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-                  if (snapshot.hasError) {
-                    return const _EstadoUsuarios(
-                      icono: Icons.cloud_off_outlined,
-                      titulo: 'No se pudieron cargar usuarios',
-                      detalle: 'Revisa la conexión con el backend.',
-                    );
-                  }
+              if (tieneError) {
+                return const _EstadoUsuarios(
+                  icono: Icons.cloud_off_outlined,
+                  titulo: 'No se pudieron cargar usuarios',
+                  detalle: 'Revisa la conexión con el backend.',
+                );
+              }
 
-                  if (usuarios.isEmpty) {
-                    return _EstadoUsuarios(
-                      icono: Icons.people_outline,
-                      titulo: tieneFiltros ? 'Sin resultados' : 'Sin usuarios',
-                      detalle: tieneFiltros
-                          ? 'Ajusta la búsqueda o los filtros.'
-                          : 'Los registros aparecerán aquí.',
-                    );
-                  }
+              if (usuarios.isEmpty) {
+                return _EstadoUsuarios(
+                  icono: Icons.people_outline,
+                  titulo: tieneFiltros ? 'Sin resultados' : 'Sin usuarios',
+                  detalle: tieneFiltros
+                      ? 'Ajusta la búsqueda o los filtros.'
+                      : 'Los registros aparecerán aquí.',
+                );
+              }
 
-                  final usuario = usuarios[index];
-                  return _TarjetaUsuarioAdmin(
-                    key: ValueKey('usuario-${usuario.id}'),
-                    usuario: usuario,
-                    onActualizar: _actualizar,
-                    onReenviarCorreoCuenta: _reenviarCorreoCuenta,
-                    onEditarCredenciales: _editarCredenciales,
-                    onEliminar: _eliminarUsuario,
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
+              final usuario = usuarios[index];
+              return _TarjetaUsuarioAdmin(
+                key: ValueKey('usuario-${usuario.id}'),
+                usuario: usuario,
+                onActualizar: _actualizar,
+                onReenviarCorreoCuenta: _reenviarCorreoCuenta,
+                onEditarCredenciales: _editarCredenciales,
+                onEliminar: _eliminarUsuario,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -449,10 +319,33 @@ class _SheetCrearUsuarioState extends State<_SheetCrearUsuario> {
   final nombreController = TextEditingController();
   final correoController = TextEditingController();
   final rutController = TextEditingController();
+  final nombreFocus = FocusNode();
+  final correoFocus = FocusNode();
+  final rutFocus = FocusNode();
   RolUsuario rol = RolUsuario.guardia;
 
   @override
+  void initState() {
+    super.initState();
+    nombreFocus.addListener(_actualizarAyuda);
+    correoFocus.addListener(_actualizarAyuda);
+    rutFocus.addListener(_actualizarAyuda);
+  }
+
+  void _actualizarAyuda() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  String? _ayudaSiActivo(FocusNode focus, String texto) =>
+      focus.hasFocus ? texto : null;
+
+  @override
   void dispose() {
+    nombreFocus.dispose();
+    correoFocus.dispose();
+    rutFocus.dispose();
     nombreController.dispose();
     correoController.dispose();
     rutController.dispose();
@@ -519,27 +412,54 @@ class _SheetCrearUsuarioState extends State<_SheetCrearUsuario> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: nombreController,
+                focusNode: nombreFocus,
+                textCapitalization: TextCapitalization.words,
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(labelText: 'Nombre'),
+                decoration: decoracionCampoAuth(
+                  labelText: 'Nombre completo',
+                  icono: Icons.person_outline,
+                  helperText: _ayudaSiActivo(
+                    nombreFocus,
+                    'Dos nombres y dos apellidos (ej: Nombre Nombre Apellido Apellido)',
+                  ),
+                ),
                 validator: _validarNombreCuentaAdmin,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 18),
               TextFormField(
                 controller: correoController,
+                focusNode: correoFocus,
                 keyboardType: TextInputType.emailAddress,
                 autocorrect: false,
+                enableSuggestions: false,
                 textCapitalization: TextCapitalization.none,
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(labelText: 'Correo'),
+                decoration: decoracionCampoAuth(
+                  labelText: 'Correo',
+                  icono: Icons.mail_outline,
+                  helperText: _ayudaSiActivo(
+                    correoFocus,
+                    'Institucional, o externo si es guardia (ej: persona@gmail.com)',
+                  ),
+                ),
                 validator: _validarCorreoCuentaAdmin,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 18),
               TextFormField(
                 controller: rutController,
+                focusNode: rutFocus,
                 autocorrect: false,
+                enableSuggestions: false,
                 inputFormatters: [RutInputFormatter()],
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(labelText: 'RUT'),
+                decoration: decoracionCampoAuth(
+                  labelText: 'RUT',
+                  icono: Icons.badge_outlined,
+                  helperText: _ayudaSiActivo(
+                    rutFocus,
+                    'Con guion, formato xx.xxx.xxx-x',
+                  ),
+                ),
                 validator: _validarRutCuentaAdmin,
               ),
               const SizedBox(height: 12),
@@ -731,13 +651,13 @@ class _SheetEditarCuentaState extends State<_SheetEditarCuenta> {
 String? _validarNombreCuentaAdmin(String? valor) {
   final texto = valor?.trim() ?? '';
   if (texto.isEmpty) {
-    return 'Ingresa un nombre.';
-  }
-  if (texto.length < 3) {
-    return 'Debe tener al menos 3 caracteres.';
+    return 'El nombre es obligatorio.';
   }
   if (texto.length > 120) {
     return 'Maximo 120 caracteres.';
+  }
+  if (!nombreCompletoValido(texto)) {
+    return 'Ingresa dos nombres y dos apellidos (Nombre Nombre Apellido Apellido).';
   }
   return null;
 }
@@ -761,45 +681,18 @@ String? _validarCorreoCuentaAdmin(String? valor) {
 String? _validarRutCuentaAdmin(String? valor) {
   final texto = valor?.trim() ?? '';
   if (texto.isEmpty) {
-    return null;
+    return 'El RUT es obligatorio.';
+  }
+  if (!texto.contains('-')) {
+    return 'El RUT debe incluir el guion (xx.xxx.xxx-x).';
   }
   if (texto.length > 20) {
     return 'Maximo 20 caracteres.';
   }
-  if (!_rutCuentaAdminValido(texto)) {
-    return 'El RUT no es valido.';
+  if (!rutValido(texto)) {
+    return 'RUT inválido. Revisa el número y el dígito verificador.';
   }
   return null;
-}
-
-bool _rutCuentaAdminValido(String valor) {
-  final limpio = valor
-      .replaceAll('.', '')
-      .replaceAll('-', '')
-      .replaceAll(' ', '')
-      .toUpperCase();
-  if (!RegExp(r'^\d{7,8}[0-9K]$').hasMatch(limpio)) {
-    return false;
-  }
-
-  final cuerpo = limpio.substring(0, limpio.length - 1);
-  final digito = limpio.substring(limpio.length - 1);
-  var suma = 0;
-  var multiplicador = 2;
-
-  for (var i = cuerpo.length - 1; i >= 0; i--) {
-    suma += int.parse(cuerpo[i]) * multiplicador;
-    multiplicador = multiplicador == 7 ? 2 : multiplicador + 1;
-  }
-
-  final resto = 11 - (suma % 11);
-  final esperado = switch (resto) {
-    11 => '0',
-    10 => 'K',
-    _ => resto.toString(),
-  };
-
-  return digito == esperado;
 }
 
 class _EncabezadoAdminUsuarios extends StatelessWidget {
@@ -877,12 +770,12 @@ class _FiltrosUsuariosAdmin extends StatelessWidget {
   final bool cargando;
   final bool tieneFiltros;
   final RolUsuario? rol;
-  final _FiltroEstadoCuenta estadoCuenta;
-  final _FiltroEstadoCorreo estadoCorreo;
+  final FiltroEstadoCuenta estadoCuenta;
+  final FiltroEstadoCorreo estadoCorreo;
   final ValueChanged<String> onBuscar;
   final ValueChanged<RolUsuario?> onRol;
-  final ValueChanged<_FiltroEstadoCuenta> onEstadoCuenta;
-  final ValueChanged<_FiltroEstadoCorreo> onEstadoCorreo;
+  final ValueChanged<FiltroEstadoCuenta> onEstadoCuenta;
+  final ValueChanged<FiltroEstadoCorreo> onEstadoCorreo;
   final VoidCallback onLimpiarBusqueda;
   final VoidCallback onLimpiar;
 
@@ -969,8 +862,8 @@ class _FiltrosUsuariosAdmin extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final item in _FiltroEstadoCuenta.values)
-                        _ChipFiltroUsuarios<_FiltroEstadoCuenta>(
+                      for (final item in FiltroEstadoCuenta.values)
+                        _ChipFiltroUsuarios<FiltroEstadoCuenta>(
                           label: item.etiqueta,
                           value: item,
                           selectedValue: estadoCuenta,
@@ -986,8 +879,8 @@ class _FiltrosUsuariosAdmin extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final item in _FiltroEstadoCorreo.values)
-                        _ChipFiltroUsuarios<_FiltroEstadoCorreo>(
+                      for (final item in FiltroEstadoCorreo.values)
+                        _ChipFiltroUsuarios<FiltroEstadoCorreo>(
                           label: item.etiqueta,
                           value: item,
                           selectedValue: estadoCorreo,
@@ -1372,72 +1265,47 @@ class _ControlAccesoUsuario extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = habilitado ? ColoresUbb.exito : ColoresUbb.rojoInstitucional;
     final titulo = habilitado ? 'Acceso habilitado' : 'Acceso denegado';
     final detalle = habilitado
         ? 'Puede iniciar sesion y usar las funciones asignadas.'
         : 'No puede iniciar sesion hasta reactivar el acceso.';
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => onChanged(!habilitado),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: habilitado ? 0.08 : 0.06),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withValues(alpha: 0.55)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                Icon(
-                  habilitado
-                      ? Icons.check_circle_outline
-                      : Icons.block_outlined,
-                  color: color,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        titulo,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: ColoresUbb.azulNoche,
-                              fontWeight: FontWeight.w900,
-                            ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        detalle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: ColoresUbb.textoSecundario,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Switch(
-                  value: habilitado,
-                  onChanged: onChanged,
-                  activeThumbColor: Colors.white,
-                  activeTrackColor: ColoresUbb.exito,
-                  inactiveThumbColor: Colors.white,
-                  inactiveTrackColor:
-                      ColoresUbb.rojoInstitucional.withValues(alpha: 0.78),
-                ),
-              ],
-            ),
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                titulo,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: ColoresUbb.azulNoche,
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                detalle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: ColoresUbb.textoSecundario,
+                    ),
+              ),
+            ],
           ),
         ),
-      ),
+        const SizedBox(width: 8),
+        Switch(
+          value: habilitado,
+          onChanged: onChanged,
+          activeThumbColor: Colors.white,
+          activeTrackColor: ColoresUbb.azulApp,
+          inactiveThumbColor: Colors.white,
+          inactiveTrackColor:
+              ColoresUbb.rojoInstitucional.withValues(alpha: 0.78),
+        ),
+      ],
     );
   }
 }
@@ -1476,6 +1344,32 @@ class _PanelGestionUsuario extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _DatoUsuarioFila(
+                etiqueta: 'Nombre completo',
+                valor: usuario.nombre,
+              ),
+              const Divider(height: 20),
+              _DatoUsuarioFila(
+                etiqueta: 'Correo institucional',
+                valor: usuario.correo,
+              ),
+              const Divider(height: 20),
+              _DatoUsuarioFila(
+                etiqueta: 'RUT',
+                valor: usuario.rut?.trim().isNotEmpty == true
+                    ? usuario.rut!
+                    : 'Sin RUT registrado',
+              ),
+              const Divider(height: 20),
+              _DatoUsuarioFila(
+                etiqueta: 'Estado de la cuenta',
+                valor: usuario.debeCambiarContrasena
+                    ? 'Acceso pendiente de activación'
+                    : usuario.correoVerificado
+                        ? 'Correo verificado'
+                        : 'Correo pendiente de verificación',
+              ),
+              const Divider(height: 24),
               const _EtiquetaSeccion('Acceso'),
               const SizedBox(height: 8),
               _ControlAccesoUsuario(
@@ -1483,27 +1377,21 @@ class _PanelGestionUsuario extends StatelessWidget {
                 onChanged: (habilitado) =>
                     onActualizar(usuario, cuentaActiva: habilitado),
               ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed:
-                    usuario.correoVerificado && !usuario.debeCambiarContrasena
-                        ? null
-                        : () => onReenviarCorreoCuenta(usuario),
-                icon: Icon(
-                  usuario.debeCambiarContrasena
-                      ? Icons.key_outlined
-                      : usuario.correoVerificado
-                          ? Icons.mark_email_read_outlined
-                          : Icons.outgoing_mail,
-                ),
-                label: Text(
-                  usuario.debeCambiarContrasena
-                      ? 'Reenviar correo de acceso'
-                      : usuario.correoVerificado
-                          ? 'Correo verificado'
+              if (usuario.debeCambiarContrasena ||
+                  !usuario.correoVerificado) ...[
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: () => onReenviarCorreoCuenta(usuario),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      usuario.debeCambiarContrasena
+                          ? 'Reenviar correo de acceso'
                           : 'Reenviar verificacion',
+                    ),
+                  ),
                 ),
-              ),
+              ],
               const Divider(height: 28),
               const _EtiquetaSeccion('Rol principal'),
               const SizedBox(height: 8),
@@ -1519,8 +1407,32 @@ class _PanelGestionUsuario extends StatelessWidget {
                       ),
                     )
                     .toList(),
-                onChanged: (rol) {
-                  if (rol != null && rol != usuario.rol) {
+                onChanged: (rol) async {
+                  if (rol == null || rol == usuario.rol) {
+                    return;
+                  }
+                  final confirmar = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Confirmar cambio de rol'),
+                      content: Text(
+                        '¿Cambiar el rol de ${usuario.nombre} de '
+                        '"${usuario.rol.etiqueta}" a "${rol.etiqueta}"?\n\n'
+                        'Esto modifica sus permisos dentro de la app.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Cancelar'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('Cambiar rol'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmar == true) {
                     onActualizar(usuario, rol: rol);
                   }
                 },
@@ -1540,24 +1452,26 @@ class _PanelGestionUsuario extends StatelessWidget {
                     children: [
                       SizedBox(
                         width: anchoBoton,
-                        child: OutlinedButton.icon(
+                        child: ElevatedButton(
                           onPressed: () => onEditarCredenciales(usuario),
-                          icon: const Icon(Icons.edit_outlined),
-                          label: const Text('Editar datos'),
+                          child: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Editar datos'),
+                          ),
                         ),
                       ),
                       SizedBox(
                         width: anchoBoton,
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: ColoresUbb.rojoInstitucional,
-                            side: const BorderSide(
-                              color: ColoresUbb.rojoInstitucional,
-                            ),
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: ColoresUbb.rojoInstitucional,
+                            foregroundColor: Colors.white,
                           ),
                           onPressed: () => onEliminar(usuario),
-                          icon: const Icon(Icons.delete_forever_outlined),
-                          label: const Text('Eliminar cuenta'),
+                          child: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Eliminar cuenta'),
+                          ),
                         ),
                       ),
                     ],
@@ -1568,6 +1482,41 @@ class _PanelGestionUsuario extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _DatoUsuarioFila extends StatelessWidget {
+  const _DatoUsuarioFila({
+    required this.etiqueta,
+    required this.valor,
+  });
+
+  final String etiqueta;
+  final String valor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          etiqueta,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: ColoresUbb.textoSecundario,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          valor,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: ColoresUbb.azulNoche,
+              ),
+        ),
+      ],
     );
   }
 }

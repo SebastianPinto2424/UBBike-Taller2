@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/tema/colores_ubb.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
 
 InputDecoration decoracionCampoAuth({
   required String labelText,

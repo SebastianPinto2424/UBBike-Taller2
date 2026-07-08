@@ -2,15 +2,17 @@ import 'dart:async';
 
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
-import '../configuracion/configuracion_api.dart';
+import 'package:ubbike/core/configuracion/configuracion_api.dart';
 
 class TiempoRealService {
   io.Socket? _socket;
   String? _tokenActual;
 
   final _notificacionesController = StreamController<void>.broadcast();
+  final _solicitudesController = StreamController<void>.broadcast();
 
   Stream<void> get notificaciones => _notificacionesController.stream;
+  Stream<void> get solicitudes => _solicitudesController.stream;
 
   void conectar(String token) {
     final tokenLimpio = token.trim();
@@ -47,6 +49,11 @@ class TiempoRealService {
         _notificacionesController.add(null);
       }
     });
+    socket.on('solicitud', (_) {
+      if (!_solicitudesController.isClosed) {
+        _solicitudesController.add(null);
+      }
+    });
 
     _socket = socket;
     socket.connect();
@@ -65,5 +72,6 @@ class TiempoRealService {
   void dispose() {
     desconectar();
     _notificacionesController.close();
+    _solicitudesController.close();
   }
 }

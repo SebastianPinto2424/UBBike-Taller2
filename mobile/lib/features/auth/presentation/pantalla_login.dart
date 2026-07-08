@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:ubbike/features/auth/application/autenticacion_vm.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/providers/repositorios_provider.dart';
-import '../../../core/providers/sesion_provider.dart';
-import '../../../core/servicios/excepcion_api.dart';
-import '../../../core/tema/colores_ubb.dart';
-import '../../../features/auth/presentation/pantalla_registro.dart';
-import '../../../shared/widgets/contenedor_responsivo.dart';
-import '../../../shared/widgets/marca_ubbike.dart';
-import '../../../shared/widgets/snackbar_semantico.dart';
-import 'widgets/estilos_formulario_auth.dart';
+import 'package:ubbike/core/providers/sesion_provider.dart';
+import 'package:ubbike/core/servicios/excepcion_api.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/features/auth/presentation/pantalla_registro.dart';
+import 'package:ubbike/shared/widgets/marca_ubbike.dart';
+import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
+import 'package:ubbike/features/auth/presentation/widgets/estilos_formulario_auth.dart';
 
 class PantallaLogin extends ConsumerStatefulWidget {
   const PantallaLogin({
@@ -65,13 +64,14 @@ class _PantallaLoginState extends ConsumerState<PantallaLogin> {
       backgroundColor: ColoresUbb.azulNoche,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final altoFormulario =
-              constraints.maxHeight > 246 ? constraints.maxHeight - 246 : 0.0;
           final tecladoAbierto = MediaQuery.viewInsetsOf(context).bottom > 0;
+          final alturaCabecera = (tecladoAbierto ? 92.0 : 200.0) +
+              MediaQuery.paddingOf(context).top;
+          final altoFormulario = (constraints.maxHeight - alturaCabecera)
+              .clamp(0.0, double.infinity);
 
           return SingleChildScrollView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-
             physics: tecladoAbierto
                 ? const ClampingScrollPhysics()
                 : const NeverScrollableScrollPhysics(),
@@ -79,7 +79,7 @@ class _PantallaLoginState extends ConsumerState<PantallaLogin> {
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: Column(
                 children: [
-                  const _CabeceraIngreso(),
+                  _CabeceraIngreso(tecladoAbierto: tecladoAbierto),
                   ConstrainedBox(
                     constraints: BoxConstraints(
                       minHeight: altoFormulario,
@@ -172,7 +172,7 @@ class _PantallaLoginState extends ConsumerState<PantallaLogin> {
 
     try {
       final resultado =
-          await ref.read(autenticacionRepositoryProvider).iniciarSesion(
+          await ref.read(autenticacionVmProvider).iniciarSesion(
                 correo: correo,
                 contrasena: contrasena,
               );
@@ -213,7 +213,7 @@ class _PantallaLoginState extends ConsumerState<PantallaLogin> {
   Future<void> _enviarRecuperacion(String correo) async {
     try {
       final mensaje = await ref
-          .read(autenticacionRepositoryProvider)
+          .read(autenticacionVmProvider)
           .solicitarCambioContrasena(correo);
       if (mounted) {
         context.mostrarExito(mensaje);
@@ -348,36 +348,22 @@ String? _validarContrasenaLoginFrontend(String? valor) {
 }
 
 class _CabeceraIngreso extends StatelessWidget {
-  const _CabeceraIngreso();
+  const _CabeceraIngreso({required this.tecladoAbierto});
+
+  final bool tecladoAbierto;
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       bottom: false,
-      child: ContenedorResponsivo(
-        anchoMaximo: 520,
-        padding: const EdgeInsets.fromLTRB(22, 22, 22, 28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const MarcaUbbike(compacta: true, sobreAzul: true),
-            const SizedBox(height: 24),
-            Text(
-              'Tu acceso seguro a los bicicleteros UBB',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Registra tu bicicleta, genera codigos temporales y revisa cada ingreso o retiro desde una sola app institucional.',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.86),
-                    height: 1.35,
-                  ),
-            ),
-          ],
+      child: SizedBox(
+        height: tecladoAbierto ? 92 : 200,
+        child: Center(
+          child: MarcaUbbike(
+            compacta: true,
+            sobreAzul: true,
+            alto: tecladoAbierto ? 36 : 62,
+          ),
         ),
       ),
     );
@@ -554,7 +540,7 @@ class _AvisoIngreso extends StatelessWidget {
               child: Text(
                 mensaje,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: ColoresUbb.azulOscuro,
+                      color: ColoresUbb.textoPrincipal,
                       fontWeight: FontWeight.w700,
                     ),
               ),

@@ -1,5 +1,5 @@
-import '../../../shared/modelos/notificacion_app.dart';
-import 'notificacion_api.dart';
+import 'package:ubbike/shared/modelos/notificacion_app.dart';
+import 'package:ubbike/features/notificaciones/data/notificacion_api.dart';
 
 class NotificacionRepository {
   const NotificacionRepository(this._api);

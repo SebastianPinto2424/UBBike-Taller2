@@ -1,6 +1,6 @@
-import '../../../shared/modelos/bicicleta_app.dart';
-import '../../../shared/modelos/bicicletero_app.dart';
-import '../../../shared/modelos/usuario_app.dart';
+import 'package:ubbike/shared/modelos/bicicleta_app.dart';
+import 'package:ubbike/shared/modelos/bicicletero_app.dart';
+import 'package:ubbike/shared/modelos/usuario_app.dart';
 
 class IncidenciaApp {
   const IncidenciaApp({

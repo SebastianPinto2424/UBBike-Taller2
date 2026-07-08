@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../notificaciones/data/notificacion_repository.dart';
-import '../../../shared/modelos/notificacion_app.dart';
+import 'package:ubbike/features/notificaciones/data/notificacion_repository.dart';
+import 'package:ubbike/shared/modelos/notificacion_app.dart';
 
 class ControladorNotificacionesInicio extends ChangeNotifier {
   ControladorNotificacionesInicio({

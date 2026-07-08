@@ -11,7 +11,8 @@ import { RolUsuario } from '../../usuarios/rol-usuario';
 import {
   EventosTiempoReal,
   emitirTiempoReal,
-  salaRol
+  salaRol,
+  salaUsuario
 } from '../../../tiempo-real/tiempo-real';
 import { EstadoSolicitudGuardia } from './estado-solicitud-guardia';
 import * as solicitudGuardiaRepositorio from './solicitud-guardia.repositorio';
@@ -40,7 +41,7 @@ type DatosListarSolicitudes = {
   limite?: number;
 };
 
-const segundosEsperaRecordatorio = 90;
+const segundosEsperaRecordatorio = 60;
 const rolesCentral: string[] = [RolUsuario.ADMIN_CENTRAL, RolUsuario.ADMINISTRADOR];
 const rolesGestionSolicitudes: string[] = [
   RolUsuario.GUARDIA,
@@ -146,7 +147,7 @@ const mapearSolicitudGuardia = (solicitud: SolicitudCompleta) => {
     resueltaEn: solicitud.resueltaEn,
     puedeNotificarGuardia: Boolean(solicitud.guardiaAsignado) && segundosParaNotificarGuardia === 0,
     puedeNotificarGuardiaUsuario:
-      Boolean(solicitud.guardiaAsignado) && !estadosCerrados.includes(solicitud.estado),
+      Boolean(solicitud.guardiaAsignado) && segundosParaNotificarGuardia === 0,
     segundosParaNotificarGuardia,
     bicicletero: {
       id: solicitud.bicicletero.id,
@@ -226,6 +227,18 @@ const reiterarSolicitudAbierta = async (
 
   if (estadosCerrados.includes(solicitud.estado)) {
     throw new ErrorHttp(409, 'La solicitud ya está cerrada');
+  }
+
+  if (solicitud.guardiaAsignado) {
+    if (solicitud.respondidaPorGuardiaEn || solicitud.estado === EstadoSolicitudGuardia.EN_CAMINO) {
+      throw new ErrorHttp(409, 'El guardia ya respondió esta solicitud');
+    }
+
+    const segundosRestantes = calcularSegundosParaRecordatorio(solicitud);
+
+    if (segundosRestantes !== null && segundosRestantes > 0) {
+      throw new ErrorHttp(409, `Podrás enviar un nuevo aviso en ${segundosRestantes} segundos`);
+    }
   }
 
   const mensajeLimpio = mensaje?.trim();
@@ -434,6 +447,7 @@ export const crearSolicitudGuardia = async (datos: DatosCrearSolicitud) => {
 
     emitirTiempoReal(
       [
+        salaUsuario(solicitudCompleta.solicitadaPorUsuario.id),
         salaRol(RolUsuario.GUARDIA),
         salaRol(RolUsuario.ADMIN_CENTRAL),
         salaRol(RolUsuario.ADMINISTRADOR)
@@ -519,6 +533,7 @@ export const notificarGuardiaSolicitud = async (datos: DatosNotificarGuardia) =>
 
     emitirTiempoReal(
       [
+        salaUsuario(solicitudActualizada.solicitadaPorUsuario.id),
         salaRol(RolUsuario.GUARDIA),
         salaRol(RolUsuario.ADMIN_CENTRAL),
         salaRol(RolUsuario.ADMINISTRADOR)
@@ -654,6 +669,7 @@ export const actualizarEstadoSolicitudGuardia = async (
 
     emitirTiempoReal(
       [
+        salaUsuario(solicitudActualizada.solicitadaPorUsuario.id),
         salaRol(RolUsuario.GUARDIA),
         salaRol(RolUsuario.ADMIN_CENTRAL),
         salaRol(RolUsuario.ADMINISTRADOR)

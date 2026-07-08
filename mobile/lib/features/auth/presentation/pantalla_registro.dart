@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:ubbike/features/auth/application/autenticacion_vm.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/providers/repositorios_provider.dart';
-import '../../../core/servicios/excepcion_api.dart';
-import '../../../core/tema/colores_ubb.dart';
-import '../../../shared/utils/identidad.dart';
-import '../../../shared/widgets/contenedor_responsivo.dart';
-import '../../../shared/widgets/marca_ubbike.dart';
-import '../../../shared/widgets/snackbar_semantico.dart';
-import 'widgets/estilos_formulario_auth.dart';
+import 'package:ubbike/core/servicios/excepcion_api.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/shared/utils/identidad.dart';
+import 'package:ubbike/shared/widgets/contenedor_responsivo.dart';
+import 'package:ubbike/shared/widgets/marca_ubbike.dart';
+import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
+import 'package:ubbike/features/auth/presentation/widgets/estilos_formulario_auth.dart';
 
 class PantallaRegistro extends ConsumerStatefulWidget {
   const PantallaRegistro({super.key});
@@ -79,7 +79,7 @@ class _PantallaRegistroState extends ConsumerState<PantallaRegistro> {
             Text(
               'Crear cuenta',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: ColoresUbb.azulOscuro,
+                    color: ColoresUbb.textoPrincipal,
                     fontWeight: FontWeight.w900,
                   ),
             ),
@@ -224,15 +224,12 @@ class _PantallaRegistroState extends ConsumerState<PantallaRegistro> {
                       },
                     ),
                     const SizedBox(height: 26),
-                    ElevatedButton.icon(
+                    ElevatedButton(
                       style: estiloBotonAuth(),
                       onPressed: cargando ? null : _registrar,
-                      icon: cargando
+                      child: cargando
                           ? indicadorBotonAuth()
-                          : const Icon(Icons.mark_email_read_outlined),
-                      label: Text(
-                        cargando ? 'Registrando...' : 'Registrar',
-                      ),
+                          : const Text('Registrar'),
                     ),
                   ],
                 ),
@@ -254,7 +251,7 @@ class _PantallaRegistroState extends ConsumerState<PantallaRegistro> {
     try {
       final correo = correoController.text.trim();
 
-      final mensaje = await ref.read(autenticacionRepositoryProvider).registrar(
+      final mensaje = await ref.read(autenticacionVmProvider).registrar(
             nombre: nombreController.text.trim(),
             rut: rutController.text.trim(),
             correo: correo,
@@ -311,7 +308,7 @@ class _PantallaRegistroState extends ConsumerState<PantallaRegistro> {
                 'Correo enviado',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: ColoresUbb.azulOscuro,
+                      color: ColoresUbb.textoPrincipal,
                       fontWeight: FontWeight.w900,
                     ),
               ),

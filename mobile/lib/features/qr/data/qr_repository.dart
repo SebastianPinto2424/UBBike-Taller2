@@ -1,5 +1,5 @@
-import 'qr_api.dart';
-import 'qr_modelos.dart';
+import 'package:ubbike/features/qr/data/qr_api.dart';
+import 'package:ubbike/features/qr/data/qr_modelos.dart';
 
 class QrRepository {
   const QrRepository(this._api);

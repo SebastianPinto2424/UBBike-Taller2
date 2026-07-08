@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'colores_ubb.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
 
 ThemeData crearTemaUbb() {
   const esquema = ColorScheme.light(
@@ -8,7 +8,7 @@ ThemeData crearTemaUbb() {
     onPrimary: Colors.white,
     secondary: ColoresUbb.turquesa,
     onSecondary: ColoresUbb.azulNoche,
-    tertiary: ColoresUbb.azulInstitucional,
+    tertiary: ColoresUbb.azulApp,
     onTertiary: Colors.white,
     error: ColoresUbb.rojoInstitucional,
     onError: Colors.white,
@@ -54,7 +54,10 @@ ThemeData crearTemaUbb() {
     appBarTheme: const AppBarTheme(
       backgroundColor: ColoresUbb.azulNoche,
       foregroundColor: Colors.white,
+      surfaceTintColor: ColoresUbb.azulNoche,
+      shadowColor: Colors.transparent,
       elevation: 0,
+      scrolledUnderElevation: 0,
       centerTitle: false,
       titleTextStyle: TextStyle(
         color: Colors.white,
@@ -66,7 +69,7 @@ ThemeData crearTemaUbb() {
     cardTheme: CardThemeData(
       color: ColoresUbb.superficie,
       elevation: 0.5,
-      shadowColor: ColoresUbb.azulOscuro.withValues(alpha: 0.08),
+      shadowColor: ColoresUbb.textoPrincipal.withValues(alpha: 0.08),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: const BorderSide(color: ColoresUbb.borde),
@@ -91,10 +94,10 @@ ThemeData crearTemaUbb() {
           width: 1.6,
         ),
       ),
-      prefixIconColor: ColoresUbb.azulInstitucional,
+      prefixIconColor: ColoresUbb.azulApp,
       labelStyle: const TextStyle(color: ColoresUbb.textoSecundario),
       floatingLabelStyle: const TextStyle(
-        color: ColoresUbb.azulInstitucional,
+        color: ColoresUbb.azulApp,
         fontWeight: FontWeight.w800,
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -119,7 +122,7 @@ ThemeData crearTemaUbb() {
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         return TextStyle(
           color: states.contains(WidgetState.selected)
-              ? ColoresUbb.azulInstitucional
+              ? ColoresUbb.azulApp
               : ColoresUbb.textoSecundario,
           fontWeight: states.contains(WidgetState.selected)
               ? FontWeight.w800
@@ -139,7 +142,7 @@ ThemeData crearTemaUbb() {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: ColoresUbb.azulInstitucional,
+        foregroundColor: ColoresUbb.azulApp,
         backgroundColor: Colors.white,
         minimumSize: const Size.fromHeight(50),
         textStyle: const TextStyle(fontWeight: FontWeight.w800),
@@ -149,7 +152,7 @@ ThemeData crearTemaUbb() {
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: ColoresUbb.azulInstitucional,
+        foregroundColor: ColoresUbb.azulApp,
         textStyle: const TextStyle(fontWeight: FontWeight.w800),
       ),
     ),
@@ -165,7 +168,7 @@ ThemeData crearTemaUbb() {
           if (states.contains(WidgetState.selected)) {
             return Colors.white;
           }
-          return ColoresUbb.azulInstitucional;
+          return ColoresUbb.azulApp;
         }),
         side: WidgetStateProperty.resolveWith((states) {
           return BorderSide(

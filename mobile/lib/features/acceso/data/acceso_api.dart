@@ -1,6 +1,6 @@
-import '../../../core/servicios/cliente_api.dart';
-import '../../../shared/modelos/movimiento_app.dart';
-import 'acceso_modelos.dart';
+import 'package:ubbike/core/servicios/cliente_api.dart';
+import 'package:ubbike/shared/modelos/movimiento_app.dart';
+import 'package:ubbike/features/acceso/data/acceso_modelos.dart';
 
 class AccesoApi {
   const AccesoApi({required this.cliente});

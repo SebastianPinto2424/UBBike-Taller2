@@ -1,5 +1,5 @@
-import '../../../shared/modelos/usuario_app.dart';
-import 'autenticacion_api.dart';
+import 'package:ubbike/shared/modelos/usuario_app.dart';
+import 'package:ubbike/features/auth/data/autenticacion_api.dart';
 
 class AutenticacionRepository {
   const AutenticacionRepository(this._api);

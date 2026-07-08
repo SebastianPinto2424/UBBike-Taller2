@@ -1,4 +1,5 @@
-part of 'widgets_comun.dart';
+import 'package:flutter/material.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
 
 class GridIndicadoresCentral extends StatelessWidget {
   const GridIndicadoresCentral({super.key, required this.indicadores});

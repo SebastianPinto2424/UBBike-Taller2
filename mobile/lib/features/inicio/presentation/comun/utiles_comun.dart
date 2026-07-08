@@ -1,4 +1,8 @@
-part of 'widgets_comun.dart';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
+import 'package:ubbike/core/configuracion/configuracion_api.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
 
 Uint8List? decodificarFotoDataUrl(String? fotoDataUrl) {
   if (fotoDataUrl == null || !fotoDataUrl.startsWith('data:image')) {

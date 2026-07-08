@@ -84,3 +84,22 @@ export const seleccionarBicicleteroGuardia = async (guardiaId: string, biciclete
 
   return mapearAsignacion(resultado);
 };
+
+export const liberarBicicleteroGuardia = async (guardiaId: string) => {
+  await asignacionGuardiaRepositorio.ejecutarEnTransaccion(async (db) => {
+    await asignacionGuardiaRepositorio.cerrarActivasDeGuardia(guardiaId, new Date(), db);
+
+    await registrarAuditoria(
+      {
+        actorUsuarioId: guardiaId,
+        accion: 'GUARDIA_BICICLETERO_LIBERADO',
+        entidad: 'asignaciones_guardias',
+        entidadId: guardiaId,
+        datos: {}
+      },
+      db
+    );
+  });
+
+  return { message: 'Ya no gestionas un bicicletero' };
+};

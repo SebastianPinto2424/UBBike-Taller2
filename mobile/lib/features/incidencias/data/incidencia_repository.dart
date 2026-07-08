@@ -1,5 +1,5 @@
-import 'incidencia_api.dart';
-import 'incidencia_modelos.dart';
+import 'package:ubbike/features/incidencias/data/incidencia_api.dart';
+import 'package:ubbike/features/incidencias/data/incidencia_modelos.dart';
 
 class IncidenciaRepository {
   const IncidenciaRepository(this._api);

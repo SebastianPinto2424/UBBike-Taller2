@@ -9,7 +9,12 @@ class MovimientoApp {
     required this.usuarioCorreo,
     required this.usuarioRut,
     required this.bicicletaDescripcion,
+    this.bicicletaMarca,
+    this.bicicletaModelo,
+    this.bicicletaColor,
+    this.bicicletaAro,
     this.bicicletaNumeroSerie,
+    this.bicicletaFotoUrl,
     required this.bicicleteroNombre,
     required this.guardiaNombre,
     this.motivoDenegacion,
@@ -25,7 +30,12 @@ class MovimientoApp {
   final String usuarioCorreo;
   final String? usuarioRut;
   final String bicicletaDescripcion;
+  final String? bicicletaMarca;
+  final String? bicicletaModelo;
+  final String? bicicletaColor;
+  final String? bicicletaAro;
   final String? bicicletaNumeroSerie;
+  final String? bicicletaFotoUrl;
   final String bicicleteroNombre;
   final String guardiaNombre;
   final String? motivoDenegacion;
@@ -47,7 +57,12 @@ class MovimientoApp {
       usuarioCorreo: usuario['correo'] as String,
       usuarioRut: usuario['rut'] as String?,
       bicicletaDescripcion: bicicleta['descripcion'] as String,
+      bicicletaMarca: bicicleta['marca'] as String?,
+      bicicletaModelo: bicicleta['modelo'] as String?,
+      bicicletaColor: bicicleta['color'] as String?,
+      bicicletaAro: bicicleta['aro'] as String?,
       bicicletaNumeroSerie: bicicleta['numeroSerie'] as String?,
+      bicicletaFotoUrl: bicicleta['fotoUrl'] as String?,
       bicicleteroNombre: bicicletero['nombre'] as String,
       guardiaNombre: guardia['nombre'] as String,
       motivoDenegacion: json['motivoDenegacion'] as String?,

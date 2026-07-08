@@ -8,9 +8,15 @@ jest.mock('../../src/configuracion/redis', () => ({
 
 jest.mock('../../src/modulos/correos/correo.servicio', () => ({
   crearCorreoVerificacion: jest.fn().mockReturnValue({ asunto: 'Verificar', texto: '', html: '' }),
-  crearCorreoCuentaVerificada: jest.fn().mockReturnValue({ asunto: 'Verificada', texto: '', html: '' }),
-  crearCorreoCambioContrasena: jest.fn().mockReturnValue({ asunto: 'Cambiar', texto: '', html: '' }),
-  crearCorreoContrasenaActualizada: jest.fn().mockReturnValue({ asunto: 'Actualizada', texto: '', html: '' }),
+  crearCorreoCuentaVerificada: jest
+    .fn()
+    .mockReturnValue({ asunto: 'Verificada', texto: '', html: '' }),
+  crearCorreoCambioContrasena: jest
+    .fn()
+    .mockReturnValue({ asunto: 'Cambiar', texto: '', html: '' }),
+  crearCorreoContrasenaActualizada: jest
+    .fn()
+    .mockReturnValue({ asunto: 'Actualizada', texto: '', html: '' }),
   enviarCorreo: jest.fn().mockResolvedValue(undefined)
 }));
 
@@ -38,12 +44,14 @@ const usuarioBase = {
   contrasenaHash: '$2a$12$placeholder',
   correoVerificado: false,
   registroParcial: false,
+  debeCambiarContrasena: false,
   cuentaActiva: true,
   versionSesion: 0,
   tokenVerificacionCorreo: null,
   tokenVerificacionCorreoExpiraEn: null,
   tokenCambioContrasena: null,
   tokenCambioContrasenaExpiraEn: null,
+  eliminadoEn: null,
   creadoEn: new Date(),
   actualizadoEn: new Date()
 };
@@ -76,6 +84,83 @@ describe('registrarUsuario', () => {
 
     expect(resultado.message).toContain('Registro recibido');
     expect(prismaMock.usuario.create).toHaveBeenCalled();
+  });
+
+  it('reactiva cuenta eliminada si el auto-registro reutiliza el RUT con correo nuevo', async () => {
+    const eliminado = {
+      ...usuarioBase,
+      id: 'uuid-eliminado',
+      correo: 'correo.antiguo@alumnos.ubiobio.cl',
+      cuentaActiva: false,
+      eliminadoEn: new Date()
+    };
+    const restaurado = {
+      ...eliminado,
+      nombre: 'Juan Reactivado',
+      correo: 'correo.nuevo@alumnos.ubiobio.cl',
+      cuentaActiva: true,
+      correoVerificado: false,
+      eliminadoEn: null,
+      versionSesion: 1
+    };
+    prismaMock.usuario.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(eliminado as any);
+    prismaMock.usuario.update.mockResolvedValue(restaurado as any);
+
+    const resultado = await registrarUsuario({
+      nombre: restaurado.nombre,
+      rut: eliminado.rut,
+      correo: restaurado.correo,
+      contrasena: 'UBBike2026*Test!'
+    });
+
+    expect(resultado.message).toContain('Registro recibido');
+    expect(prismaMock.usuario.create).not.toHaveBeenCalled();
+    expect(prismaMock.usuario.update).toHaveBeenCalledWith({
+      where: { id: eliminado.id },
+      data: expect.objectContaining({
+        nombre: restaurado.nombre,
+        correo: restaurado.correo,
+        rut: eliminado.rut,
+        cuentaActiva: true,
+        correoVerificado: false,
+        registroParcial: false,
+        eliminadoEn: null,
+        versionSesion: { increment: 1 }
+      })
+    });
+  });
+
+  it('bloquea auto-registro si correo y RUT apuntan a eliminados distintos', async () => {
+    const eliminadoPorCorreo = {
+      ...usuarioBase,
+      id: 'uuid-correo',
+      correo: 'correo.nuevo@alumnos.ubiobio.cl',
+      rut: null,
+      eliminadoEn: new Date()
+    };
+    const eliminadoPorRut = {
+      ...usuarioBase,
+      id: 'uuid-rut',
+      correo: 'correo.antiguo@alumnos.ubiobio.cl',
+      rut: '12.345.678-9',
+      eliminadoEn: new Date()
+    };
+    prismaMock.usuario.findUnique
+      .mockResolvedValueOnce(eliminadoPorCorreo as any)
+      .mockResolvedValueOnce(eliminadoPorRut as any);
+
+    await expect(
+      registrarUsuario({
+        nombre: 'Juan Reactivado',
+        rut: eliminadoPorRut.rut!,
+        correo: eliminadoPorCorreo.correo,
+        contrasena: 'UBBike2026*Test!'
+      })
+    ).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.usuario.update).not.toHaveBeenCalled();
+    expect(prismaMock.usuario.create).not.toHaveBeenCalled();
   });
 });
 

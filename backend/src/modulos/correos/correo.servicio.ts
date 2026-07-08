@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+﻿import nodemailer from 'nodemailer';
 import { entorno } from '../../configuracion/entorno';
 
 type AdjuntoCorreo = {
@@ -15,6 +15,8 @@ type DatosCorreo = {
   adjuntos?: AdjuntoCorreo[];
 };
 
+const CORREO_SOPORTE = 'soporte@ubbike.cl';
+
 const escaparHtml = (valor: string): string =>
   valor
     .replace(/&/g, '&amp;')
@@ -30,6 +32,58 @@ const envolverHtml = (cuerpo: string): string => `<!doctype html>
 ${cuerpo}
 </body>
 </html>`;
+
+const fechaLegible = (fecha: Date = new Date()): string =>
+  fecha.toLocaleString('es-CL', {
+    dateStyle: 'long',
+    timeStyle: 'short',
+    timeZone: 'America/Santiago'
+  });
+
+const etiquetaRol = (rol?: string): string => {
+  switch (rol) {
+    case 'GUARDIA':
+      return 'guardia';
+    case 'FUNCIONARIO':
+      return 'funcionario';
+    case 'ESTUDIANTE':
+      return 'estudiante';
+    case 'ADMIN_CENTRAL':
+      return 'administrador central';
+    case 'ADMINISTRADOR':
+      return 'administrador';
+    default:
+      return 'usuario';
+  }
+};
+
+const capitalizar = (valor: string): string =>
+  valor.length === 0 ? valor : valor.charAt(0).toUpperCase() + valor.slice(1);
+
+const boton = (enlace: string, texto: string): string =>
+  `<p style="margin:18px 0;"><a href="${escaparHtml(enlace)}" style="display:inline-block;background:#014898;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:bold;">${escaparHtml(texto)}</a></p>`;
+
+const pieHtml = (opciones: { antiPhishing?: boolean } = {}): string => `
+    <hr style="border:none;border-top:1px solid #e5e7eb;margin:18px 0;" />
+    ${
+      opciones.antiPhishing
+        ? `<p style="color:#6b7280;font-size:13px;margin:4px 0;">Por seguridad, UBBike nunca te pedirÃ¡ tu contraseÃ±a ni cÃ³digos por correo.</p>`
+        : ''
+    }
+    <p style="color:#6b7280;font-size:13px;margin:4px 0;">Â¿Necesitas ayuda o no reconoces esta actividad? EscrÃ­benos a <a href="mailto:${CORREO_SOPORTE}" style="color:#014898;">${CORREO_SOPORTE}</a>.</p>
+    <p style="color:#172033;font-weight:bold;margin-top:10px;">Equipo UBBike</p>`;
+
+const pieTexto = (opciones: { antiPhishing?: boolean } = {}): string =>
+  [
+    '',
+    opciones.antiPhishing
+      ? 'Por seguridad, UBBike nunca te pedirÃ¡ tu contraseÃ±a ni cÃ³digos por correo.'
+      : '',
+    `Â¿Necesitas ayuda o no reconoces esta actividad? EscrÃ­benos a ${CORREO_SOPORTE}.`,
+    'Equipo UBBike'
+  ]
+    .filter((linea, indice) => linea !== '' || indice === 0)
+    .join('\n');
 
 const crearTransporte = () => {
   if (!entorno.correo.host) {
@@ -90,121 +144,175 @@ export const enviarCorreo = async (datos: DatosCorreo): Promise<void> => {
 };
 
 export const crearCorreoVerificacion = (nombre: string, enlace: string) => ({
-  asunto: 'Verifica tu cuenta UBBike',
-  texto: `Hola ${nombre}. Para activar tu cuenta UBBike ingresa a: ${enlace}`,
+  asunto: 'Confirma tu correo para activar tu cuenta UBBike',
+  texto: `Hola ${nombre}: confirma que este correo es tuyo para activar tu cuenta UBBike.
+Abre este enlace (vence en 24 horas): ${enlace}
+Si no creaste esta cuenta, ignora este mensaje: nadie podrÃ¡ activarla sin este paso.
+${pieTexto()}`,
   html: envolverHtml(`
-    <h2 style="color: #014898;">Verifica tu cuenta UBBike</h2>
+    <h2 style="color: #014898;">Confirma tu correo</h2>
     <p>Hola ${escaparHtml(nombre)},</p>
-    <p>Recibimos tu solicitud de registro. Para activar tu cuenta, abre el siguiente enlace:</p>
-    <p><a href="${escaparHtml(enlace)}" style="color: #014898; font-weight: bold;">Activar cuenta</a></p>
-    <p>Si no solicitaste este registro, puedes ignorar este correo.</p>
+    <p>Recibimos el registro de esta cuenta. Confirma que este correo es tuyo para activarla.</p>
+    ${boton(enlace, 'Confirmar mi correo')}
+    <p>El enlace vence en <strong>24 horas</strong>. Si no creaste esta cuenta, ignÃ³ralo: nadie podrÃ¡ activarla sin este paso.</p>
+    ${pieHtml()}
   `)
 });
 
 export const crearCorreoCompletarRegistro = (correoUsuario: string, enlace: string) => ({
-  asunto: 'Completa tu registro UBBike',
-  texto: `Hola. Un guardia registró un movimiento manual asociado a ${correoUsuario}. Completa tu registro UBBike en: ${enlace}`,
+  asunto: 'Activa tu cuenta UBBike para gestionar tu bicicleta',
+  texto: `Hola: un guardia registrÃ³ un movimiento de tu bicicleta el ${fechaLegible()}, pero esta cuenta (${correoUsuario}) aÃºn no estÃ¡ activa.
+ActÃ­vala para ver tu historial y generar tus cÃ³digos QR (enlace vence en 24 horas): ${enlace}
+Si no reconoces este movimiento, escrÃ­benos a ${CORREO_SOPORTE}.
+${pieTexto()}`,
   html: envolverHtml(`
-    <h2 style="color: #014898;">Completa tu registro UBBike</h2>
+    <h2 style="color: #014898;">Activa tu cuenta UBBike</h2>
     <p>Hola,</p>
-    <p>Un guardia registró un movimiento manual asociado a tu correo.</p>
-    <p>Para activar tu cuenta, crear tu contraseña y usar códigos QR, abre el siguiente enlace:</p>
-    <p><a href="${escaparHtml(enlace)}" style="color: #014898; font-weight: bold;">Completar registro</a></p>
-    <p>Si no reconoces este movimiento, contacta a administración.</p>
+    <p>Un guardia registrÃ³ un movimiento de tu bicicleta el <strong>${escaparHtml(fechaLegible())}</strong>, pero esta cuenta aÃºn no estÃ¡ activa.</p>
+    <p>ActÃ­vala para ver tu historial y generar tus cÃ³digos QR.</p>
+    ${boton(enlace, 'Activar mi cuenta')}
+    <p>El enlace vence en <strong>24 horas</strong>. Si no reconoces este movimiento, contÃ¡ctanos.</p>
+    ${pieHtml()}
   `)
 });
 
-export const crearCorreoCuentaVerificada = (nombre: string) => ({
-  asunto: 'Cuenta UBBike activada',
-  texto: `Hola ${nombre}. Tu cuenta UBBike fue activada correctamente.`,
-  html: envolverHtml(`
-    <h2 style="color: #014898;">Cuenta UBBike activada</h2>
+export const crearCorreoCuentaVerificada = (nombre: string) => {
+  const fecha = fechaLegible();
+  return {
+    asunto: 'Tu cuenta UBBike ya estÃ¡ activa',
+    texto: `Hola ${nombre}: confirmamos tu correo y activamos tu cuenta el ${fecha}. Ya puedes iniciar sesiÃ³n y registrar tus bicicletas.
+Si no fuiste tÃº, escrÃ­benos a ${CORREO_SOPORTE}.
+${pieTexto()}`,
+    html: envolverHtml(`
+    <h2 style="color: #014898;">Tu cuenta ya estÃ¡ activa</h2>
     <p>Hola ${escaparHtml(nombre)},</p>
-    <p>Tu cuenta fue activada correctamente. Ya puedes iniciar sesión y usar UBBike.</p>
+    <p>Confirmamos tu correo y activamos tu cuenta el <strong>${escaparHtml(fecha)}</strong>. Ya puedes iniciar sesiÃ³n y registrar tus bicicletas.</p>
+    ${pieHtml()}
   `)
-});
+  };
+};
 
-export const crearCorreoCuentaDesactivada = (nombre: string) => ({
-  asunto: 'Cuenta UBBike desactivada',
-  texto: `Hola ${nombre}. Tu cuenta UBBike fue desactivada por administración. Si crees que es un error, contacta a administración.`,
-  html: envolverHtml(`
-    <h2 style="color: #014898;">Cuenta desactivada</h2>
+export const crearCorreoCuentaAdministrativa = (
+  nombre: string,
+  enlace: string,
+  horasExpiracion: number,
+  rol?: string
+) => {
+  const rolTexto = etiquetaRol(rol);
+  const fecha = fechaLegible();
+  return {
+    asunto: `Te damos la bienvenida a UBBike â€” activa tu cuenta de ${rolTexto}`,
+    texto: `Hola ${nombre}: administraciÃ³n creÃ³ una cuenta de ${rolTexto} para ti el ${fecha}.
+Crea tu propia contraseÃ±a (nunca te enviamos una). Es tu primer ingreso, no un cambio de contraseÃ±a.
+Enlace de un solo uso, vence en ${horasExpiracion} horas: ${enlace}
+${pieTexto({ antiPhishing: true })}`,
+    html: envolverHtml(`
+    <h2 style="color: #014898;">Te damos la bienvenida a UBBike</h2>
     <p>Hola ${escaparHtml(nombre)},</p>
-    <p>Tu cuenta UBBike fue desactivada por administración.</p>
-    <p>No podrás iniciar sesión mientras la cuenta esté desactivada.</p>
-    <p>Si crees que es un error, contacta a administración.</p>
+    <p>AdministraciÃ³n creÃ³ una cuenta de <strong>${escaparHtml(rolTexto)}</strong> para ti el <strong>${escaparHtml(fecha)}</strong>.</p>
+    <p>Para empezar, <strong>crea tu propia contraseÃ±a</strong> (nunca te enviamos una). Es tu primer ingreso, no un cambio de contraseÃ±a.</p>
+    ${boton(enlace, 'Crear mi contraseÃ±a')}
+    <p>El enlace es de <strong>un solo uso</strong> y vence en ${horasExpiracion} horas.</p>
+    ${pieHtml({ antiPhishing: true })}
   `)
-});
+  };
+};
 
-export const crearCorreoCuentaReactivada = (nombre: string) => ({
-  asunto: 'Cuenta UBBike reactivada',
-  texto: `Hola ${nombre}. Tu cuenta UBBike fue reactivada por administración. Ya puedes intentar iniciar sesión nuevamente.`,
-  html: envolverHtml(`
-    <h2 style="color: #014898;">Cuenta reactivada</h2>
+export const crearCorreoCuentaDesactivada = (nombre: string) => {
+  const fecha = fechaLegible();
+  return {
+    asunto: 'Alerta de seguridad: tu cuenta UBBike fue desactivada',
+    texto: `Hola ${nombre}: tu cuenta UBBike fue desactivada el ${fecha}. No podrÃ¡s iniciar sesiÃ³n mientras siga asÃ­.
+Si no esperabas esto, escrÃ­benos de inmediato a ${CORREO_SOPORTE}.
+${pieTexto()}`,
+    html: envolverHtml(`
+    <h2 style="color: #014898;">Tu cuenta fue desactivada</h2>
     <p>Hola ${escaparHtml(nombre)},</p>
-    <p>Tu cuenta UBBike fue reactivada por administración.</p>
-    <p>Ya puedes intentar iniciar sesión nuevamente.</p>
+    <p>Tu cuenta UBBike fue desactivada el <strong>${escaparHtml(fecha)}</strong>. No podrÃ¡s iniciar sesiÃ³n mientras siga asÃ­.</p>
+    <p>Si no esperabas esto, contÃ¡ctanos de inmediato.</p>
+    ${pieHtml()}
   `)
-});
+  };
+};
+
+export const crearCorreoCuentaReactivada = (nombre: string) => {
+  const fecha = fechaLegible();
+  return {
+    asunto: 'Tu cuenta UBBike fue reactivada',
+    texto: `Hola ${nombre}: administraciÃ³n reactivÃ³ tu cuenta el ${fecha}. Ya puedes iniciar sesiÃ³n con tu contraseÃ±a habitual.
+Si no reconoces esta acciÃ³n, escrÃ­benos a ${CORREO_SOPORTE}.
+${pieTexto()}`,
+    html: envolverHtml(`
+    <h2 style="color: #014898;">Tu cuenta fue reactivada</h2>
+    <p>Hola ${escaparHtml(nombre)},</p>
+    <p>AdministraciÃ³n reactivÃ³ tu cuenta el <strong>${escaparHtml(fecha)}</strong>. Ya puedes iniciar sesiÃ³n con tu contraseÃ±a habitual.</p>
+    <p>Si no reconoces esta acciÃ³n, contÃ¡ctanos.</p>
+    ${pieHtml()}
+  `)
+  };
+};
 
 export const crearCorreoRolActualizado = (
   nombre: string,
   rolAnterior: string,
   rolNuevo: string
-) => ({
-  asunto: 'Rol UBBike actualizado',
-  texto: `Hola ${nombre}. Administración actualizó tu rol UBBike de ${rolAnterior} a ${rolNuevo}.`,
-  html: envolverHtml(`
-    <h2 style="color: #014898;">Rol actualizado</h2>
+) => {
+  const fecha = fechaLegible();
+  const antes = capitalizar(etiquetaRol(rolAnterior));
+  const ahora = capitalizar(etiquetaRol(rolNuevo));
+  return {
+    asunto: `Alerta de seguridad: tu rol en UBBike cambiÃ³ a ${ahora}`,
+    texto: `Hola ${nombre}: administraciÃ³n cambiÃ³ tu rol el ${fecha}.
+Antes: ${antes} â€” Ahora: ${ahora}.
+Esto modifica tus permisos dentro de la app. Si no reconoces este cambio, escrÃ­benos de inmediato a ${CORREO_SOPORTE}.
+${pieTexto()}`,
+    html: envolverHtml(`
+    <h2 style="color: #014898;">Tu rol cambiÃ³</h2>
     <p>Hola ${escaparHtml(nombre)},</p>
-    <p>Administración actualizó tu rol UBBike.</p>
+    <p>AdministraciÃ³n cambiÃ³ tu rol el <strong>${escaparHtml(fecha)}</strong>.</p>
     <ul>
-      <li><strong>Rol anterior:</strong> ${escaparHtml(rolAnterior)}</li>
-      <li><strong>Rol nuevo:</strong> ${escaparHtml(rolNuevo)}</li>
+      <li><strong>Antes:</strong> ${escaparHtml(antes)}</li>
+      <li><strong>Ahora:</strong> ${escaparHtml(ahora)}</li>
     </ul>
-    <p>Si no reconoces este cambio, contacta a administración.</p>
+    <p>Esto modifica tus permisos dentro de la app. Si no reconoces este cambio, contÃ¡ctanos de inmediato.</p>
+    ${pieHtml()}
   `)
-});
-
-export const crearCorreoCuentaAdministrativa = (
-  nombre: string,
-  enlace: string,
-  horasExpiracion: number
-) => ({
-  asunto: 'Cuenta UBBike creada por administración',
-  texto: `Hola ${nombre}. Administración creó o reactivó tu cuenta UBBike. Define tu contraseña en: ${enlace}. Este enlace expira en ${horasExpiracion} horas.`,
-  html: envolverHtml(`
-    <h2 style="color: #014898;">Cuenta UBBike creada</h2>
-    <p>Hola ${escaparHtml(nombre)},</p>
-    <p>Administración creó o reactivó tu cuenta UBBike.</p>
-    <p>Por seguridad, no enviamos contraseñas temporales. Define tu propia contraseña usando este enlace:</p>
-    <p><a href="${escaparHtml(enlace)}" style="color: #014898; font-weight: bold;">Definir contraseña</a></p>
-    <p>El enlace expira en ${horasExpiracion} horas. Si no reconoces esta acción, contacta a administración.</p>
-  `)
-});
+  };
+};
 
 export const crearCorreoCambioContrasena = (nombre: string, enlace: string) => ({
-  asunto: 'Cambio de contraseña UBBike',
-  texto: `Hola ${nombre}. Para cambiar tu contraseña UBBike ingresa a: ${enlace}`,
+  asunto: 'Restablece tu contraseÃ±a de UBBike',
+  texto: `Hola ${nombre}: recibimos una solicitud para restablecer la contraseÃ±a de esta cuenta.
+Si fuiste tÃº, crea una nueva (enlace de un solo uso, vence pronto): ${enlace}
+Si no lo solicitaste, ignora este correo: tu contraseÃ±a no ha cambiado.
+${pieTexto({ antiPhishing: true })}`,
   html: envolverHtml(`
-    <h2 style="color: #014898;">Cambio de contraseña UBBike</h2>
+    <h2 style="color: #014898;">Restablece tu contraseÃ±a</h2>
     <p>Hola ${escaparHtml(nombre)},</p>
-    <p>Solicitaste cambiar tu contraseña. Usa este enlace para continuar:</p>
-    <p><a href="${escaparHtml(enlace)}" style="color: #014898; font-weight: bold;">Cambiar contraseña</a></p>
-    <p>El enlace expira por seguridad. Si no solicitaste el cambio, ignora este correo.</p>
+    <p>Recibimos una solicitud para restablecer la contraseÃ±a de esta cuenta.</p>
+    ${boton(enlace, 'Restablecer contraseÃ±a')}
+    <p>El enlace es de <strong>un solo uso</strong> y vence pronto por seguridad. Si no lo solicitaste, ignora este correo: <strong>tu contraseÃ±a no ha cambiado</strong>.</p>
+    ${pieHtml({ antiPhishing: true })}
   `)
 });
 
-export const crearCorreoContrasenaActualizada = (nombre: string) => ({
-  asunto: 'Contraseña UBBike actualizada',
-  texto: `Hola ${nombre}. Tu contraseña UBBike fue actualizada correctamente.`,
-  html: envolverHtml(`
-    <h2 style="color: #014898;">Contraseña actualizada</h2>
+export const crearCorreoContrasenaActualizada = (nombre: string) => {
+  const fecha = fechaLegible();
+  return {
+    asunto: 'Alerta de seguridad: tu contraseÃ±a de UBBike fue cambiada',
+    texto: `Hola ${nombre}: tu contraseÃ±a UBBike se cambiÃ³ correctamente el ${fecha}.
+Â¿No fuiste tÃº? Tu cuenta podrÃ­a estar en riesgo: restablece tu contraseÃ±a de inmediato y escrÃ­benos a ${CORREO_SOPORTE}.
+${pieTexto({ antiPhishing: true })}`,
+    html: envolverHtml(`
+    <h2 style="color: #014898;">Tu contraseÃ±a fue cambiada</h2>
     <p>Hola ${escaparHtml(nombre)},</p>
-    <p>Tu contraseña UBBike fue cambiada correctamente.</p>
-    <p>Si no realizaste este cambio, contacta a administración lo antes posible.</p>
+    <p>Tu contraseÃ±a UBBike se cambiÃ³ correctamente el <strong>${escaparHtml(fecha)}</strong>.</p>
+    <p><strong>Â¿No fuiste tÃº?</strong> Tu cuenta podrÃ­a estar en riesgo. Restablece tu contraseÃ±a de inmediato y escrÃ­benos a
+       <a href="mailto:${CORREO_SOPORTE}" style="color:#014898;">${CORREO_SOPORTE}</a>.</p>
+    ${pieHtml({ antiPhishing: true })}
   `)
-});
+  };
+};
 
 type DatosCorreoMovimiento = {
   nombre: string;
@@ -222,7 +330,6 @@ type DatosCorreoMovimiento = {
   fecha: Date;
   motivoDenegacion?: string | null;
   comentarioGuardia?: string | null;
-
   fotoCid?: string | null;
 };
 
@@ -232,7 +339,7 @@ const etiquetaEstadoMovimiento = (estado: string) =>
   estado === 'CONFIRMADO' ? 'confirmado' : 'denegado';
 
 const etiquetaOrigenMovimiento = (origen: string) =>
-  origen === 'MANUAL' ? 'manual' : 'por código QR';
+  origen === 'MANUAL' ? 'manual' : 'por cÃ³digo QR';
 
 export const crearCorreoMovimiento = (datos: DatosCorreoMovimiento) => {
   const tipo = etiquetaMovimiento(datos.tipo);
@@ -243,28 +350,31 @@ export const crearCorreoMovimiento = (datos: DatosCorreoMovimiento) => {
     timeStyle: 'short',
     timeZone: 'America/Santiago'
   });
-  const motivo = datos.motivoDenegacion ? `Motivo de denegación: ${datos.motivoDenegacion}` : '';
+  const motivo = datos.motivoDenegacion ? `Motivo de denegaciÃ³n: ${datos.motivoDenegacion}` : '';
   const comentario = datos.comentarioGuardia
     ? `Comentario del guardia: ${datos.comentarioGuardia}`
     : '';
 
+  const valorDetalle = (valor?: string | null) => {
+    const texto = valor?.trim();
+    return texto && texto.length > 0 ? texto : 'No informado';
+  };
+
   const detalleBicicleta: Array<[string, string | null | undefined]> = [
-    ['Descripción', datos.bicicleta],
+    ['DescripciÃ³n', datos.bicicleta],
     ['Marca', datos.marca],
     ['Modelo', datos.modelo],
     ['Color', datos.color],
     ['Aro', datos.aro],
-    ['Número de serie', datos.numeroSerie]
+    ['NÃºmero de serie', datos.numeroSerie]
   ];
-  const camposBicicleta = detalleBicicleta.filter(([, valor]) => valor && `${valor}`.trim());
-
-  const textoBicicleta = camposBicicleta
-    .map(([etiqueta, valor]) => `  - ${etiqueta}: ${valor}`)
+  const textoBicicleta = detalleBicicleta
+    .map(([etiqueta, valor]) => `  - ${etiqueta}: ${valorDetalle(valor)}`)
     .join('\n');
-  const htmlBicicleta = camposBicicleta
+  const htmlBicicleta = detalleBicicleta
     .map(
       ([etiqueta, valor]) =>
-        `<li><strong>${etiqueta}:</strong> ${escaparHtml(`${valor}`)}</li>`
+        `<li><strong>${etiqueta}:</strong> ${escaparHtml(valorDetalle(valor))}</li>`
     )
     .join('');
   const htmlFoto = datos.fotoCid
@@ -274,32 +384,31 @@ export const crearCorreoMovimiento = (datos: DatosCorreoMovimiento) => {
     : '';
 
   return {
-    asunto: `${tipo} ${origen} ${estado} en UBBike`,
+    asunto: `${tipo} ${estado}: ${datos.bicicleta} en UBBike`,
     texto: [
       `Hola ${datos.nombre}.`,
-      `Se registró un ${tipo.toLowerCase()} ${origen} ${estado}.`,
+      `Registramos un ${tipo.toLowerCase()} ${origen} ${estado} el ${fecha}.`,
       `Bicicletero: ${datos.bicicletero}.`,
       `Guardia: ${datos.guardia}.`,
-      `Fecha y hora: ${fecha}.`,
-      'Datos de la bicicleta:',
+      'Datos de tu bicicleta:',
       textoBicicleta,
       datos.fotoCid ? '(La foto de la bicicleta se adjunta en este correo.)' : '',
       motivo,
-      comentario
+      comentario,
+      pieTexto()
     ]
       .filter(Boolean)
       .join('\n'),
     html: envolverHtml(`
       <h2 style="color: #014898;">${tipo} ${origen} ${estado}</h2>
       <p>Hola ${escaparHtml(datos.nombre)},</p>
-      <p>Se registró un movimiento ${origen} en UBBike.</p>
+      <p>Registramos un <strong>${escaparHtml(tipo.toLowerCase())}</strong> ${origen} de tu bicicleta el <strong>${escaparHtml(fecha)}</strong>.</p>
       <ul>
-        <li><strong>Operación:</strong> ${tipo}</li>
+        <li><strong>OperaciÃ³n:</strong> ${tipo}</li>
         <li><strong>Resultado:</strong> ${estado}</li>
         <li><strong>Origen:</strong> ${origen}</li>
         <li><strong>Bicicletero:</strong> ${escaparHtml(datos.bicicletero)}</li>
         <li><strong>Guardia:</strong> ${escaparHtml(datos.guardia)}</li>
-        <li><strong>Fecha y hora:</strong> ${escaparHtml(fecha)}</li>
         ${
           datos.motivoDenegacion
             ? `<li><strong>Motivo:</strong> ${escaparHtml(datos.motivoDenegacion)}</li>`
@@ -311,10 +420,11 @@ export const crearCorreoMovimiento = (datos: DatosCorreoMovimiento) => {
             : ''
         }
       </ul>
-      <h3 style="color: #014898; margin-bottom:4px;">Datos de la bicicleta</h3>
+      <h3 style="color: #014898; margin-bottom:4px;">Datos de tu bicicleta</h3>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 6px;">Verifica que corresponde a tu bicicleta:</p>
       <ul>${htmlBicicleta}</ul>
       ${htmlFoto}
-      <p>Si no reconoces este movimiento, contacta a administración.</p>
+      ${pieHtml()}
     `)
   };
 };

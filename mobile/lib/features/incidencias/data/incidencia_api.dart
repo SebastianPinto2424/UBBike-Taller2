@@ -1,5 +1,5 @@
-import '../../../core/servicios/cliente_api.dart';
-import 'incidencia_modelos.dart';
+import 'package:ubbike/core/servicios/cliente_api.dart';
+import 'package:ubbike/features/incidencias/data/incidencia_modelos.dart';
 
 class IncidenciaApi {
   const IncidenciaApi({required this.cliente});

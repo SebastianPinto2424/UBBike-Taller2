@@ -3,27 +3,28 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/providers/repositorios_provider.dart';
-import '../../../core/providers/sesion_provider.dart';
-import '../../../core/tema/colores_ubb.dart';
-import '../../../core/servicios/fcm_service.dart';
-import '../../../core/servicios/tiempo_real_service.dart';
-import '../../../features/inicio/application/controlador_notificaciones_inicio.dart';
-import '../../../features/notificaciones/presentation/pantalla_notificaciones.dart';
-import '../../../shared/modelos/notificacion_app.dart';
-import '../../../shared/modelos/rol_usuario.dart';
-import '../../../shared/widgets/contenedor_responsivo.dart';
+import 'package:ubbike/core/providers/repositorios_provider.dart';
+import 'package:ubbike/core/providers/sesion_provider.dart';
+import 'package:ubbike/core/tema/colores_ubb.dart';
+import 'package:ubbike/core/servicios/fcm_service.dart';
+import 'package:ubbike/core/servicios/tiempo_real_service.dart';
+import 'package:ubbike/features/acceso/application/solicitudes_guardia_vm.dart';
+import 'package:ubbike/features/inicio/application/controlador_notificaciones_inicio.dart';
+import 'package:ubbike/features/notificaciones/presentation/pantalla_notificaciones.dart';
+import 'package:ubbike/shared/modelos/notificacion_app.dart';
+import 'package:ubbike/shared/modelos/rol_usuario.dart';
+import 'package:ubbike/shared/widgets/contenedor_responsivo.dart';
 
-import 'usuario/vista_inicio_usuario.dart';
-import 'usuario/vista_bicicletas_usuario.dart';
-import 'usuario/vista_qr_usuario.dart';
-import 'guardia/vista_inicio_guardia.dart';
-import 'guardia/vista_ingreso_guardia.dart';
-import 'central/vista_dashboard_central.dart';
-import 'central/vista_movimientos_central.dart';
-import 'central/vista_operaciones_guardias_central.dart';
-import 'soporte/vista_soporte.dart';
-import 'perfil/pantalla_principal_perfil.dart';
+import 'package:ubbike/features/inicio/presentation/vista_inicio_usuario.dart';
+import 'package:ubbike/features/bicicletas/presentation/vista_bicicletas_usuario.dart';
+import 'package:ubbike/features/qr/presentation/vista_qr_usuario.dart';
+import 'package:ubbike/features/inicio/presentation/vista_inicio_guardia.dart';
+import 'package:ubbike/features/acceso/presentation/vista_ingreso_guardia.dart';
+import 'package:ubbike/features/inicio/presentation/vista_dashboard_central.dart';
+import 'package:ubbike/features/historial/presentation/vista_movimientos_central.dart';
+import 'package:ubbike/features/acceso/presentation/vista_operaciones_guardias_central.dart';
+import 'package:ubbike/features/incidencias/presentation/vista_soporte.dart';
+import 'package:ubbike/features/perfil/presentation/pantalla_principal_perfil.dart';
 
 class PantallaPrincipal extends ConsumerStatefulWidget {
   const PantallaPrincipal({super.key});
@@ -39,20 +40,24 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   int tabAtencionAdmin = 0;
   int tabSoporte = 0;
   int tabBicicletas = 0;
+  RolUsuario? rolPaginas;
+  Set<int> indicesVisitados = {0};
   late final ControladorNotificacionesInicio controladorNotificaciones;
   late final TiempoRealService tiempoRealService;
+  StreamSubscription<void>? suscripcionSolicitudesTiempoReal;
+
+  void _seleccionarIndice(int nuevoIndice) {
+    setState(() {
+      indice = nuevoIndice;
+      indicesVisitados.add(nuevoIndice);
+    });
+  }
 
   void _abrirIngresoGuardia(ModoIngresoGuardia modo) {
     setState(() {
       modoIngresoGuardia = modo;
       indice = 2;
-    });
-  }
-
-  void _abrirGestionAdmin(int tab) {
-    setState(() {
-      tabGestionAdmin = tab;
-      indice = 4;
+      indicesVisitados.add(2);
     });
   }
 
@@ -66,11 +71,18 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     );
     controladorNotificaciones.addListener(_sincronizarNotificaciones);
     controladorNotificaciones.iniciar();
+    suscripcionSolicitudesTiempoReal =
+        tiempoRealService.solicitudes.listen((_) {
+      if (mounted) {
+        final version = ref.read(solicitudesGuardiaVersionProvider);
+        ref.read(solicitudesGuardiaVersionProvider.notifier).state =
+            version + 1;
+      }
+    });
     FcmService.instancia.notificacionTocada.addListener(_alTocarPush);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _sincronizarTiempoRealConSesion(ref.read(sesionProvider).value);
-
         _alTocarPush();
       }
     });
@@ -80,6 +92,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   void dispose() {
     controladorNotificaciones.removeListener(_sincronizarNotificaciones);
     controladorNotificaciones.dispose();
+    suscripcionSolicitudesTiempoReal?.cancel();
     FcmService.instancia.notificacionTocada.removeListener(_alTocarPush);
     tiempoRealService.dispose();
     super.dispose();
@@ -175,6 +188,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
       } else {
         indice = 3;
       }
+      indicesVisitados.add(indice);
     });
   }
 
@@ -188,6 +202,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
       } else {
         indice = 3;
       }
+      indicesVisitados.add(indice);
     });
   }
 
@@ -202,6 +217,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
         tabBicicletas = 1;
         indice = 1;
       }
+      indicesVisitados.add(indice);
     });
   }
 
@@ -322,10 +338,31 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     final destinos = _destinosPorRol(rol);
     final paginas = _paginasPorRol(rol);
 
+    if (rolPaginas != rol) {
+      rolPaginas = rol;
+      indice = 0;
+      indicesVisitados = {0};
+    }
+    if (indice >= paginas.length) {
+      indice = 0;
+      indicesVisitados = {0};
+    }
+    indicesVisitados.add(indice);
+
     final datos = _datosPaginas(rol);
     final datoActual = indice < datos.length ? datos[indice] : null;
+    final paginasStack = [
+      for (var i = 0; i < paginas.length; i++)
+        indicesVisitados.contains(i)
+            ? KeyedSubtree(
+                key: ValueKey('${rol.name}-pagina-$i'),
+                child: paginas[i],
+              )
+            : const SizedBox.shrink(),
+    ];
 
     return Scaffold(
+      backgroundColor: ColoresUbb.fondo,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: Text(datoActual?.$2 ?? 'UBBike'),
@@ -337,15 +374,23 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
           ),
         ],
       ),
-      body: ContenedorResponsivo(
-        anchoMaximo: 940,
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        child: paginas[indice],
+      body: ColoredBox(
+        color: ColoresUbb.fondo,
+        child: ContenedorResponsivo(
+          anchoMaximo: indice == 0 ? double.infinity : 940,
+          padding: indice == 0
+              ? EdgeInsets.zero
+              : const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: IndexedStack(
+            index: indice,
+            sizing: StackFit.expand,
+            children: paginasStack,
+          ),
+        ),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: indice,
-        onDestinationSelected: (nuevoIndice) =>
-            setState(() => indice = nuevoIndice),
+        onDestinationSelected: _seleccionarIndice,
         destinations: destinos,
       ),
     );
@@ -447,8 +492,8 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     if (rol == RolUsuario.administrador) {
       return [
         const NavigationDestination(
-          icon: Icon(Icons.dashboard_outlined),
-          selectedIcon: Icon(Icons.dashboard),
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
           label: 'Inicio',
         ),
         const NavigationDestination(
@@ -517,8 +562,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
         const VistaMovimientosCentral(),
         VistaIngresoGuardia(
           modoInicial: modoIngresoGuardia,
-
-          onIrAHistorial: () => setState(() => indice = 1),
+          onIrAHistorial: () => _seleccionarIndice(1),
         ),
         VistaSoporteGuardia(
           key: ValueKey('soporte-guardia-$tabSoporte'),
@@ -531,9 +575,9 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     if (rol == RolUsuario.adminCentral) {
       return [
         VistaDashboardCentral(
-          onAbrirMovimientos: () => setState(() => indice = 1),
-          onAbrirGuardias: () => setState(() => indice = 2),
-          onAbrirSoporte: () => setState(() => indice = 3),
+          onAbrirMovimientos: () => _seleccionarIndice(1),
+          onAbrirGuardias: () => _seleccionarIndice(2),
+          onAbrirSoporte: () => _seleccionarIndice(3),
         ),
         const VistaMovimientosCentral(),
         const VistaOperacionesGuardiasCentral(),
@@ -547,11 +591,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
 
     if (rol == RolUsuario.administrador) {
       return [
-        VistaDashboardCentral(
-          onAbrirMovimientos: () => _abrirGestionAdmin(1),
-          onAbrirGuardias: () => _abrirGestionAdmin(2),
-          onAbrirSoporte: () => _abrirGestionAdmin(2),
-        ),
+        const VistaInicioUsuario(mostrarSelectorGuardia: true),
         VistaBicicletas(
           key: ValueKey('bicicletas-admin-$tabBicicletas'),
           initialIndex: tabBicicletas,
@@ -606,7 +646,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     }
     if (rol == RolUsuario.administrador) {
       return const [
-        (Icons.dashboard_outlined, 'Inicio'),
+        (Icons.home_outlined, 'Inicio'),
         (Icons.pedal_bike_outlined, 'Bicicletas'),
         (Icons.qr_code_scanner, 'Validar'),
         (Icons.support_agent_outlined, 'Soporte'),
