@@ -189,7 +189,7 @@ const validarRecordatorioCentral = (solicitud: SolicitudCompleta, rol: string) =
 const notificarGuardiaAsignado = async (
   solicitud: SolicitudCompleta,
   db: ClientePrisma,
-  titulo = 'Nueva solicitud de atención'
+  recordatorio = false
 ) => {
   if (!solicitud.guardiaAsignado) {
     return;
@@ -198,8 +198,10 @@ const notificarGuardiaAsignado = async (
   await crearNotificacion(
     {
       usuarioId: solicitud.guardiaAsignado.id,
-      titulo,
-      mensaje: `${solicitud.solicitadaPorUsuario.nombre} solicitó apoyo en ${solicitud.bicicletero.nombre}.`,
+      titulo: recordatorio ? 'Recordatorio de solicitud' : 'Solicitud de apoyo',
+      mensaje: recordatorio
+        ? `${solicitud.solicitadaPorUsuario.nombre} sigue esperando apoyo en ${solicitud.bicicletero.nombre}.`
+        : `${solicitud.solicitadaPorUsuario.nombre} solicita apoyo en ${solicitud.bicicletero.nombre}.`,
       tipo: TipoNotificacion.SOLICITUD_GUARDIA,
       datos: {
         solicitudId: solicitud.id,
@@ -257,7 +259,7 @@ const reiterarSolicitudAbierta = async (
       {
         roles: [RolUsuario.ADMIN_CENTRAL, RolUsuario.ADMINISTRADOR],
         titulo: 'Atención pendiente',
-        mensaje: `El usuario reiteró una solicitud en ${solicitud.bicicletero.nombre}. Aún no hay guardia asignado.`,
+        mensaje: `${solicitud.solicitadaPorUsuario.nombre} reiteró una solicitud en ${solicitud.bicicletero.nombre}. Aún no hay guardia asignado.`,
         tipo: TipoNotificacion.SOLICITUD_GUARDIA,
         datos: {
           solicitudId: solicitud.id,
@@ -302,7 +304,7 @@ const reiterarSolicitudAbierta = async (
     db
   );
 
-  await notificarGuardiaAsignado(solicitudActualizada, db);
+  await notificarGuardiaAsignado(solicitudActualizada, db, true);
 
   await registrarAuditoria(
     {
@@ -353,19 +355,6 @@ export const crearSolicitudGuardia = async (datos: DatosCrearSolicitud) => {
         db
       );
 
-      await crearNotificacion(
-        {
-          usuarioId: datos.usuarioId,
-          titulo: solicitudReiterada.guardiaAsignado ? 'Guardia notificado' : 'Solicitud reiterada',
-          mensaje: solicitudReiterada.guardiaAsignado
-            ? `Tu recordatorio fue enviado al guardia asignado a ${bicicletero.nombre}.`
-            : `Central recibió nuevamente tu solicitud para ${bicicletero.nombre}.`,
-          tipo: TipoNotificacion.SOLICITUD_GUARDIA,
-          datos: { solicitudId: solicitudReiterada.id, accionPropia: true }
-        },
-        db
-      );
-
       return mapearSolicitudGuardia(solicitudReiterada);
     }
 
@@ -388,37 +377,13 @@ export const crearSolicitudGuardia = async (datos: DatosCrearSolicitud) => {
       notificacionesGuardia: asignacion?.guardia ? 1 : 0
     });
 
-    await crearNotificacion(
-      {
-        usuarioId: datos.usuarioId,
-        titulo: asignacion?.guardia ? 'Guardia notificado' : 'Atención solicitada',
-        mensaje: asignacion?.guardia
-          ? `Tu solicitud fue enviada al guardia asignado a ${bicicletero.nombre}.`
-          : `Central recibió tu solicitud para ${bicicletero.nombre}.`,
-        tipo: TipoNotificacion.SOLICITUD_GUARDIA,
-        datos: { solicitudId: solicitudGuardada.id, accionPropia: true }
-      },
-      db
-    );
-
-    if (asignacion?.guardia) {
-      await crearNotificacion(
-        {
-          usuarioId: asignacion.guardia.id,
-          titulo: 'Atención requerida',
-          mensaje: `Hay una solicitud pendiente en ${bicicletero.nombre}.`,
-          tipo: TipoNotificacion.SOLICITUD_GUARDIA,
-          datos: { solicitudId: solicitudGuardada.id, bicicleteroId: bicicletero.id }
-        },
-        db
-      );
-    }
+    await notificarGuardiaAsignado(solicitudGuardada, db);
 
     await notificarUsuariosPorRol(
       {
         roles: [RolUsuario.ADMIN_CENTRAL, RolUsuario.ADMINISTRADOR],
         titulo: 'Nueva solicitud de atención',
-        mensaje: `Un usuario solicitó apoyo en ${bicicletero.nombre}.`,
+        mensaje: `${solicitudGuardada.solicitadaPorUsuario.nombre} solicitó apoyo en ${bicicletero.nombre}.`,
         tipo: TipoNotificacion.SOLICITUD_GUARDIA,
         datos: { solicitudId: solicitudGuardada.id, bicicleteroId: bicicletero.id }
       },

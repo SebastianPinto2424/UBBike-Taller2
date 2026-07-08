@@ -65,7 +65,7 @@ export const buscarAsignacionActivaConGuardia = (
 export const crear = (
   data: Prisma.SolicitudGuardiaUncheckedCreateInput,
   client: ClientePrisma = prisma
-) => client.solicitudGuardia.create({ data });
+) => client.solicitudGuardia.create({ data, include: includeSolicitudCompleta });
 
 export const buscarPorId = (id: string, client: ClientePrisma = prisma) =>
   client.solicitudGuardia.findUnique({

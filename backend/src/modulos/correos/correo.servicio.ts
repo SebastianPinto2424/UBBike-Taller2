@@ -40,6 +40,13 @@ const fechaLegible = (fecha: Date = new Date()): string =>
     timeZone: 'America/Santiago'
   });
 
+const fechaCortaAsunto = (fecha: Date = new Date()): string =>
+  fecha.toLocaleString('es-CL', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Santiago'
+  });
+
 const etiquetaRol = (rol?: string): string => {
   switch (rol) {
     case 'GUARDIA':
@@ -201,7 +208,7 @@ export const crearCorreoCuentaAdministrativa = (
   const rolTexto = etiquetaRol(rol);
   const fecha = fechaLegible();
   return {
-    asunto: `Te damos la bienvenida a UBBike â€” activa tu cuenta de ${rolTexto}`,
+    asunto: `Te damos la bienvenida a UBBike — activa tu cuenta de ${rolTexto}`,
     texto: `Hola ${nombre}: administración creó una cuenta de ${rolTexto} para ti el ${fecha}.
 Crea tu propia contraseña (nunca te enviamos una). Es tu primer ingreso, no un cambio de contraseña.
 Enlace de un solo uso, vence en ${horasExpiracion} horas: ${enlace}
@@ -263,7 +270,7 @@ export const crearCorreoRolActualizado = (
   return {
     asunto: `Alerta de seguridad: tu rol en UBBike cambió a ${ahora}`,
     texto: `Hola ${nombre}: administración cambió tu rol el ${fecha}.
-Antes: ${antes} â€” Ahora: ${ahora}.
+Antes: ${antes} — Ahora: ${ahora}.
 Esto modifica tus permisos dentro de la app. Si no reconoces este cambio, escríbenos de inmediato a ${CORREO_SOPORTE}.
 ${pieTexto()}`,
     html: envolverHtml(`
@@ -280,21 +287,26 @@ ${pieTexto()}`,
   };
 };
 
-export const crearCorreoCambioContrasena = (nombre: string, enlace: string) => ({
-  asunto: 'Restablece tu contraseña de UBBike',
-  texto: `Hola ${nombre}: recibimos una solicitud para restablecer la contraseña de esta cuenta.
-Si fuiste tú, crea una nueva (enlace de un solo uso, vence pronto): ${enlace}
+export const crearCorreoCambioContrasena = (nombre: string, enlace: string) => {
+  const fecha = fechaLegible();
+  return {
+    asunto: `Restablece tu contraseña de UBBike (${fechaCortaAsunto()})`,
+    texto: `Hola ${nombre}: recibimos una solicitud para restablecer la contraseña de esta cuenta el ${fecha}.
+Si fuiste tú, crea una nueva (enlace de un solo uso, vence en 30 minutos): ${enlace}
+Este enlace reemplaza cualquier enlace de restablecimiento enviado antes.
 Si no lo solicitaste, ignora este correo: tu contraseña no ha cambiado.
 ${pieTexto({ antiPhishing: true })}`,
-  html: envolverHtml(`
+    html: envolverHtml(`
     <h2 style="color: #014898;">Restablece tu contraseña</h2>
     <p>Hola ${escaparHtml(nombre)},</p>
-    <p>Recibimos una solicitud para restablecer la contraseña de esta cuenta.</p>
+    <p>Recibimos una solicitud para restablecer la contraseña de esta cuenta el <strong>${escaparHtml(fecha)}</strong>.</p>
     ${boton(enlace, 'Restablecer contraseña')}
-    <p>El enlace es de <strong>un solo uso</strong> y vence pronto por seguridad. Si no lo solicitaste, ignora este correo: <strong>tu contraseña no ha cambiado</strong>.</p>
+    <p>El enlace es de <strong>un solo uso</strong> y vence en <strong>30 minutos</strong>. Reemplaza cualquier enlace de restablecimiento enviado antes, así que usa siempre el correo más reciente.</p>
+    <p>Si no lo solicitaste, ignora este correo: <strong>tu contraseña no ha cambiado</strong>.</p>
     ${pieHtml({ antiPhishing: true })}
   `)
-});
+  };
+};
 
 export const crearCorreoContrasenaActualizada = (nombre: string) => {
   const fecha = fechaLegible();
@@ -308,6 +320,27 @@ ${pieTexto({ antiPhishing: true })}`,
     <p>Hola ${escaparHtml(nombre)},</p>
     <p>Tu contraseña UBBike se cambió correctamente el <strong>${escaparHtml(fecha)}</strong>.</p>
     <p><strong>¿No fuiste tú?</strong> Tu cuenta podría estar en riesgo. Restablece tu contraseña de inmediato y escríbenos a
+       <a href="mailto:${CORREO_SOPORTE}" style="color:#014898;">${CORREO_SOPORTE}</a>.</p>
+    ${pieHtml({ antiPhishing: true })}
+  `)
+  };
+};
+
+export const crearCorreoCuentaActivada = (nombre: string, rol?: string) => {
+  const rolTexto = etiquetaRol(rol);
+  const fecha = fechaLegible();
+  return {
+    asunto: `Tu cuenta de ${rolTexto} en UBBike quedó activa (${fechaCortaAsunto()})`,
+    texto: `Hola ${nombre}: creaste tu contraseña y tu cuenta de ${rolTexto} quedó activa el ${fecha}.
+Ya puedes iniciar sesión en la app UBBike con tu correo institucional.
+Si no fuiste tú quien activó esta cuenta, escríbenos a ${CORREO_SOPORTE}.
+${pieTexto({ antiPhishing: true })}`,
+    html: envolverHtml(`
+    <h2 style="color: #014898;">¡Cuenta activada!</h2>
+    <p>Hola ${escaparHtml(nombre)},</p>
+    <p>Creaste tu contraseña y tu cuenta de <strong>${escaparHtml(rolTexto)}</strong> quedó activa el <strong>${escaparHtml(fecha)}</strong>.</p>
+    <p>Ya puedes iniciar sesión en la app UBBike con tu correo institucional.</p>
+    <p>Si no fuiste tú quien activó esta cuenta, escríbenos a
        <a href="mailto:${CORREO_SOPORTE}" style="color:#014898;">${CORREO_SOPORTE}</a>.</p>
     ${pieHtml({ antiPhishing: true })}
   `)
@@ -384,7 +417,7 @@ export const crearCorreoMovimiento = (datos: DatosCorreoMovimiento) => {
     : '';
 
   return {
-    asunto: `${tipo} ${estado}: ${datos.bicicleta} en UBBike`,
+    asunto: `${tipo} ${estado}: ${datos.bicicleta} en UBBike (${fechaCortaAsunto(datos.fecha)})`,
     texto: [
       `Hola ${datos.nombre}.`,
       `Registramos un ${tipo.toLowerCase()} ${origen} ${estado} el ${fecha}.`,

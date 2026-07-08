@@ -5,6 +5,7 @@ import { registrarAuditoria } from '../auditoria/auditoria.servicio';
 import {
   crearCorreoCambioContrasena,
   crearCorreoContrasenaActualizada,
+  crearCorreoCuentaActivada,
   crearCorreoCuentaVerificada,
   crearCorreoVerificacion,
   enviarCorreo
@@ -399,6 +400,8 @@ export const cambiarContrasena = async (token: string, contrasena: string) => {
     throw new ErrorHttp(400, 'El enlace para cambiar tu contraseña expiró. Solicita uno nuevo.');
   }
 
+  const esPrimeraActivacion = usuario.debeCambiarContrasena;
+
   await autenticacionRepositorio.actualizarContrasena(
     usuario.id,
     await bcrypt.hash(contrasena, 12)
@@ -407,17 +410,21 @@ export const cambiarContrasena = async (token: string, contrasena: string) => {
 
   await crearNotificacion({
     usuarioId: usuario.id,
-    titulo: 'Contraseña actualizada',
-    mensaje: 'Tu contraseña fue cambiada correctamente.',
+    titulo: esPrimeraActivacion ? 'Cuenta activada' : 'Contraseña actualizada',
+    mensaje: esPrimeraActivacion
+      ? 'Ya puedes usar UBBike con tu nueva contraseña.'
+      : 'Tu contraseña fue cambiada correctamente.',
     tipo: TipoNotificacion.CUENTA
   });
 
-  const correoContrasenaActualizada = crearCorreoContrasenaActualizada(usuario.nombre);
+  const correoConfirmacion = esPrimeraActivacion
+    ? crearCorreoCuentaActivada(usuario.nombre, usuario.rol)
+    : crearCorreoContrasenaActualizada(usuario.nombre);
   await enviarCorreo({
     para: usuario.correo,
-    asunto: correoContrasenaActualizada.asunto,
-    texto: correoContrasenaActualizada.texto,
-    html: correoContrasenaActualizada.html
+    asunto: correoConfirmacion.asunto,
+    texto: correoConfirmacion.texto,
+    html: correoConfirmacion.html
   });
 
   await registrarAuditoria({
