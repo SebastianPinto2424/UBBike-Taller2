@@ -112,6 +112,9 @@ export const entorno = {
   qr: {
     duracionSegundos: convertirNumero(process.env.QR_DURATION_SECONDS, 15)
   },
+  limitadorIntentos: {
+    factor: convertirNumero(process.env.RATE_LIMIT_FACTOR, 1)
+  },
   swagger: {
     habilitado: convertirBooleano(process.env.SWAGGER_ENABLED, ambiente !== 'production')
   },

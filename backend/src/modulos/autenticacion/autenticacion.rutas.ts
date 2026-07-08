@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { middlewareAutenticacionSinExigirCambio } from '../../comun/middlewares/autenticacion.middleware';
 import { limitarIntentos } from '../../comun/middlewares/limitador-intentos.middleware';
+import { entorno } from '../../configuracion/entorno';
 import { validarCuerpo } from '../../comun/middlewares/validar-cuerpo.middleware';
 import {
   cambiarContrasena,
@@ -25,13 +26,16 @@ import {
   esquemaVerificarCorreo
 } from './autenticacion.validacion';
 
+const conFactor = (maximo: number): number =>
+  Math.max(1, Math.round(maximo * entorno.limitadorIntentos.factor));
+
 const rutasAutenticacion = Router();
 
 rutasAutenticacion.post(
   ['/registro', '/register'],
   limitarIntentos({
     ventanaMs: 15 * 60 * 1000,
-    maximo: 20,
+    maximo: conFactor(20),
     mensaje: 'Demasiados registros desde este origen. Intenta más tarde.'
   }),
   validarCuerpo(esquemaRegistro),
@@ -42,7 +46,7 @@ rutasAutenticacion.post(
   '/login',
   limitarIntentos({
     ventanaMs: 15 * 60 * 1000,
-    maximo: 10,
+    maximo: conFactor(10),
     mensaje: 'Demasiados intentos de ingreso. Intenta más tarde.'
   }),
   validarCuerpo(esquemaLogin),
@@ -72,7 +76,7 @@ rutasAutenticacion.post(
   '/solicitar-cambio-contrasena',
   limitarIntentos({
     ventanaMs: 15 * 60 * 1000,
-    maximo: 5,
+    maximo: conFactor(5),
     mensaje: 'Demasiadas solicitudes de cambio de contraseña. Intenta más tarde.'
   }),
   validarCuerpo(esquemaSolicitudCambioContrasena),
@@ -83,7 +87,7 @@ rutasAutenticacion.post(
   '/cambiar-contrasena',
   limitarIntentos({
     ventanaMs: 15 * 60 * 1000,
-    maximo: 10,
+    maximo: conFactor(10),
     mensaje: 'Demasiados intentos de cambio de contraseña. Intenta más tarde.'
   }),
   validarCuerpo(esquemaCambioContrasena),
@@ -94,7 +98,7 @@ rutasAutenticacion.post(
   '/refresh',
   limitarIntentos({
     ventanaMs: 15 * 60 * 1000,
-    maximo: 30,
+    maximo: conFactor(30),
     mensaje: 'Demasiadas solicitudes de refresh. Intenta más tarde.'
   }),
   validarCuerpo(esquemaRefreshToken),
@@ -106,7 +110,7 @@ rutasAutenticacion.post(
   middlewareAutenticacionSinExigirCambio,
   limitarIntentos({
     ventanaMs: 15 * 60 * 1000,
-    maximo: 10,
+    maximo: conFactor(10),
     mensaje: 'Demasiados intentos de cambio de contraseña. Intenta más tarde.'
   }),
   validarCuerpo(esquemaCambioContrasenaSesion),
