@@ -314,6 +314,7 @@ const notificarMovimiento = async (
       asunto: correo.asunto,
       texto: correo.texto,
       html: correo.html,
+      referencia: movimientoCompleto.id,
       adjuntos:
         hayFoto && fotoNombreArchivo && rutaFoto
           ? [{ filename: fotoNombreArchivo, path: rutaFoto, cid: fotoCid! }]

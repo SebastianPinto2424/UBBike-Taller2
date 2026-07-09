@@ -3,7 +3,7 @@ import '../helpers/env-setup';
 import { crearCorreoMovimiento } from '../../src/modulos/correos/correo.servicio';
 
 describe('crearCorreoMovimiento', () => {
-  it('mantiene la misma estructura aunque falten datos opcionales de la bicicleta', () => {
+  it('mantiene todos los campos y no agrega fecha ni hora al asunto', () => {
     const correo = crearCorreoMovimiento({
       nombre: 'Estudiante UBB',
       tipo: 'RETIRO',
@@ -21,6 +21,14 @@ describe('crearCorreoMovimiento', () => {
       fotoCid: 'foto-bicicleta-movimiento@ubbike'
     });
 
+    expect(correo.asunto).toBe('Retiro confirmado: Bici de prueba en UBBike');
+    expect(correo.asunto).not.toMatch(/\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{1,2}:\d{2}/);
+    expect(correo.html).toContain('<strong>Operación:</strong> Retiro');
+    expect(correo.html).toContain('<strong>Resultado:</strong> confirmado');
+    expect(correo.html).toContain('<strong>Origen:</strong> por código QR');
+    expect(correo.html).toContain('<strong>Bicicletero:</strong> Bicicletero FACE');
+    expect(correo.html).toContain('<strong>Guardia:</strong> Guardia Demo');
+    expect(correo.html).toContain('<strong>Descripción:</strong> Bici de prueba');
     expect(correo.texto).toContain('Marca: No informado');
     expect(correo.texto).toContain('Modelo: No informado');
     expect(correo.texto).toContain('Color: No informado');

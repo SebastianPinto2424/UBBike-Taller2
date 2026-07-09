@@ -13,6 +13,7 @@ type DatosCorreo = {
   texto: string;
   html: string;
   adjuntos?: AdjuntoCorreo[];
+  referencia?: string;
 };
 
 const CORREO_SOPORTE = 'soporte@ubbike.cl';
@@ -139,7 +140,8 @@ export const enviarCorreo = async (datos: DatosCorreo): Promise<void> => {
     subject: datos.asunto,
     text: datos.texto,
     html: datos.html,
-    attachments: datos.adjuntos
+    attachments: datos.adjuntos,
+    headers: datos.referencia ? { 'X-Entity-Ref-ID': datos.referencia } : undefined
   });
 };
 
