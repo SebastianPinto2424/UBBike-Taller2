@@ -1,6 +1,30 @@
 import '../helpers/env-setup';
 
-import { crearCorreoMovimiento } from '../../src/modulos/correos/correo.servicio';
+import {
+  crearCorreoCuentaAdministrativa,
+  crearCorreoMovimiento
+} from '../../src/modulos/correos/correo.servicio';
+
+describe('crearCorreoCuentaAdministrativa', () => {
+  it('incluye siempre el boton y el enlace para crear la contrasena', () => {
+    const enlace =
+      'https://ubbike.example/cambiar-contrasena?token=token-seguro&modo=activacion';
+    const correo = crearCorreoCuentaAdministrativa(
+      'Guardia Prueba',
+      enlace,
+      24,
+      'GUARDIA'
+    );
+
+    expect(correo.asunto).toBe('Te damos la bienvenida a UBBike — activa tu cuenta de guardia');
+    expect(correo.texto).toContain(enlace);
+    expect(correo.html).toContain(
+      'href="https://ubbike.example/cambiar-contrasena?token=token-seguro&amp;modo=activacion"'
+    );
+    expect(correo.html).toContain('Crear mi contraseña');
+    expect(correo.html).toContain('vence en 24 horas');
+  });
+});
 
 describe('crearCorreoMovimiento', () => {
   it('mantiene todos los campos y no agrega fecha ni hora al asunto', () => {

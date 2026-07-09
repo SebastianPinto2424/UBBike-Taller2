@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { randomUUID } from 'node:crypto';
 import { entorno } from '../../configuracion/entorno';
 
 type AdjuntoCorreo = {
@@ -141,7 +142,7 @@ export const enviarCorreo = async (datos: DatosCorreo): Promise<void> => {
     text: datos.texto,
     html: datos.html,
     attachments: datos.adjuntos,
-    headers: datos.referencia ? { 'X-Entity-Ref-ID': datos.referencia } : undefined
+    headers: { 'X-Entity-Ref-ID': datos.referencia ?? randomUUID() }
   });
 };
 
