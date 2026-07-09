@@ -117,6 +117,39 @@ Recomendado: solicitar un dominio o subdominio institucional apuntando al servid
 
 Si solo se usa IP publica, Let's Encrypt permite certificados para IP desde 2026, pero son certificados short-lived y requieren automatizacion frecuente. Certbot puede obtenerlos con `--ip-address`, aunque la instalacion automatica en Apache todavia no es igual al flujo de dominios. Para una entrega estable, es preferible usar dominio institucional.
 
+#### HTTPS del contenedor institucional
+
+La asignacion entregada expone el puerto `443` del contenedor mediante el puerto publico `<PUERTO_HTTPS_PUBLICO>`. Mientras no exista un dominio o certificado institucional, se puede usar un certificado autofirmado fijado en la APK:
+
+```bash
+cd /opt/ubbike
+PUBLIC_HOST=<IP_DEL_CONTENEDOR> PUBLIC_HTTPS_PORT=<PUERTO_HTTPS_PUBLICO> \
+  bash deploy/configurar-https-contenedor.sh
+```
+
+El script configura Apache, genera la clave privada solo en el servidor y deja el certificado publico en:
+
+```text
+/etc/ssl/ubbike/ubbike.crt
+```
+
+Desde el PC conectado a la VPN, copiar exclusivamente el certificado publico:
+
+```bash
+scp -P <PUERTO_SSH> <USUARIO>@<IP_DEL_CONTENEDOR>:/etc/ssl/ubbike/ubbike.crt mobile/assets/certs/ubbike.crt
+```
+
+Compilar la APK para el origen HTTPS:
+
+```bash
+cd mobile
+flutter clean
+flutter pub get
+flutter build apk --release --dart-define=API_BASE_URL=https://<IP_DEL_CONTENEDOR>:<PUERTO_HTTPS_PUBLICO>
+```
+
+La clave `/etc/ssl/ubbike/ubbike.key` nunca debe salir del servidor. El certificado autofirmado cifra y autentica la conexion para la APK mediante certificate pinning, pero los navegadores mostraran una advertencia. Para Flutter Web se requiere un certificado publico emitido para un dominio institucional.
+
 Fuentes:
 
 - `https://certbot.eff.org/instructions?os=snap&ws=apache`
