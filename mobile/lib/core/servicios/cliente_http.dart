@@ -9,8 +9,17 @@ import 'package:ubbike/core/configuracion/configuracion_api.dart';
 
 http.Client clienteHttp = http.Client();
 
-Future<void> inicializarClienteHttp() async {
+class _HttpOverridesConCertificado extends HttpOverrides {
+  _HttpOverridesConCertificado(this._contexto);
 
+  final SecurityContext _contexto;
+
+  @override
+  HttpClient createHttpClient(SecurityContext? context) =>
+      super.createHttpClient(_contexto);
+}
+
+Future<void> inicializarClienteHttp() async {
   if (kIsWeb) {
     return;
   }
@@ -20,13 +29,12 @@ Future<void> inicializarClienteHttp() async {
   }
 
   try {
-
-    final contexto = SecurityContext(withTrustedRoots: false);
+    final contexto = SecurityContext(withTrustedRoots: true);
     final certificado = await rootBundle.load('assets/certs/ubbike.crt');
     contexto.setTrustedCertificatesBytes(certificado.buffer.asUint8List());
     clienteHttp = IOClient(HttpClient(context: contexto));
+    HttpOverrides.global = _HttpOverridesConCertificado(contexto);
   } catch (error) {
-
     if (kDebugMode) {
       debugPrint('No se pudo cargar el certificado pinned: $error');
     }
