@@ -70,6 +70,7 @@ services:
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
       REDIS_URL: redis://redis:6379
       REQUIRE_REDIS_RATE_LIMIT: "true"
+      RATE_LIMIT_FACTOR: ${RATE_LIMIT_FACTOR:-1}
       TRUST_PROXY: "false"
       SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
       SMTP_PORT: ${SMTP_PORT:-587}
