@@ -65,6 +65,16 @@ const capitalizar = (valor: string): string =>
 const boton = (enlace: string, texto: string): string =>
   `<p style="margin:18px 0;"><a href="${escaparHtml(enlace)}" style="display:inline-block;background:#014898;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:bold;">${escaparHtml(texto)}</a></p>`;
 
+const referenciaCorreo = (): string => {
+  const fecha = new Date().toLocaleString('es-CL', {
+    dateStyle: 'short',
+    timeStyle: 'medium',
+    timeZone: 'America/Santiago'
+  });
+  const codigo = Math.random().toString(36).slice(2, 8);
+  return `Correo enviado el ${fecha} · Ref ${codigo}`;
+};
+
 const pieHtml = (opciones: { antiPhishing?: boolean } = {}): string => `
     <hr style="border:none;border-top:1px solid #e5e7eb;margin:18px 0;" />
     ${
@@ -73,7 +83,8 @@ const pieHtml = (opciones: { antiPhishing?: boolean } = {}): string => `
         : ''
     }
     <p style="color:#6b7280;font-size:13px;margin:4px 0;">¿Necesitas ayuda o no reconoces esta actividad? Escríbenos a <a href="mailto:${CORREO_SOPORTE}" style="color:#014898;">${CORREO_SOPORTE}</a>.</p>
-    <p style="color:#172033;font-weight:bold;margin-top:10px;">Equipo UBBike</p>`;
+    <p style="color:#172033;font-weight:bold;margin-top:10px;">Equipo UBBike</p>
+    <p style="color:#9ca3af;font-size:11px;margin-top:8px;">${referenciaCorreo()}</p>`;
 
 const pieTexto = (opciones: { antiPhishing?: boolean } = {}): string =>
   [
@@ -82,7 +93,8 @@ const pieTexto = (opciones: { antiPhishing?: boolean } = {}): string =>
       ? 'Por seguridad, UBBike nunca te pedirá tu contraseña ni códigos por correo.'
       : '',
     `¿Necesitas ayuda o no reconoces esta actividad? Escríbenos a ${CORREO_SOPORTE}.`,
-    'Equipo UBBike'
+    'Equipo UBBike',
+    referenciaCorreo()
   ]
     .filter((linea, indice) => linea !== '' || indice === 0)
     .join('\n');

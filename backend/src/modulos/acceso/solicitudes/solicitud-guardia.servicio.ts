@@ -75,11 +75,9 @@ const tituloSolicitudParaUsuario = (estado: EstadoSolicitudGuardia) => {
     case EstadoSolicitudGuardia.EN_CAMINO:
       return 'Guardia en camino';
     case EstadoSolicitudGuardia.RESUELTA:
-      return 'Atención finalizada';
+      return 'Solicitud resuelta';
     case EstadoSolicitudGuardia.CANCELADA:
       return 'Solicitud cancelada';
-    case EstadoSolicitudGuardia.NOTIFICADA:
-      return 'Guardia notificado';
     default:
       return 'Solicitud actualizada';
   }
@@ -88,13 +86,11 @@ const tituloSolicitudParaUsuario = (estado: EstadoSolicitudGuardia) => {
 const mensajeSolicitudParaUsuario = (estado: EstadoSolicitudGuardia, bicicleteroNombre: string) => {
   switch (estado) {
     case EstadoSolicitudGuardia.EN_CAMINO:
-      return `El guardia confirmó que va hacia ${bicicleteroNombre}.`;
+      return `El guardia va en camino a ${bicicleteroNombre}.`;
     case EstadoSolicitudGuardia.RESUELTA:
-      return `La solicitud en ${bicicleteroNombre} fue resuelta.`;
+      return `Tu solicitud en ${bicicleteroNombre} fue atendida.`;
     case EstadoSolicitudGuardia.CANCELADA:
-      return `La solicitud en ${bicicleteroNombre} fue cancelada.`;
-    case EstadoSolicitudGuardia.NOTIFICADA:
-      return `Tu recordatorio fue enviado al guardia asignado a ${bicicleteroNombre}.`;
+      return `Tu solicitud en ${bicicleteroNombre} fue cancelada.`;
     default:
       return `${bicicleteroNombre}: ${etiquetaEstadoSolicitud(estado)}.`;
   }
@@ -478,24 +474,6 @@ export const notificarGuardiaSolicitud = async (datos: DatosNotificarGuardia) =>
       db
     );
 
-    await crearNotificacion(
-      {
-        usuarioId: solicitud.solicitadaPorUsuario.id,
-        titulo: solicitudActualizada.guardiaAsignado
-          ? 'Guardia notificado'
-          : 'Central notificada nuevamente',
-        mensaje: solicitudActualizada.guardiaAsignado
-          ? `Tu recordatorio fue enviado al guardia asignado a ${solicitud.bicicletero.nombre}.`
-          : `Central recibió nuevamente tu solicitud para ${solicitud.bicicletero.nombre}.`,
-        tipo: TipoNotificacion.SOLICITUD_GUARDIA,
-        datos: {
-          solicitudId: solicitud.id,
-          accionPropia: datos.usuarioId === solicitud.solicitadaPorUsuario.id
-        }
-      },
-      db
-    );
-
     emitirTiempoReal(
       [
         salaUsuario(solicitudActualizada.solicitadaPorUsuario.id),
@@ -571,23 +549,31 @@ export const actualizarEstadoSolicitudGuardia = async (
       db
     );
 
-    await crearNotificacion(
-      {
-        usuarioId: solicitud.solicitadaPorUsuario.id,
-        titulo: tituloSolicitudParaUsuario(estado),
-        mensaje: mensajeSolicitudParaUsuario(estado, solicitud.bicicletero.nombre),
-        tipo: TipoNotificacion.SOLICITUD_GUARDIA,
-        datos: { solicitudId: solicitud.id, estado }
-      },
-      db
-    );
+    const estadosNotificablesUsuario: EstadoSolicitudGuardia[] = [
+      EstadoSolicitudGuardia.EN_CAMINO,
+      EstadoSolicitudGuardia.RESUELTA,
+      EstadoSolicitudGuardia.CANCELADA
+    ];
+
+    if (estadosNotificablesUsuario.includes(estado)) {
+      await crearNotificacion(
+        {
+          usuarioId: solicitud.solicitadaPorUsuario.id,
+          titulo: tituloSolicitudParaUsuario(estado),
+          mensaje: mensajeSolicitudParaUsuario(estado, solicitud.bicicletero.nombre),
+          tipo: TipoNotificacion.SOLICITUD_GUARDIA,
+          datos: { solicitudId: solicitud.id, estado }
+        },
+        db
+      );
+    }
 
     if (estado === EstadoSolicitudGuardia.NOTIFICADA && rolesCentral.includes(rol)) {
       await crearNotificacion(
         {
           usuarioId: solicitud.guardiaAsignado!.id,
-          titulo: 'Recordatorio de atención',
-          mensaje: `Central solicitó atender ${solicitud.bicicletero.nombre}.`,
+          titulo: 'Recordatorio de solicitud',
+          mensaje: `Central pidió atender la solicitud de ${solicitud.solicitadaPorUsuario.nombre} en ${solicitud.bicicletero.nombre}.`,
           tipo: TipoNotificacion.SOLICITUD_GUARDIA,
           datos: {
             solicitudId: solicitud.id,
