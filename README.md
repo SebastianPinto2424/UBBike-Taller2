@@ -2,41 +2,207 @@
 
 Aplicacion web/mobile y API REST para registrar bicicletas, validar ingresos y retiros en bicicleteros, y mantener trazabilidad operativa para la Universidad del Bio-Bio.
 
-## Alcance de la entrega
+Este README corresponde a la rama de despliegue con Docker Compose. Se enfoca en levantar el stack de produccion y compilar la APK contra la URL publicada del backend.
 
-La entrega funcional se valida con estos roles:
+## Stack de produccion
 
-| Rol | Cuenta demo | Funciones principales |
+El archivo `docker-compose.yml` levanta cuatro servicios:
+
+| Servicio | Funcion | Puerto interno |
 | --- | --- | --- |
-| Usuario | `estudiante@alumnos.ubiobio.cl` | Registrar bicicleta, seleccionar bicicleta activa, generar QR, revisar historial, solicitar apoyo y gestionar perfil. |
-| Guardia | `guardia@ubiobio.cl` | Seleccionar bicicletero de turno, validar QR, registrar movimientos manuales, atender solicitudes y revisar historial. |
-| Administrador | `administrador@ubiobio.cl` | Gestionar usuarios, validar operaciones, revisar soporte, administrar solicitudes y usar herramientas de control. |
+| `db` | PostgreSQL 16, persistido en volumen Docker | `5432` |
+| `redis` | Redis para limitador de intentos | `6379` |
+| `backend` | API REST Node.js/Express, Prisma, Socket.IO y uploads | `3000` |
+| `frontend` | Flutter Web servido con Nginx | `8080` |
 
-Contrasena demo local:
+El backend ejecuta automaticamente las migraciones Prisma al iniciar:
 
-```text
-UBBike2026*
+```bash
+npm run migrate && node dist/servidor.js
 ```
 
-En produccion debe usarse `SEED_DEMO_DATA=false`.
+Si `SEED_DEMO_DATA=true`, tambien se cargan datos demo al iniciar el backend.
 
-## Estructura
+## Arquitectura resumida
 
-- `backend/`: API REST con Node.js, Express, Prisma y PostgreSQL.
-- `mobile/`: aplicacion Flutter para Web y Android.
-- `deploy/`: plantillas para produccion sin Docker.
-- `docs/`: documentacion tecnica complementaria.
+Backend modular por features:
 
-## Ejecucion local con Docker
+```text
+backend/src/
+  comun/           middlewares, errores y utilidades
+  configuracion/   entorno, Prisma, Redis, Firebase, Swagger y seed
+  modulos/
+    autenticacion/ usuarios/ bicicletas/ bicicleteros/
+    acceso/ historial/ incidencias/ notificaciones/ qr/
+  tiempo-real/     Socket.IO
+```
 
-Requisitos:
+Cada modulo mantiene la separacion:
 
-- Docker Desktop o Docker Engine con Docker Compose.
-- Git.
-- Navegador web.
-- Flutter solo si se compila APK o se ejecuta la app fuera de Docker.
+```text
+rutas -> controlador -> servicio -> repositorio
+```
 
-Levantar el entorno local:
+Mobile/Web usa estructura feature-first con Riverpod:
+
+```text
+mobile/lib/
+  core/       configuracion, tema, providers y cliente HTTP
+  features/   pantallas, view models, APIs y repositorios por feature
+  shared/     widgets, modelos y utilidades transversales
+```
+
+## Variables de entorno para Docker Compose
+
+Copia la plantilla y ajusta los valores reales:
+
+```bash
+cp .env.example .env
+```
+
+En Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+## Parametros de despliegue
+
+Antes del despliegue se definen los datos de acceso al servidor y las URLs publicas de la aplicacion:
+
+| Parametro | Funcion | Donde se configura |
+| --- | --- | --- |
+| Usuario SSH | Entrar al servidor | `ssh -p <PUERTO_SSH> <USUARIO>@<IP_O_HOST_SSH>` |
+| IP o host SSH | Entrar al servidor | Comando `ssh` |
+| Puerto SSH | Entrar al servidor | `-p <PUERTO_SSH>` |
+| IP o host publico de la aplicacion | URL usada por navegador y dispositivos moviles | `PUBLIC_API_BASE_URL`, `PUBLIC_WS_BASE_URL`, `DOCKER_FRONTEND_URL`, `DOCKER_CORS_ORIGINS` y APK |
+| Puerto backend en el servidor | Puerto que Docker abre en el servidor | `BACKEND_PORT` |
+| Puerto frontend en el servidor | Puerto que Docker abre en el servidor | `FRONTEND_PORT` |
+| Puerto backend publico | API REST, WebSocket, imagenes y `/salud` | `PUBLIC_API_BASE_URL`, `PUBLIC_WS_BASE_URL` y APK |
+| Puerto frontend visible desde el navegador | Flutter Web | `DOCKER_FRONTEND_URL`, `DOCKER_CORS_ORIGINS` |
+
+En el archivo `.env` se ajustan estas lineas:
+
+```env
+BACKEND_PORT=<PUERTO_BACKEND_EN_SERVIDOR>
+FRONTEND_PORT=<PUERTO_FRONTEND_EN_SERVIDOR>
+
+PUBLIC_API_BASE_URL=http://<IP_O_HOST_VISIBLE>:<PUERTO_BACKEND_VISIBLE>
+PUBLIC_WS_BASE_URL=ws://<IP_O_HOST_VISIBLE>:<PUERTO_BACKEND_VISIBLE>
+DOCKER_FRONTEND_URL=http://<IP_O_HOST_VISIBLE>:<PUERTO_FRONTEND_VISIBLE>
+DOCKER_CORS_ORIGINS=http://<IP_O_HOST_VISIBLE>:<PUERTO_FRONTEND_VISIBLE>
+```
+
+Ejemplo ficticio:
+
+```env
+BACKEND_PORT=3000
+FRONTEND_PORT=8081
+PUBLIC_API_BASE_URL=http://<IP_DEL_CONTENEDOR>:3000
+PUBLIC_WS_BASE_URL=ws://<IP_DEL_CONTENEDOR>:3000
+DOCKER_FRONTEND_URL=http://<IP_DEL_CONTENEDOR>:8081
+DOCKER_CORS_ORIGINS=http://<IP_DEL_CONTENEDOR>:8081
+```
+
+Si el servidor publica directamente los mismos puertos disponibles por acceso externo, `BACKEND_PORT` coincide con el puerto backend publico y `FRONTEND_PORT` coincide con el puerto frontend publico.
+
+Si existe NAT o mapeo de puertos externos distinto al puerto publicado por Docker, se separan los valores internos y publicos:
+
+```env
+BACKEND_PORT=<PUERTO_BACKEND_EN_SERVIDOR>
+FRONTEND_PORT=<PUERTO_FRONTEND_EN_SERVIDOR>
+PUBLIC_API_BASE_URL=http://<IP_O_HOST_VISIBLE>:<PUERTO_BACKEND_VISIBLE_DESDE_CELULAR>
+PUBLIC_WS_BASE_URL=ws://<IP_O_HOST_VISIBLE>:<PUERTO_BACKEND_VISIBLE_DESDE_CELULAR>
+DOCKER_FRONTEND_URL=http://<IP_O_HOST_VISIBLE>:<PUERTO_FRONTEND_VISIBLE_DESDE_NAVEGADOR>
+DOCKER_CORS_ORIGINS=http://<IP_O_HOST_VISIBLE>:<PUERTO_FRONTEND_VISIBLE_DESDE_NAVEGADOR>
+```
+
+Ejemplo: si Docker publica el backend en `3000`, pero el acceso externo usa `1641`, la APK debe apuntar a `http://<IP>:1641`, no a `http://<IP>:3000`.
+
+Variables principales:
+
+```env
+POSTGRES_DB=ubbike
+POSTGRES_USER=ubbike
+POSTGRES_PASSWORD=<PASSWORD_POSTGRES>
+POSTGRES_PORT=5432
+
+BACKEND_BIND_ADDRESS=0.0.0.0
+BACKEND_PORT=<PUERTO_BACKEND_EN_SERVIDOR>
+FRONTEND_BIND_ADDRESS=0.0.0.0
+FRONTEND_PORT=<PUERTO_FRONTEND_EN_SERVIDOR>
+
+PUBLIC_API_BASE_URL=http://<IP_O_HOST_VISIBLE>:<PUERTO_BACKEND_VISIBLE>
+PUBLIC_WS_BASE_URL=ws://<IP_O_HOST_VISIBLE>:<PUERTO_BACKEND_VISIBLE>
+DOCKER_FRONTEND_URL=http://<IP_O_HOST_VISIBLE>:<PUERTO_FRONTEND_VISIBLE>
+DOCKER_CORS_ORIGINS=http://<IP_O_HOST_VISIBLE>:<PUERTO_FRONTEND_VISIBLE>
+
+JWT_SECRET=<SECRETO_LARGO_MINIMO_32_CARACTERES>
+JWT_EXPIRES_IN=2h
+JWT_ISSUER=ubbike-api
+JWT_AUDIENCE=ubbike-app
+REFRESH_TOKEN_EXPIRES_DAYS=30
+QR_DURATION_SECONDS=15
+
+SEED_DEMO_DATA=true
+SWAGGER_ENABLED=false
+RATE_LIMIT_FACTOR=20
+
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASSWORD=
+MAIL_FROM="UBBike <no-reply@ubbike.local>"
+
+FIREBASE_CREDENTIALS_PATH=
+```
+
+Notas:
+
+- Para evaluacion/demo se puede usar `SEED_DEMO_DATA=true`.
+- Para produccion real usa `SEED_DEMO_DATA=false` y `RATE_LIMIT_FACTOR=1`.
+- `PUBLIC_API_BASE_URL`, `PUBLIC_WS_BASE_URL`, `DOCKER_FRONTEND_URL` y `DOCKER_CORS_ORIGINS` deben usar la URL publica accesible desde navegador o dispositivo movil, no necesariamente la IP interna del contenedor.
+- Si se usa Firebase, el JSON real debe quedar fuera de Git. Con Docker Compose puede montarse en `backend/secrets/firebase-admin.json` y referenciarse como `/app/secrets/firebase-admin.json`.
+
+## Despliegue por SSH con Docker Compose
+
+Entrar al servidor:
+
+```bash
+ssh -p <PUERTO_SSH> <USUARIO>@<IP_O_HOST_SSH>
+```
+
+Clonar la rama de Docker Compose:
+
+```bash
+git clone -b rama-dev-docker https://github.com/SebastianPinto2424/ubbike-taller.git ubbike
+cd ubbike
+```
+
+Crear y editar el `.env`:
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+En `nano`, se configuran especialmente:
+
+```env
+BACKEND_PORT=<PUERTO_BACKEND_EN_SERVIDOR>
+FRONTEND_PORT=<PUERTO_FRONTEND_EN_SERVIDOR>
+PUBLIC_API_BASE_URL=http://<IP_O_HOST_VISIBLE>:<PUERTO_BACKEND_VISIBLE>
+PUBLIC_WS_BASE_URL=ws://<IP_O_HOST_VISIBLE>:<PUERTO_BACKEND_VISIBLE>
+DOCKER_FRONTEND_URL=http://<IP_O_HOST_VISIBLE>:<PUERTO_FRONTEND_VISIBLE>
+DOCKER_CORS_ORIGINS=http://<IP_O_HOST_VISIBLE>:<PUERTO_FRONTEND_VISIBLE>
+POSTGRES_PASSWORD=<PASSWORD_POSTGRES>
+JWT_SECRET=<SECRETO_LARGO_MINIMO_32_CARACTERES>
+```
+
+Guardar cambios en `nano`: `Ctrl + O`, `Enter`, `Ctrl + X`.
+
+Levantar el stack:
 
 ```bash
 docker compose up -d --build
@@ -46,218 +212,126 @@ Verificar:
 
 ```bash
 docker compose ps
+docker compose logs -f backend
+curl http://127.0.0.1:<PUERTO_BACKEND_EN_SERVIDOR>/salud
 ```
 
-Accesos locales por defecto:
+Probar desde un equipo cliente o dispositivo movil:
 
-| Servicio | URL |
-| --- | --- |
-| Web Flutter | `http://localhost:8082` |
-| Backend health | `http://localhost:3001/health` |
-| PostgreSQL local | `127.0.0.1:5433` |
+```text
+http://<IP_O_HOST_VISIBLE>:<PUERTO_BACKEND_VISIBLE>/salud
+http://<IP_O_HOST_VISIBLE>:<PUERTO_FRONTEND_VISIBLE>
+```
 
-Detener:
+## Levantar produccion con Docker Compose
+
+Desde la raiz del proyecto:
+
+```bash
+docker compose up -d --build
+```
+
+Verificar contenedores:
+
+```bash
+docker compose ps
+```
+
+Ver logs del backend:
+
+```bash
+docker compose logs -f backend
+```
+
+Probar salud del backend:
+
+```bash
+curl http://127.0.0.1:<PUERTO_BACKEND_EN_SERVIDOR>/salud
+```
+
+Desde un equipo cliente o dispositivo movil con acceso a la red de despliegue:
+
+```text
+http://<IP_O_HOST_VISIBLE>:<PUERTO_BACKEND_VISIBLE>/salud
+http://<IP_O_HOST_VISIBLE>:<PUERTO_FRONTEND_VISIBLE>
+```
+
+Si `/salud` no responde desde el dispositivo movil, la APK tampoco podra conectarse. En ese caso se deben revisar puertos publicados, firewall, red institucional o NAT.
+
+## Actualizar una version desplegada
+
+Con cambios nuevos en la rama:
+
+```bash
+git pull
+docker compose up -d --build
+docker compose ps
+docker compose logs -f backend
+```
+
+Para reiniciar sin reconstruir imagenes:
+
+```bash
+docker compose restart
+```
+
+Para detener el stack sin borrar datos:
 
 ```bash
 docker compose down
 ```
 
-## APK demo en red Wi-Fi
+No usar `docker compose down -v` salvo que se requiera eliminar los volumenes de PostgreSQL y uploads.
 
-Para probar desde celulares reales, conecta el PC y los celulares a la misma red Wi-Fi y ejecuta:
+## Compilar APK para probar contra el despliegue
 
-```powershell
-.\preparar-demo.ps1
-```
-
-El script detecta la IP local, actualiza `.env`, levanta Docker, verifica el backend y genera una APK debug para prueba local en:
+Confirmar primero desde el dispositivo movil que el backend responde:
 
 ```text
-C:\Users\sebas\Desktop\apks-pruebas\ubbike-taller.apk
+http://<IP_O_HOST_VISIBLE>:<PUERTO_BACKEND_VISIBLE>/salud
 ```
 
-Antes de instalar la APK, abre desde el celular:
-
-```text
-http://IP_DEL_PC:3000/salud
-```
-
-Si no responde, ejecuta el script una vez como administrador o habilita el puerto TCP 3000 en el Firewall de Windows. Esta APK es solo para demo local por HTTP; la APK de produccion debe compilarse en release apuntando a HTTPS.
-
-## Produccion sin Docker
-
-La produccion se despliega sin Docker usando:
-
-- Apache como servidor HTTPS y proxy reverso.
-- Node.js 20 para el backend.
-- PostgreSQL institucional externo.
-- Flutter Web compilado como archivos estaticos.
-- systemd para mantener el backend activo.
-
-Las plantillas incluidas son:
-
-| Archivo | Uso |
-| --- | --- |
-| `backend/.env.production.example` | Variables requeridas por el backend en produccion. |
-| `deploy/apache/ubbike-https.conf.example` | VirtualHost Apache con HTTPS, Flutter Web y proxy al backend. |
-| `deploy/systemd/ubbike-backend.service.example` | Servicio systemd para ejecutar `node dist/servidor.js`. |
-
-Nunca subas `.env`, credenciales, certificados privados, APKs ni archivos de Firebase reales.
-
-### HTTPS
-
-Produccion debe usar HTTPS. La app Android y Flutter Web deben compilarse apuntando al origen publico seguro:
-
-```bash
-flutter build web --release --dart-define=API_BASE_URL=https://DOMINIO_O_IP_PUBLICA
-flutter build apk --release --dart-define=API_BASE_URL=https://DOMINIO_O_IP_PUBLICA
-```
-
-Recomendado: solicitar un dominio o subdominio institucional apuntando al servidor y emitir certificado con Certbot/Let's Encrypt.
-
-Si solo se usa IP publica, Let's Encrypt permite certificados para IP desde 2026, pero son certificados short-lived y requieren automatizacion frecuente. Certbot puede obtenerlos con `--ip-address`, aunque la instalacion automatica en Apache todavia no es igual al flujo de dominios. Para una entrega estable, es preferible usar dominio institucional.
-
-#### HTTPS del contenedor institucional
-
-La asignacion entregada expone el puerto `443` del contenedor mediante el puerto publico `<PUERTO_HTTPS_PUBLICO>`. Mientras no exista un dominio o certificado institucional, se puede usar un certificado autofirmado fijado en la APK:
-
-```bash
-cd /opt/ubbike
-PUBLIC_HOST=<IP_DEL_CONTENEDOR> PUBLIC_HTTPS_PORT=<PUERTO_HTTPS_PUBLICO> \
-  bash deploy/configurar-https-contenedor.sh
-```
-
-El script configura Apache, genera la clave privada solo en el servidor y deja el certificado publico en:
-
-```text
-/etc/ssl/ubbike/ubbike.crt
-```
-
-Desde el PC conectado a la VPN, copiar exclusivamente el certificado publico:
-
-```bash
-scp -P <PUERTO_SSH> <USUARIO>@<IP_DEL_CONTENEDOR>:/etc/ssl/ubbike/ubbike.crt mobile/assets/certs/ubbike.crt
-```
-
-Compilar la APK para el origen HTTPS:
+Para prueba por HTTP en red local o institucional, compila APK debug:
 
 ```bash
 cd mobile
-flutter clean
 flutter pub get
-flutter build apk --release --dart-define=API_BASE_URL=https://<IP_DEL_CONTENEDOR>:<PUERTO_HTTPS_PUBLICO>
+flutter build apk --debug --dart-define=API_BASE_URL=http://<IP_O_HOST_VISIBLE>:<PUERTO_BACKEND_VISIBLE>
 ```
 
-La clave `/etc/ssl/ubbike/ubbike.key` nunca debe salir del servidor. El certificado autofirmado cifra y autentica la conexion para la APK mediante certificate pinning, pero los navegadores mostraran una advertencia. Para Flutter Web se requiere un certificado publico emitido para un dominio institucional.
+APK generada:
 
-Fuentes:
+```text
+mobile/build/app/outputs/flutter-apk/app-debug.apk
+```
 
-- `https://certbot.eff.org/instructions?os=snap&ws=apache`
-- `https://letsencrypt.org/2026/03/11/shorter-certs-certbot`
-
-### Variables de entorno
-
-En el servidor crea:
+Para una APK release se debe usar HTTPS:
 
 ```bash
-/opt/ubbike/backend/.env
-```
-
-Usa `backend/.env.production.example` como base y completa los valores reales:
-
-```env
-NODE_ENV=production
-PORT=3000
-TRUST_PROXY=loopback
-DB_HOST=<HOST_DB_INSTITUCIONAL>
-DB_PORT=5432
-DB_USER=<USUARIO_DB>
-DB_PASSWORD=<PASSWORD_DB>
-DB_NAME=<NOMBRE_DB>
-JWT_SECRET=<SECRETO_LARGO_MINIMO_32_CARACTERES>
-FRONTEND_URL=https://DOMINIO_O_IP_PUBLICA
-CORS_ORIGINS=https://DOMINIO_O_IP_PUBLICA
-SEED_DEMO_DATA=false
-SWAGGER_ENABLED=false
-UPLOADS_DIR=/opt/ubbike/uploads
-UPLOADS_PUBLIC_PATH=/uploads
-```
-
-### Compilacion backend
-
-Desde el servidor:
-
-```bash
-cd /opt/ubbike/backend
-npm ci
-npm run build
-npm run migrate
-```
-
-### Servicio backend
-
-Copiar la plantilla:
-
-```bash
-sudo cp /opt/ubbike/deploy/systemd/ubbike-backend.service.example /etc/systemd/system/ubbike-backend.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now ubbike-backend
-sudo systemctl status ubbike-backend
-```
-
-### Compilacion Flutter Web
-
-Desde el servidor si Flutter esta instalado:
-
-```bash
-cd /opt/ubbike/mobile
+cd mobile
 flutter pub get
-flutter build web --release --dart-define=API_BASE_URL=https://DOMINIO_O_IP_PUBLICA
-sudo rsync -a --delete build/web/ /var/www/ubbike/
+flutter build apk --release --dart-define=API_BASE_URL=https://<IP_O_HOST_VISIBLE>:<PUERTO_HTTPS_VISIBLE>
 ```
 
-Si Flutter no esta instalado en el servidor, compila localmente y sube `mobile/build/web/` a `/var/www/ubbike/`.
+La variante debug permite HTTP para pruebas. La variante release debe apuntar a un origen HTTPS valido.
 
-### Apache
+## Cuentas demo
 
-Habilitar modulos:
+Con `SEED_DEMO_DATA=true` se cargan cuentas de prueba:
 
-```bash
-sudo a2enmod ssl headers rewrite proxy proxy_http proxy_wstunnel
+| Rol | Cuenta |
+| --- | --- |
+| Usuario | `estudiante@alumnos.ubiobio.cl` |
+| Guardia | `guardia@ubiobio.cl` |
+| Administrador | `administrador@ubiobio.cl` |
+
+Contrasena demo:
+
+```text
+UBBike2026*
 ```
 
-Copiar la plantilla:
-
-```bash
-sudo cp /opt/ubbike/deploy/apache/ubbike-https.conf.example /etc/apache2/sites-available/ubbike.conf
-```
-
-Editar:
-
-```bash
-sudo nano /etc/apache2/sites-available/ubbike.conf
-```
-
-Reemplazar `DOMINIO_O_IP_PUBLICA` por el origen HTTPS real.
-
-Activar:
-
-```bash
-sudo a2ensite ubbike.conf
-sudo apache2ctl configtest
-sudo systemctl reload apache2
-```
-
-### Verificacion produccion
-
-```bash
-curl -I https://DOMINIO_O_IP_PUBLICA
-curl https://DOMINIO_O_IP_PUBLICA/salud
-sudo systemctl status ubbike-backend
-sudo journalctl -u ubbike-backend -f
-```
-
-## Validaciones antes de subir
+## Validaciones antes de publicar cambios
 
 Backend:
 
@@ -274,15 +348,19 @@ cd mobile
 flutter analyze
 ```
 
+Docker Compose:
+
+```bash
+docker compose --env-file .env.example config --quiet
+```
+
 ## Seguridad
 
-- `JWT_SECRET` debe tener al menos 32 caracteres y ser unico.
-- `SEED_DEMO_DATA=false` en produccion.
-- PostgreSQL no debe exponerse publicamente desde el servidor de la app.
-- No publicar `.env`, certificados, llaves privadas ni credenciales.
-- Usar HTTPS para web, API, WebSocket y APK.
-- Configurar SMTP real para correos.
-- Mantener backups de base de datos y uploads.
+- No subir `.env`, credenciales, certificados privados, APKs ni archivos reales de Firebase.
+- `JWT_SECRET` debe ser unico y tener al menos 32 caracteres.
+- PostgreSQL y Redis no deben exponerse publicamente si no es necesario.
+- Usar `SEED_DEMO_DATA=false` y `RATE_LIMIT_FACTOR=1` en produccion real.
+- Mantener respaldos de los volumenes Docker de PostgreSQL y uploads.
 
 ## Documentacion adicional
 
