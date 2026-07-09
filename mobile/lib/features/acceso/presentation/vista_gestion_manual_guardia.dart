@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ubbike/features/acceso/application/gestion_manual_vm.dart';
@@ -127,6 +129,48 @@ class _VistaGestionManualGuardiaState
     bicicletaModeloFocusNode.addListener(_actualizarAyudaCampo);
     bicicletaNumeroSerieFocusNode.addListener(_actualizarAyudaCampo);
     _cargarBicicleteros();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _recuperarFotoManualPerdida();
+    });
+  }
+
+  Future<void> _recuperarFotoManualPerdida() async {
+    if (kIsWeb) {
+      return;
+    }
+
+    try {
+      final respuesta = await ImagePicker().retrieveLostData();
+      if (respuesta.isEmpty) {
+        return;
+      }
+
+      final archivos = respuesta.files;
+      final archivo =
+          archivos != null && archivos.isNotEmpty ? archivos.first : respuesta.file;
+      if (archivo == null) {
+        return;
+      }
+
+      final bytes = await archivo.readAsBytes();
+      final mime = detectarMimeDesdeBytes(bytes);
+      if (!mimesFotoPermitidos.contains(mime)) {
+        return;
+      }
+
+      final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
+      if (dataUrl.length > maxFotoDataUrlLength) {
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          fotoBicicletaManual = dataUrl;
+          errorFotoBicicletaManual = null;
+        });
+        context.mostrarInfo('Recuperamos la foto que tomaste antes.');
+      }
+    } catch (_) {}
   }
 
   @override
