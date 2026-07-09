@@ -4,9 +4,9 @@ import { defineConfig } from 'prisma/config';
 
 const cargarVariablesEntorno = () => {
   const rutas = [
-    path.resolve(process.cwd(), '..', '.env'),
     path.resolve(process.cwd(), '.env'),
-    path.resolve(process.cwd(), 'backend', '.env')
+    path.resolve(process.cwd(), 'backend', '.env'),
+    path.resolve(process.cwd(), '..', '.env')
   ];
 
   for (const ruta of rutas) {
