@@ -1,5 +1,3 @@
--- Activa el modulo de incidencias con clasificacion, gestion y notificaciones.
-
 CREATE TYPE "incidencias_tipo_enum" AS ENUM (
   'PROBLEMA_QR',
   'DANO_BICICLETA',

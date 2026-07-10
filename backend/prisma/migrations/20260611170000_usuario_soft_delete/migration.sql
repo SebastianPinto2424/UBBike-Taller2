@@ -1,5 +1,3 @@
--- Agrega soft-delete explicito para cuentas de usuario.
-
 ALTER TABLE "usuarios"
   ADD COLUMN IF NOT EXISTS "eliminado_en" TIMESTAMPTZ(6);
 
