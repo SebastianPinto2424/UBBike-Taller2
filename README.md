@@ -180,22 +180,24 @@ git clone -b rama-dev-docker https://github.com/SebastianPinto2424/ubbike-taller
 cd ubbike
 ```
 
-Crear el `.env` de forma automatizada con el script incluido en el repositorio:
+Crear el `.env`. Opcion basica con los valores de ejemplo (acceso solo por `localhost`):
 
 ```bash
-./preparar-env.sh <IP_O_HOST_VISIBLE> [PUERTO_BACKEND_VISIBLE] [PUERTO_FRONTEND_VISIBLE]
+cp .env.example .env
 ```
 
-El script copia `.env.example` a `.env` y apunta las URLs publicas a la IP indicada. Sin argumentos deja los valores por defecto (`localhost`). Ademas habilita secretos opcionales que nunca se versionan en git:
-
-- Si existe `backend/secrets/firebase-admin.json` (subido antes por `scp`), activa las notificaciones push.
-- Si se entregan credenciales SMTP, activa el envio de correos:
+Opcion recomendada para una demo con clientes externos: preparar el `.env` completo en el equipo propio y copiarlo al servidor en un solo paso:
 
 ```bash
-SMTP_USER=<correo> SMTP_PASSWORD=<clave_de_aplicacion> ./preparar-env.sh <IP_O_HOST_VISIBLE>
+scp <ruta_local_del_env> <USUARIO>@<IP_O_HOST_SSH>:~/ubbike/.env
 ```
 
-Alternativa manual: `cp .env.example .env` y editar con `nano .env` las variables `PUBLIC_API_BASE_URL`, `PUBLIC_WS_BASE_URL`, `DOCKER_FRONTEND_URL`, `DOCKER_CORS_ORIGINS`, `POSTGRES_PASSWORD` y `JWT_SECRET` (guardar con `Ctrl + O`, `Enter`, salir con `Ctrl + X`).
+Ese `.env` propio debe traer las URLs publicas apuntando a la IP o host visible (`PUBLIC_API_BASE_URL`, `PUBLIC_WS_BASE_URL`, `DOCKER_FRONTEND_URL`, `DOCKER_CORS_ORIGINS`) y los secretos que nunca se versionan en git:
+
+- `SMTP_USER` y `SMTP_PASSWORD` para el envio de correos.
+- `FIREBASE_CREDENTIALS_BASE64` para las notificaciones push: el JSON del service account codificado en una linea (`base64 -w0 firebase-admin.json`).
+
+Para ajustes puntuales en el servidor: `nano .env` (guardar con `Ctrl + O`, `Enter`, salir con `Ctrl + X`).
 
 Levantar el stack:
 
