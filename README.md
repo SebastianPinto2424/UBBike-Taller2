@@ -180,27 +180,22 @@ git clone -b rama-dev-docker https://github.com/SebastianPinto2424/ubbike-taller
 cd ubbike
 ```
 
-Crear y editar el `.env`:
+Crear el `.env` de forma automatizada con el script incluido en el repositorio:
 
 ```bash
-cp .env.example .env
-nano .env
+./preparar-env.sh <IP_O_HOST_VISIBLE> [PUERTO_BACKEND_VISIBLE] [PUERTO_FRONTEND_VISIBLE]
 ```
 
-En `nano`, se configuran especialmente:
+El script copia `.env.example` a `.env` y apunta las URLs publicas a la IP indicada. Sin argumentos deja los valores por defecto (`localhost`). Ademas habilita secretos opcionales que nunca se versionan en git:
 
-```env
-BACKEND_PORT=<PUERTO_BACKEND_EN_SERVIDOR>
-FRONTEND_PORT=<PUERTO_FRONTEND_EN_SERVIDOR>
-PUBLIC_API_BASE_URL=http://<IP_O_HOST_VISIBLE>:<PUERTO_BACKEND_VISIBLE>
-PUBLIC_WS_BASE_URL=ws://<IP_O_HOST_VISIBLE>:<PUERTO_BACKEND_VISIBLE>
-DOCKER_FRONTEND_URL=http://<IP_O_HOST_VISIBLE>:<PUERTO_FRONTEND_VISIBLE>
-DOCKER_CORS_ORIGINS=http://<IP_O_HOST_VISIBLE>:<PUERTO_FRONTEND_VISIBLE>
-POSTGRES_PASSWORD=<PASSWORD_POSTGRES>
-JWT_SECRET=<SECRETO_LARGO_MINIMO_32_CARACTERES>
+- Si existe `backend/secrets/firebase-admin.json` (subido antes por `scp`), activa las notificaciones push.
+- Si se entregan credenciales SMTP, activa el envio de correos:
+
+```bash
+SMTP_USER=<correo> SMTP_PASSWORD=<clave_de_aplicacion> ./preparar-env.sh <IP_O_HOST_VISIBLE>
 ```
 
-Guardar cambios en `nano`: `Ctrl + O`, `Enter`, `Ctrl + X`.
+Alternativa manual: `cp .env.example .env` y editar con `nano .env` las variables `PUBLIC_API_BASE_URL`, `PUBLIC_WS_BASE_URL`, `DOCKER_FRONTEND_URL`, `DOCKER_CORS_ORIGINS`, `POSTGRES_PASSWORD` y `JWT_SECRET` (guardar con `Ctrl + O`, `Enter`, salir con `Ctrl + X`).
 
 Levantar el stack:
 
