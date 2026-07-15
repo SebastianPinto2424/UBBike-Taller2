@@ -209,3 +209,8 @@ pm2 logs ubbike-backend
 - PostgreSQL no debe exponerse publicamente desde el servidor de la app.
 - No publicar `.env`, certificados, llaves privadas, APKs ni credenciales de Firebase.
 - Usar HTTPS para web, API, WebSocket y APK.
+
+## Documentacion adicional
+
+- `docs/desarrollo-y-api.md`
+- `docs/modelo-relacional.md`
