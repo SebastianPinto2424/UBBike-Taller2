@@ -166,7 +166,7 @@ sudo systemctl reload apache2
 
 ### HTTPS del contenedor institucional
 
-El contenedor expone el puerto `443` mediante el puerto publico `<PUERTO_HTTPS_PUBLICO>`. Mientras no exista un dominio o certificado institucional, se usa un certificado autofirmado fijado en la APK (certificate pinning):
+El contenedor expone el puerto `443` mediante un puerto publico asignado por la institucion. Mientras no exista un dominio o certificado institucional, se usa un certificado autofirmado fijado en la APK (certificate pinning):
 
 ```bash
 cd /opt/ubbike
