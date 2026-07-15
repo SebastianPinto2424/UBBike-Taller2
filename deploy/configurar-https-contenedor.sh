@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PUBLIC_HOST="${PUBLIC_HOST:-<IP_DEL_CONTENEDOR>}"
+PUBLIC_HOST="${PUBLIC_HOST:?Define PUBLIC_HOST con la IP o dominio publico del contenedor}"
 PUBLIC_HTTPS_PORT="${PUBLIC_HTTPS_PORT:-443}"
 CERT_DIR="${CERT_DIR:-/etc/ssl/ubbike}"
 CERT_FILE="$CERT_DIR/ubbike.crt"
