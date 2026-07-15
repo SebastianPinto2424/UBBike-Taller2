@@ -107,7 +107,7 @@ GET  /auth/me
 
 ## Arranque sin Docker completo
 
-Primero levante los servicios base:
+Primero se levantan los servicios base:
 
 ```bash
 docker compose up -d db redis mailpit
@@ -122,7 +122,7 @@ npm run migrate
 npm run dev
 ```
 
-Si la base ya tenia tablas antes de Prisma y aparece `P3005`, aplique el baseline sin borrar datos:
+Si la base ya tenia tablas antes de Prisma y aparece `P3005`, se aplica el baseline sin borrar datos:
 
 ```powershell
 docker compose stop backend
@@ -142,7 +142,7 @@ flutter run --dart-define=API_BASE_URL=http://localhost:3000
 Para emulador Android, Flutter usa por defecto `http://10.0.2.2:3000` cuando no se entrega `API_BASE_URL`. Para web/escritorio usa `http://localhost:3000`. En dispositivo fisico se debe indicar la IP real del backend:
 
 ```bash
-flutter run --dart-define=API_BASE_URL=http://IP_DE_TU_PC:3000
+flutter run --dart-define=API_BASE_URL=http://IP_DEL_PC:3000
 ```
 
 Build web local:
