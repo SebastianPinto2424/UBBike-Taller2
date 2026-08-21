@@ -1,9 +1,10 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ubbike/features/bicicletas/application/bicicletas_vm.dart';
+import 'package:ubbike/features/bicicletas/data/borrador_bicicleta.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:ubbike/core/servicios/excepcion_api.dart';
@@ -73,6 +74,7 @@ class _FormularioBicicletaSheetState
   late bool activar;
   bool guardando = false;
   bool fotoModificada = false;
+  int _versionRestaurada = 0;
 
   @override
   void initState() {
@@ -93,9 +95,12 @@ class _FormularioBicicletaSheetState
     marcaFocusNode.addListener(_actualizarAyudaCampo);
     modeloFocusNode.addListener(_actualizarAyudaCampo);
     numeroSerieFocusNode.addListener(_actualizarAyudaCampo);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _recuperarFotoPerdida();
-    });
+
+    if (bicicleta == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _ofrecerRecuperarBorrador();
+      });
+    }
   }
 
   @override
@@ -125,6 +130,56 @@ class _FormularioBicicletaSheetState
     return focusNode.hasFocus ? texto : null;
   }
 
+  Future<void> _ofrecerRecuperarBorrador() async {
+    final borrador = await leerBorradorBicicleta();
+    if (borrador == null || !mounted) {
+      return;
+    }
+
+    final continuar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Registro sin terminar'),
+        content: const Text(
+          'Tenías un registro de bicicleta sin terminar (por ejemplo, la app '
+          'se cerró mientras tomabas una foto). ¿Querés continuarlo?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Descartar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+
+    if (continuar != true) {
+      await borrarBorradorBicicleta();
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      descripcionController.text = borrador.descripcion;
+      marcaController.text = borrador.marca;
+      modeloController.text = borrador.modelo;
+      colorTexto = borrador.color;
+      aroSeleccionado = borrador.aro;
+      numeroSerieController.text = borrador.numeroSerie;
+      activar = borrador.activar;
+      _versionRestaurada++;
+    });
+
+    await _recuperarFotoPerdida();
+  }
+
   Future<void> _recuperarFotoPerdida() async {
     if (kIsWeb) {
       return;
@@ -139,17 +194,30 @@ class _FormularioBicicletaSheetState
       final archivos = respuesta.files;
       if (archivos != null && archivos.isNotEmpty) {
         await _procesarFoto(archivos.first);
-        return;
-      }
-
-      if (respuesta.exception != null && mounted) {
-        context.mostrarError('No se pudo recuperar la foto tomada.');
       }
     } catch (_) {}
   }
 
+  Future<void> _guardarBorradorActual() async {
+    await guardarBorradorBicicleta(
+      BorradorBicicleta(
+        descripcion: descripcionController.text,
+        marca: marcaController.text,
+        modelo: modeloController.text,
+        color: colorTexto,
+        aro: aroSeleccionado,
+        numeroSerie: numeroSerieController.text,
+        activar: activar,
+      ),
+    );
+  }
+
   Future<void> _seleccionarFoto(ImageSource source) async {
     try {
+      if (widget.bicicleta == null) {
+        await _guardarBorradorActual();
+      }
+
       final imagen = await imagePicker.pickImage(
         source: source,
         imageQuality: 68,
@@ -227,6 +295,7 @@ class _FormularioBicicletaSheetState
           fotoUrl: fotoSeleccionada,
           activar: activar,
         );
+        await borrarBorradorBicicleta();
       } else {
         await vm.actualizar(
           bicicletaId: bicicleta.id,
@@ -339,6 +408,7 @@ class _FormularioBicicletaSheetState
                 children: [
                   Expanded(
                     child: CampoColorBicicleta(
+                      key: ValueKey('color-$_versionRestaurada'),
                       valorInicial: colorTexto,
                       habilitado: !guardando,
                       helperText: 'Color principal o combinacion simple.',
@@ -348,6 +418,7 @@ class _FormularioBicicletaSheetState
                   const SizedBox(width: 12),
                   Expanded(
                     child: FormField<String>(
+                      key: ValueKey('aro-$_versionRestaurada'),
                       initialValue: aroSeleccionado ?? '',
                       validator: validarAroBicicleta,
                       builder: (field) {
