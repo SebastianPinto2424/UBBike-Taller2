@@ -75,6 +75,8 @@ erDiagram
     uuid id PK
     varchar nombre UK
     varchar ubicacion
+    float latitud
+    float longitud
     integer capacidad
     boolean activo
     timestamptz creado_en
@@ -189,6 +191,9 @@ erDiagram
   El tipo usa `INGRESO` o `RETIRO`, y el origen usa `QR` o `MANUAL`.
 - El estado real de una bicicleta se guarda en `dentro_bicicletero` y
   `bicicletero_actual_id`.
+- Un bicicletero puede tener `latitud`/`longitud` opcionales. Cuando están
+  cargadas, la app usa la ubicación GPS del usuario para sugerir el
+  bicicletero más cercano dentro de un radio configurable.
 - La foto de una bicicleta se modela como atributo de `bicicletas`, porque el
   sistema requiere una sola foto principal por bicicleta. El archivo se guarda
   fuera de la base de datos y en la tabla se persisten URL y metadatos.
