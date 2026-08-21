@@ -162,7 +162,7 @@ Asegurar-ReglaFirewall -Puerto $BackendPort
 
 Write-Host 'Levantando stack de Docker...' -ForegroundColor Cyan
 Set-Location $raiz
-docker compose up -d
+docker compose up -d --build
 if ($LASTEXITCODE -ne 0) {
     Write-Host 'Fallo docker compose. Revisa que Docker Desktop este corriendo.' -ForegroundColor Red
     exit 1
@@ -183,16 +183,16 @@ if ($SinApk) {
     exit 0
 }
 
-Write-Host "Compilando APK debug con API_BASE_URL=$apiBaseUrl ..." -ForegroundColor Cyan
+Write-Host "Compilando APK release con API_BASE_URL=$apiBaseUrl ..." -ForegroundColor Cyan
 Set-Location (Join-Path $raiz 'mobile')
 $dartDefine = "API_BASE_URL=$apiBaseUrl"
-flutter build apk --debug --dart-define=$dartDefine
+flutter build apk --release --dart-define=$dartDefine
 if ($LASTEXITCODE -ne 0) {
     Write-Host 'Fallo la compilacion del APK.' -ForegroundColor Red
     exit 1
 }
 
-$apk = Join-Path $raiz 'mobile\build\app\outputs\flutter-apk\app-debug.apk'
+$apk = Join-Path $raiz 'mobile\build\app\outputs\flutter-apk\app-release.apk'
 $directorioApks = Join-Path ([Environment]::GetFolderPath('Desktop')) 'apks-pruebas'
 New-Item -ItemType Directory -Path $directorioApks -Force | Out-Null
 $destino = Join-Path $directorioApks 'ubbike-taller.apk'
