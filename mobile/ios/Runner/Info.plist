@@ -41,6 +41,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>UBBike necesita acceder a la cámara para registrar fotografías de bicicletas.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>UBBike usa tu ubicación para sugerirte el bicicletero más cercano.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
