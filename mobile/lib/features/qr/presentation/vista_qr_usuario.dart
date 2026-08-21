@@ -10,6 +10,8 @@ import 'package:ubbike/core/tema/colores_ubb.dart';
 import 'package:ubbike/features/qr/data/qr_modelos.dart';
 import 'package:ubbike/shared/modelos/bicicleta_app.dart';
 import 'package:ubbike/shared/modelos/bicicletero_app.dart';
+import 'package:ubbike/shared/servicios/ubicacion_servicio.dart';
+import 'package:ubbike/shared/utils/cercania_bicicletero.dart';
 import 'package:ubbike/shared/widgets/chip_estado.dart';
 import 'package:ubbike/shared/widgets/snackbar_semantico.dart';
 import 'package:ubbike/features/inicio/presentation/comun/estado_widgets.dart';
@@ -25,13 +27,16 @@ class VistaQrUsuario extends ConsumerStatefulWidget {
 
 class _VistaQrUsuarioState extends ConsumerState<VistaQrUsuario> {
   QrUsuarioVm get vm => ref.read(qrUsuarioVmProvider);
+  final UbicacionServicio ubicacionServicio = const UbicacionServicio();
   QrTemporalApp? qrActual;
   BicicletaApp? bicicletaActiva;
   BicicleteroApp? bicicleteroSeleccionado;
   List<BicicleteroApp> bicicleteros = [];
+  SugerenciaBicicletero? sugerenciaCercania;
   bool cargandoDatos = true;
   bool generando = false;
   int _generacionQr = 0;
+  int _cargaEnCurso = 0;
 
   @override
   void initState() {
@@ -40,6 +45,8 @@ class _VistaQrUsuarioState extends ConsumerState<VistaQrUsuario> {
   }
 
   Future<void> _cargarDatos() async {
+    final carga = ++_cargaEnCurso;
+
     try {
       final resultados = await Future.wait([
         vm.obtenerActiva(),
@@ -52,20 +59,68 @@ class _VistaQrUsuarioState extends ConsumerState<VistaQrUsuario> {
         setState(() {
           bicicletaActiva = bicicleta;
           bicicleteros = listaBicicleteros;
-          bicicleteroSeleccionado = listaBicicleteros.isEmpty
-              ? null
-              : listaBicicleteros.firstWhere(
-                  (item) => item.cuposDisponibles > 0,
-                  orElse: () => listaBicicleteros.first,
-                );
+          bicicleteroSeleccionado = null;
+          sugerenciaCercania = null;
           cargandoDatos = false;
         });
+
+        final debeSugerir = bicicleta?.dentroBicicletero != true;
+        if (debeSugerir) {
+          _buscarSugerenciaCercania(listaBicicleteros, carga);
+        }
       }
     } catch (_) {
       if (mounted) {
         setState(() => cargandoDatos = false);
       }
     }
+  }
+
+  Future<void> _buscarSugerenciaCercania(
+    List<BicicleteroApp> listaBicicleteros,
+    int carga,
+  ) async {
+    final posicion = await ubicacionServicio.obtenerPosicionActual();
+    if (posicion == null || !mounted || carga != _cargaEnCurso) {
+      return;
+    }
+
+    final sugerencia = bicicleteroMasCercano(
+      bicicleteros: listaBicicleteros,
+      latitudUsuario: posicion.latitude,
+      longitudUsuario: posicion.longitude,
+    );
+
+    if (sugerencia == null ||
+        sugerencia.bicicletero.id == bicicleteroSeleccionado?.id) {
+      return;
+    }
+
+    if (mounted) {
+      setState(() => sugerenciaCercania = sugerencia);
+    }
+  }
+
+  void _aceptarSugerencia() {
+    final sugerencia = sugerenciaCercania;
+    if (sugerencia == null) {
+      return;
+    }
+    setState(() {
+      bicicleteroSeleccionado = sugerencia.bicicletero;
+      sugerenciaCercania = null;
+    });
+  }
+
+  void _descartarSugerencia() {
+    setState(() => sugerenciaCercania = null);
+  }
+
+  void _cambiarBicicleteroSeleccionado(BicicleteroApp? valor) {
+    setState(() {
+      bicicleteroSeleccionado = valor;
+      sugerenciaCercania = null;
+    });
   }
 
   @override
@@ -110,12 +165,30 @@ class _VistaQrUsuarioState extends ConsumerState<VistaQrUsuario> {
               detalle: 'Activa una bicicleta antes de generar QR.',
             )
           else ...[
+            AnimatedSize(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: (debeSeleccionarBicicletero && sugerenciaCercania != null)
+                    ? Padding(
+                        key: const ValueKey('banner-sugerencia'),
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _BannerSugerenciaBicicletero(
+                          sugerencia: sugerenciaCercania!,
+                          onAceptar: _aceptarSugerencia,
+                          onDescartar: _descartarSugerencia,
+                        ),
+                      )
+                    : const SizedBox.shrink(key: ValueKey('banner-vacio')),
+              ),
+            ),
             if (debeSeleccionarBicicletero)
               _SelectorBicicleteroQr(
                 bicicleteros: bicicleteros,
                 bicicleteroSeleccionado: bicicleteroSeleccionado,
-                onChanged: (valor) =>
-                    setState(() => bicicleteroSeleccionado = valor),
+                onChanged: _cambiarBicicleteroSeleccionado,
               ),
             const SizedBox(height: 24),
             _PanelQrUsuario(
@@ -199,6 +272,89 @@ class _VistaQrUsuarioState extends ConsumerState<VistaQrUsuario> {
         _programarActualizacion(generacion);
       }
     });
+  }
+}
+
+class _BannerSugerenciaBicicletero extends StatelessWidget {
+  const _BannerSugerenciaBicicletero({
+    required this.sugerencia,
+    required this.onAceptar,
+    required this.onDescartar,
+  });
+
+  final SugerenciaBicicletero sugerencia;
+  final VoidCallback onAceptar;
+  final VoidCallback onDescartar;
+
+  String get _distanciaFormateada {
+    final metros = sugerencia.distanciaMetros;
+    return metros < 1000
+        ? '${metros.round()} m'
+        : '${(metros / 1000).toStringAsFixed(1)} km';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: ColoresUbb.azulApp.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ColoresUbb.azulApp.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.near_me_outlined, color: ColoresUbb.azulApp),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Estás cerca de ${sugerencia.bicicletero.nombre}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: ColoresUbb.azulNoche,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'A $_distanciaFormateada de tu ubicación. ¿Usar este bicicletero?',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: ColoresUbb.textoSecundario,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ColoresUbb.azulApp,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        minimumSize: Size.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: onAceptar,
+                      child: const Text('Aceptar'),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: onDescartar,
+                      child: const Text('Ahora no'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
