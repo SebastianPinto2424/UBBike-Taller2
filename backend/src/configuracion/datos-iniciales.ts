@@ -44,13 +44,17 @@ const bicicleterosBase = [
     nombre: 'Bicicletero cercano al Centro de Idiomas',
     ubicacion: 'Sector Centro de Idiomas',
     nombresAnteriores: ['Bicicletero Central'],
-    capacidad: 104
+    capacidad: 104,
+    latitud: -36.82141385290648,
+    longitud: -73.01254820745834
   },
   {
     nombre: 'Bicicletero cercano a la FACE',
     ubicacion: 'Sector FACE',
     nombresAnteriores: ['Bicicletero Biblioteca'],
-    capacidad: 120
+    capacidad: 120,
+    latitud: -36.822041412853984,
+    longitud: -73.01066005340653
   }
 ];
 
@@ -143,6 +147,8 @@ export const cargarDatosIniciales = async (): Promise<void> => {
     const datosBicicletero = {
       nombre: bicicleteroBase.nombre,
       ubicacion: bicicleteroBase.ubicacion,
+      latitud: bicicleteroBase.latitud,
+      longitud: bicicleteroBase.longitud,
       capacidad: bicicleteroBase.capacidad,
       activo: true
     };
