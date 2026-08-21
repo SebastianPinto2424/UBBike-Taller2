@@ -6,6 +6,8 @@ export type StatsBicicletero = {
   id: string;
   nombre: string;
   ubicacion: string;
+  latitud: number | null;
+  longitud: number | null;
   capacidad: number;
   ocupados: number;
   cuposDisponibles: number;
@@ -39,6 +41,8 @@ export const construirStatsBicicletero = (
     id: bicicletero.id,
     nombre: bicicletero.nombre,
     ubicacion: bicicletero.ubicacion,
+    latitud: bicicletero.latitud,
+    longitud: bicicletero.longitud,
     capacidad,
     ocupados,
     cuposDisponibles: Math.max(capacidad - ocupados, 0),

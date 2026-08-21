@@ -175,6 +175,8 @@ model Bicicletero {
   id                  String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   nombre              String              @unique @db.VarChar(120)
   ubicacion           String              @db.VarChar(255)
+  latitud             Float?
+  longitud            Float?
   capacidad           Int                 @default(80)
   activo              Boolean             @default(true)
   creadoEn            DateTime            @default(now()) @map("creado_en") @db.Timestamptz(6)
